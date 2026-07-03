@@ -28,21 +28,30 @@
       .replace(/'/g, "&#039;");
   }
 
-  function renderInlineMarkdown(value) {
-    const codeSpans = [];
-    const escaped = escapeHtml(value || "").replace(/`([^`]+)`/g, (_, code) => {
-      const token = `@@CODE_${codeSpans.length}@@`;
-      codeSpans.push(`<code>${code}</code>`);
-      return token;
-    });
-    return escaped
+  function cleanMarkdownArtifacts(value) {
+    return String(value || "").replace(/@@CODE_?\d+@@/g, "").replace(/\s+([，。；：、,.!?])/g, "$1");
+  }
+
+  function renderInlineText(value) {
+    return escapeHtml(value || "")
       .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>')
       .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
       .replace(/__([^_]+)__/g, "<strong>$1</strong>")
       .replace(/(^|[^\*])\*([^*]+)\*/g, "$1<em>$2</em>")
       .replace(/(^|[^_])_([^_]+)_/g, "$1<em>$2</em>")
-      .replace(/\$([^$]+)\$/g, "<code>$1</code>")
-      .replace(/@@CODE_(\d+)@@/g, (_, index) => codeSpans[Number(index)] || "");
+      .replace(/\$([^$\n]+)\$/g, "<code>$1</code>");
+  }
+
+  function renderInlineMarkdown(value) {
+    return cleanMarkdownArtifacts(value)
+      .split(/(`[^`]+`)/g)
+      .map((segment) => {
+        if (segment.startsWith("`") && segment.endsWith("`")) {
+          return `<code>${escapeHtml(segment.slice(1, -1))}</code>`;
+        }
+        return renderInlineText(segment);
+      })
+      .join("");
   }
 
   function splitMarkdownCells(line) {
