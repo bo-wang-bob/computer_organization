@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import core
+from . import agents, core
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -41,6 +41,15 @@ class DispatchRequest(BaseModel):
     message: str = Field(..., min_length=1)
     chapterId: str = "all"
     mode: str = "standard"
+
+
+class AgentChatRequest(BaseModel):
+    message: str = Field(..., min_length=1)
+    agentId: str = "auto"
+    chapterId: str = "all"
+    mode: str = "standard"
+    useLLM: bool = True
+    toolInput: dict[str, Any] = Field(default_factory=dict)
 
 
 class TwosComplementRequest(BaseModel):
@@ -96,6 +105,16 @@ def knowledge() -> dict[str, Any]:
     return {"items": core.get_knowledge_base()}
 
 
+@app.get("/api/agents")
+def available_agents() -> dict[str, Any]:
+    return {"agents": agents.list_agents()}
+
+
+@app.get("/api/agent/status")
+def agent_status() -> dict[str, Any]:
+    return agents.llm_status()
+
+
 @app.post("/api/agent/qa")
 def agent_qa(request: QARequest) -> dict[str, Any]:
     return call_tool(core.answer_question, request.question, request.chapterId, request.mode)
@@ -104,6 +123,11 @@ def agent_qa(request: QARequest) -> dict[str, Any]:
 @app.post("/api/agent/dispatch")
 def agent_dispatch(request: DispatchRequest) -> dict[str, Any]:
     return call_tool(core.dispatch_agent, request.model_dump())
+
+
+@app.post("/api/agent/chat")
+def agent_chat(request: AgentChatRequest) -> dict[str, Any]:
+    return call_tool(agents.run_agent, request.model_dump())
 
 
 @app.post("/api/simulations/twos-complement")

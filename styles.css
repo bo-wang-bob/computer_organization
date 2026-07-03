@@ -176,6 +176,12 @@ button {
   color: var(--muted);
 }
 
+.mode-badge.warning {
+  border-color: #f1d188;
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+
 .dashboard-grid,
 .two-column,
 .assembly-layout {
@@ -238,7 +244,7 @@ button {
 
 .quick-actions {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -545,6 +551,14 @@ tr:last-child td {
   height: 18px;
 }
 
+.agent-toggle {
+  margin-top: 12px;
+}
+
+.llm-answer p {
+  white-space: normal;
+}
+
 .state-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) minmax(220px, 0.8fr);
@@ -672,4 +686,3 @@ tr:last-child td {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
-

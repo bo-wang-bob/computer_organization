@@ -25,11 +25,12 @@
           <button class="nav-item" data-section="pipeline">流水线</button>
           <button class="nav-item" data-section="assembly">汇编解释</button>
           <button class="nav-item" data-section="diagnosis">学习诊断</button>
+          <button class="nav-item" data-section="llm-agent">大模型智能体</button>
         </nav>
 
         <div class="sidebar-note">
           <span class="status-dot"></span>
-          <span>当前为本地 MVP，可后续接入后端与大模型。</span>
+          <span>当前支持规则工具与 DeepSeek V4 教学智能体。</span>
         </div>
       </aside>
 
@@ -53,6 +54,7 @@
                 <button class="action-button" data-section="qa">问一个概念</button>
                 <button class="action-button" data-section="twos">运行补码推演</button>
                 <button class="action-button" data-section="assembly">解释汇编代码</button>
+                <button class="action-button" data-section="llm-agent">调用大模型智能体</button>
               </div>
             </div>
 
@@ -307,6 +309,57 @@ lw x4, 0(x0)</textarea>
             </div>
           </div>
         </section>
+
+        <section id="llm-agent" class="page-section">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">DeepSeek Agent</p>
+              <h2>大模型教学智能体</h2>
+            </div>
+            <div id="agentStatusBadge" class="mode-badge">检查中</div>
+          </div>
+
+          <div class="two-column">
+            <div class="panel">
+              <label class="field-label" for="agentSelect">智能体</label>
+              <select id="agentSelect">
+                <option value="auto">总控调度智能体</option>
+                <option value="qa">课程问答智能体</option>
+                <option value="derivation">可视化推演智能体</option>
+                <option value="assembly">汇编解释智能体</option>
+                <option value="diagnosis">学习诊断智能体</option>
+              </select>
+
+              <label class="field-label" for="agentMode">讲解方式</label>
+              <select id="agentMode">
+                <option value="standard">标准</option>
+                <option value="beginner">入门</option>
+                <option value="exam">考试</option>
+                <option value="lab">实验</option>
+              </select>
+
+              <label class="field-label" for="agentQuestion">问题</label>
+              <textarea id="agentQuestion" rows="10">请解释为什么补码可以把减法变成加法，并用 8 位补码演示 5 + (-3)。</textarea>
+
+              <label class="check-row agent-toggle">
+                <input id="agentUseLLM" type="checkbox" checked />
+                <span>使用 DeepSeek V4 生成教学回答</span>
+              </label>
+
+              <button id="agentRun" class="primary-button">发送给智能体</button>
+            </div>
+
+            <div class="panel result-panel">
+              <div class="panel-title">
+                <h3>智能体输出</h3>
+                <span id="agentMeta">等待提问</span>
+              </div>
+              <div id="agentResult" class="answer-box">
+                <div class="empty-state">选择智能体并输入问题后，这里会展示 DeepSeek V4 与规则工具共同生成的反馈。</div>
+              </div>
+            </div>
+          </div>
+        </section>
       </main>
     </div>
 
@@ -314,4 +367,3 @@ lw x4, 0(x0)</textarea>
     <script src="./src/app.js"></script>
   </body>
 </html>
-

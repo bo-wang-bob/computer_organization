@@ -11,6 +11,7 @@
 - 汇编解释：支持 `MOV`、`ADD`、`SUB`、`li`、`addi`、`add`、`sub`、`lw`、`sw` 的逐步执行。
 - 学习诊断：对典型练习答案给出错因、提示和练习建议。
 - 后端 API：提供问答、仿真、汇编和诊断接口，并可托管当前前端页面。
+- 大模型智能体：接入 DeepSeek V4，提供总控调度、课程问答、推演、汇编解释和学习诊断子智能体。
 
 ## 如何运行
 
@@ -20,20 +21,21 @@
 index.html
 ```
 
-后端服务推荐使用项目 Conda 环境启动：
+后端服务使用 Docker 启动：
 
 ```powershell
-.\scripts\setup_conda_env.ps1
-.\scripts\run_fastapi.ps1
+docker compose up -d --build
 ```
 
-后端测试也使用同一个 Conda 环境：
+Docker Compose 默认映射到本机 `http://127.0.0.1:8001/`。
+
+后端测试也在 Docker 容器中运行：
 
 ```powershell
-.\scripts\test_backend.ps1
+docker compose exec -T comporg-agent python -m unittest tests.test_backend_core tests.test_agents
 ```
 
-启动后访问 `http://127.0.0.1:8000/`，接口文档位于 `http://127.0.0.1:8000/docs`。
+启动后访问 `http://127.0.0.1:8001/`，接口文档位于 `http://127.0.0.1:8001/docs`。
 
 如果暂时不想安装依赖，也可以使用标准库服务预览：
 
@@ -69,7 +71,10 @@ src/app.js
 tests/core.test.js
 tests/test_backend_core.py
 backend/
+  agents.py
+  config.py
   core.py
+  llm.py
   app.py
   simple_server.py
 scripts/
@@ -87,5 +92,5 @@ doc/
 ## 后续建议
 
 - 将内置知识点迁移到 `knowledge-base/` 目录。
-- 接入大模型时，只让模型负责教学解释，补码、Cache、流水线、汇编执行仍由规则程序计算。
+- 扩展更多规则工具，让大模型继续只负责教学解释，补码、Cache、流水线、汇编执行仍由规则程序计算。
 - API Key 应放在后端环境变量中，不应保存在前端或仓库配置文件中。

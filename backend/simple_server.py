@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import unquote, urlparse
 
-from . import core
+from . import agents, core
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -46,6 +46,12 @@ class TeachingAgentHandler(SimpleHTTPRequestHandler):
         if path == "/api/knowledge":
             self.write_json({"items": core.get_knowledge_base()})
             return
+        if path == "/api/agents":
+            self.write_json({"agents": agents.list_agents()})
+            return
+        if path == "/api/agent/status":
+            self.write_json(agents.llm_status())
+            return
         self.serve_static(path)
 
     def do_POST(self) -> None:
@@ -63,6 +69,7 @@ class TeachingAgentHandler(SimpleHTTPRequestHandler):
 
     def dispatch_post(self, path: str, payload: dict[str, Any]) -> Any:
         routes = {
+            "/api/agent/chat": lambda: agents.run_agent(payload),
             "/api/agent/dispatch": lambda: core.dispatch_agent(payload),
             "/api/agent/qa": lambda: core.answer_question(
                 payload.get("question", ""), payload.get("chapterId", "all"), payload.get("mode", "standard")

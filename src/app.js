@@ -28,6 +28,12 @@
       .replace(/'/g, "&#039;");
   }
 
+  function renderPlainText(value) {
+    return escapeHtml(value || "")
+      .replace(/\n{2,}/g, "</p><p>")
+      .replace(/\n/g, "<br>");
+  }
+
   function setSection(sectionId) {
     $all(".page-section").forEach((section) => {
       section.classList.toggle("active", section.id === sectionId);
@@ -413,6 +419,99 @@
     `;
   }
 
+  async function apiGet(path) {
+    const response = await fetch(path, { headers: { Accept: "application/json" } });
+    if (!response.ok) {
+      throw new Error(`请求失败：${response.status}`);
+    }
+    return response.json();
+  }
+
+  async function apiPost(path, payload) {
+    const response = await fetch(path, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.detail || `请求失败：${response.status}`);
+    }
+    return data;
+  }
+
+  async function loadAgentStatus() {
+    const badge = $("#agentStatusBadge");
+    try {
+      const status = await apiGet("/api/agent/status");
+      badge.textContent = status.configured ? `${status.model} 已配置` : `${status.model} 未配置密钥`;
+      badge.classList.toggle("warning", !status.configured);
+    } catch (error) {
+      badge.textContent = "后端未连接";
+      badge.classList.add("warning");
+    }
+  }
+
+  function summarizeToolContext(context) {
+    if (!context || !context.tool) {
+      return "";
+    }
+    const toolName = context.tool;
+    const result = context.toolResult || {};
+    if (toolName === "simulate_twos_complement_add") {
+      return `规则工具：${toolName}，结果 ${result.sumBinary || "-"} = ${result.result ?? "-"}，溢出：${result.overflow ? "是" : "否"}`;
+    }
+    if (toolName === "execute_assembly") {
+      return `规则工具：${toolName}，执行 ${result.steps ? result.steps.length : 0} 步。`;
+    }
+    if (toolName === "simulate_pipeline") {
+      return `规则工具：${toolName}，周期数 ${result.cycleCount || 0}，冒险数 ${result.hazards ? result.hazards.length : 0}。`;
+    }
+    if (toolName === "simulate_cache_address") {
+      return `规则工具：${toolName}，Tag ${result.tagBinary || "0"}，Index ${result.index}，Offset ${result.offset}。`;
+    }
+    return `规则工具：${toolName}`;
+  }
+
+  function renderAgentResult(result) {
+    const fallback = result.usedFallback ? `<div class="status-warn">已使用本地规则兜底：${escapeHtml(result.llmError || "未调用大模型")}</div>` : "";
+    const toolSummary = summarizeToolContext(result.context);
+    $("#agentMeta").textContent = `${result.agent.name} · ${result.model}`;
+    $("#agentResult").innerHTML = `
+      ${fallback}
+      <div class="answer-section llm-answer">
+        <h4>回答</h4>
+        <p>${renderPlainText(result.answer)}</p>
+      </div>
+      ${
+        toolSummary
+          ? `<div class="status-good">${escapeHtml(toolSummary)}</div>`
+          : `<div class="status-warn">本次未触发结构化规则工具，主要使用知识检索与大模型讲解。</div>`
+      }
+    `;
+  }
+
+  async function runAgent() {
+    $("#agentMeta").textContent = "生成中";
+    $("#agentResult").innerHTML = `<div class="empty-state">智能体正在组织回答...</div>`;
+    try {
+      const result = await apiPost("/api/agent/chat", {
+        agentId: $("#agentSelect").value,
+        mode: $("#agentMode").value,
+        message: $("#agentQuestion").value,
+        useLLM: $("#agentUseLLM").checked,
+      });
+      renderAgentResult(result);
+      loadAgentStatus();
+    } catch (error) {
+      $("#agentMeta").textContent = "调用失败";
+      $("#agentResult").innerHTML = `<div class="status-error">${escapeHtml(error.message)}</div>`;
+    }
+  }
+
   function bindEvents() {
     $all("[data-section]").forEach((button) => {
       button.addEventListener("click", () => setSection(button.dataset.section));
@@ -426,6 +525,7 @@
     $("#assemblyNext").addEventListener("click", () => stepAssembly(1));
     $("#assemblyReset").addEventListener("click", resetAssembly);
     $("#diagSubmit").addEventListener("click", submitDiagnosis);
+    $("#agentRun").addEventListener("click", runAgent);
   }
 
   function boot() {
@@ -437,8 +537,8 @@
     runPipeline();
     loadAssembly();
     submitDiagnosis();
+    loadAgentStatus();
   }
 
   document.addEventListener("DOMContentLoaded", boot);
 })();
-
