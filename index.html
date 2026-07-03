@@ -115,7 +115,8 @@
             <button class="sim-tab active" data-sim-panel="twos-sim">补码推演</button>
             <button class="sim-tab" data-sim-panel="cache-sim">缓存仿真</button>
             <button class="sim-tab" data-sim-panel="virtual-sim">虚存仿真</button>
-            <button class="sim-tab" data-sim-panel="memory-sim">存储器仿真</button>
+            <button class="sim-tab" data-sim-panel="memory-access-sim">存储读写</button>
+            <button class="sim-tab" data-sim-panel="memory-expansion-sim">存储扩展</button>
             <button class="sim-tab" data-sim-panel="pipeline-sim">流水线</button>
             <button class="sim-tab" data-sim-panel="assembly-sim">汇编解释</button>
           </div>
@@ -331,10 +332,10 @@
           </div>
           </div>
 
-          <div id="memory-sim" class="sim-panel">
+          <div id="memory-access-sim" class="sim-panel">
           <div class="section-subheading">
             <p class="eyebrow">Memory Interactive Lab</p>
-            <h3>存储读写与容量扩展交互仿真</h3>
+            <h3>存储读写交互仿真</h3>
           </div>
 
           <div class="two-column">
@@ -384,6 +385,13 @@
               </div>
               <div id="memoryAccessResult"></div>
             </div>
+          </div>
+          </div>
+
+          <div id="memory-expansion-sim" class="sim-panel">
+          <div class="section-subheading">
+            <p class="eyebrow">Memory Expansion Lab</p>
+            <h3>存储器容量扩展交互仿真</h3>
           </div>
 
           <div class="two-column">
