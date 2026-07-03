@@ -2,34 +2,19 @@
   "use strict";
 
   const core = window.CompOrgCore;
-  const memorySimulations = {
-    "sram-read": {
-      title: "SRAM 读操作全过程",
-      description: "逐步观察片选、地址译码、列选择和数据输出路径。",
-      src: "./scripts/SRAM读.html",
-    },
-    "sram-write": {
-      title: "SRAM 写操作全过程",
-      description: "跟随写使能、输入数据控制、地址选择和位元写入过程。",
-      src: "./scripts/SRAM写.html",
-    },
-    "bit-expansion": {
-      title: "位扩展法",
-      description: "用多片低位宽芯片并联，组成更宽的数据字长。",
-      src: "./scripts/位扩展法.html",
-    },
-    "word-expansion": {
-      title: "字扩展法",
-      description: "用高位地址片选多片芯片，扩展存储器字数容量。",
-      src: "./scripts/字扩展法.html",
-    },
-  };
   const state = {
     assembly: {
       execution: null,
       cursor: -1,
       registers: null,
       memory: {},
+    },
+    memory: {
+      cells: {},
+      steps: [],
+      cursor: 0,
+      timer: null,
+      lastConfig: null,
     },
   };
 
@@ -296,24 +281,364 @@
     return `0x${Number(value).toString(16).toUpperCase()}`;
   }
 
-  function setMemorySimulation(simId, forceReload = false) {
-    const simulation = memorySimulations[simId] || memorySimulations["sram-read"];
-    $("#memorySimTitle").textContent = simulation.title;
-    $("#memorySimDescription").textContent = simulation.description;
-    $all(".memory-sim-option").forEach((button) => {
-      button.classList.toggle("active", button.dataset.memorySim === simId);
-    });
+  function parseMemoryInteger(value, label) {
+    const text = String(value || "").trim();
+    if (!text) throw new Error(`${label}不能为空`);
+    let result;
+    if (/^[-+]?0x[0-9a-f]+$/i.test(text)) {
+      result = Number.parseInt(text, 16);
+    } else if (/^[-+]?0b[01]+$/i.test(text)) {
+      const sign = text.startsWith("-") ? -1 : 1;
+      result = sign * Number.parseInt(text.replace(/^[-+]?0b/i, ""), 2);
+    } else if (/^[-+]?\d+$/.test(text)) {
+      result = Number.parseInt(text, 10);
+    } else {
+      throw new Error(`${label}必须是十进制、0x 十六进制或 0b 二进制整数`);
+    }
+    if (!Number.isInteger(result)) throw new Error(`${label}必须是整数`);
+    return result;
+  }
 
-    const frame = $("#memorySimFrame");
-    const currentSrc = frame.getAttribute("src") || "";
-    if (forceReload || currentSrc !== simulation.src) {
-      frame.setAttribute("src", simulation.src);
+  function parsePositiveInteger(value, label, maxValue = 1_000_000) {
+    const result = parseMemoryInteger(value, label);
+    if (result <= 0 || result > maxValue) {
+      throw new Error(`${label}必须在 1 到 ${maxValue} 之间`);
+    }
+    return result;
+  }
+
+  function ceilDivide(left, right) {
+    return Math.ceil(left / right);
+  }
+
+  function ceilLog2(value) {
+    return value <= 1 ? 0 : Math.ceil(Math.log2(value));
+  }
+
+  function formatBinary(value, bits) {
+    return (value >>> 0).toString(2).padStart(bits, "0").slice(-bits);
+  }
+
+  function formatMemoryValue(value, bits) {
+    const hexWidth = Math.max(1, Math.ceil(bits / 4));
+    return `0x${value.toString(16).toUpperCase().padStart(hexWidth, "0")}`;
+  }
+
+  function getMemoryConfig() {
+    const addressBits = parsePositiveInteger($("#memoryAddressBits").value, "地址位数", 12);
+    const dataBits = parsePositiveInteger($("#memoryDataBits").value, "数据位数", 16);
+    const address = parseMemoryInteger($("#memoryAddress").value, "地址");
+    const maxAddress = 2 ** addressBits - 1;
+    if (address < 0 || address > maxAddress) {
+      throw new Error(`地址必须在 0 到 ${maxAddress} 之间`);
+    }
+    const mask = 2 ** dataBits - 1;
+    const data = parseMemoryInteger($("#memoryData").value, "写入数据") & mask;
+    return {
+      operation: $("#memoryOperation").value,
+      addressBits,
+      dataBits,
+      address,
+      data,
+      maxAddress,
+      mask,
+    };
+  }
+
+  function createMemorySteps(config, oldValue, resultValue) {
+    const addressLabel = `${formatMemoryValue(config.address, config.addressBits)} (${formatBinary(config.address, config.addressBits)})`;
+    const writeLabel = formatMemoryValue(config.data, config.dataBits);
+    const readLabel = formatMemoryValue(resultValue, config.dataBits);
+    if (config.operation === "write") {
+      return [
+        {
+          phase: "address",
+          title: "1. 地址送入 MAR",
+          detail: `CPU 把地址 ${addressLabel} 放到地址总线，MAR 锁存该地址。`,
+          active: ["cpu", "address", "mar"],
+        },
+        {
+          phase: "decode",
+          title: "2. 地址译码",
+          detail: `地址译码器根据 A${config.addressBits - 1}~A0 选中目标存储单元。`,
+          active: ["address", "decoder", "cell"],
+        },
+        {
+          phase: "data",
+          title: "3. 数据进入 MDR",
+          detail: `写入数据 ${writeLabel} 进入数据寄存器，写使能 WE 置为有效。`,
+          active: ["cpu", "data", "mdr", "control"],
+        },
+        {
+          phase: "cell",
+          title: "4. 写入选中单元",
+          detail: `选中地址原值 ${formatMemoryValue(oldValue, config.dataBits)} 被 ${writeLabel} 覆盖。`,
+          active: ["decoder", "cell", "data", "control"],
+        },
+        {
+          phase: "complete",
+          title: "5. 写操作完成",
+          detail: `地址 ${formatMemoryValue(config.address, config.addressBits)} 当前保存 ${writeLabel}。`,
+          active: ["cell"],
+        },
+      ];
+    }
+    return [
+      {
+        phase: "address",
+        title: "1. 地址送入 MAR",
+        detail: `CPU 把地址 ${addressLabel} 放到地址总线，准备读取该单元。`,
+        active: ["cpu", "address", "mar"],
+      },
+      {
+        phase: "decode",
+        title: "2. 地址译码",
+        detail: `地址译码器选中目标字线，读控制信号打开输出通路。`,
+        active: ["address", "decoder", "cell", "control"],
+      },
+      {
+        phase: "sense",
+        title: "3. 读出存储单元",
+        detail: `被选中单元的内容 ${readLabel} 进入读出放大与数据通路。`,
+        active: ["cell", "data"],
+      },
+      {
+        phase: "data",
+        title: "4. 数据进入 MDR",
+        detail: `数据总线把 ${readLabel} 送入 MDR，再返回 CPU。`,
+        active: ["data", "mdr", "cpu"],
+      },
+      {
+        phase: "complete",
+        title: "5. 读操作完成",
+        detail: `读取结果为 ${readLabel}，二进制为 ${formatBinary(resultValue, config.dataBits)}。`,
+        active: ["cpu", "cell"],
+      },
+    ];
+  }
+
+  function stopMemoryAuto() {
+    if (state.memory.timer) {
+      clearInterval(state.memory.timer);
+      state.memory.timer = null;
+    }
+    const button = $("#memoryAuto");
+    if (button) button.textContent = "自动演示";
+  }
+
+  function renderMemoryCellGrid(config, selectedStep) {
+    const start = Math.floor(config.address / 16) * 16;
+    const count = Math.min(16, config.maxAddress - start + 1);
+    return Array.from({ length: count }, (_, index) => {
+      const address = start + index;
+      const value = state.memory.cells[address] ?? 0;
+      const classes = ["memory-cell", address === config.address ? "selected" : ""].filter(Boolean).join(" ");
+      return `
+        <div class="${classes}">
+          <strong>${formatMemoryValue(address, config.addressBits)}</strong>
+          <span>${formatMemoryValue(value, config.dataBits)}</span>
+        </div>
+      `;
+    }).join("");
+  }
+
+  function renderMemoryAccess() {
+    const config = state.memory.lastConfig;
+    if (!config || !state.memory.steps.length) {
+      $("#memoryStepCounter").textContent = "等待执行";
+      $("#memoryAccessResult").innerHTML = `<div class="empty-state">输入地址和数据后，点击“执行读写过程”。</div>`;
+      return;
+    }
+    const step = state.memory.steps[state.memory.cursor];
+    const isActive = (name) => step.active.includes(name) ? "active" : "";
+    const storedValue = state.memory.cells[config.address] ?? 0;
+    const dataBusValue = config.operation === "write" ? config.data : storedValue;
+    $("#memoryStepCounter").textContent = `第 ${state.memory.cursor + 1} / ${state.memory.steps.length} 步`;
+    $("#memoryAccessResult").innerHTML = `
+      <div class="memory-stage-card">
+        <h4>${escapeHtml(step.title)}</h4>
+        <p>${escapeHtml(step.detail)}</p>
+      </div>
+      <div class="memory-machine">
+        <div class="memory-node ${isActive("cpu")}">
+          <strong>CPU</strong>
+          <span>${config.operation === "write" ? "发起写入" : "发起读取"}</span>
+        </div>
+        <div class="memory-bus ${isActive("address")}">地址总线<br>${formatBinary(config.address, config.addressBits)}</div>
+        <div class="memory-node ${isActive("mar")}">
+          <strong>MAR</strong>
+          <span>${formatMemoryValue(config.address, config.addressBits)}</span>
+        </div>
+        <div class="memory-node ${isActive("decoder")}">
+          <strong>地址译码器</strong>
+          <span>选择字线 / 列线</span>
+        </div>
+        <div class="memory-node ${isActive("cell")}">
+          <strong>存储阵列</strong>
+          <span>${formatMemoryValue(config.address, config.addressBits)} = ${formatMemoryValue(storedValue, config.dataBits)}</span>
+        </div>
+        <div class="memory-node ${isActive("mdr")}">
+          <strong>MDR</strong>
+          <span>${formatMemoryValue(dataBusValue, config.dataBits)}</span>
+        </div>
+        <div class="memory-bus ${isActive("data")}">数据总线<br>${formatBinary(dataBusValue, config.dataBits)}</div>
+        <div class="memory-node ${isActive("control")}">
+          <strong>控制信号</strong>
+          <span>${config.operation === "write" ? "CS=0 / WE=0" : "CS=0 / WE=1"}</span>
+        </div>
+      </div>
+      <div class="cache-fields">
+        <div class="cache-field"><strong>当前地址</strong><span>${formatMemoryValue(config.address, config.addressBits)}</span></div>
+        <div class="cache-field"><strong>当前数据</strong><span>${formatMemoryValue(storedValue, config.dataBits)}</span></div>
+        <div class="cache-field"><strong>操作模式</strong><span>${config.operation === "write" ? "写入" : "读取"}</span></div>
+      </div>
+      <div class="memory-cell-grid">${renderMemoryCellGrid(config, step)}</div>
+    `;
+  }
+
+  function runMemoryAccess() {
+    try {
+      stopMemoryAuto();
+      const config = getMemoryConfig();
+      const oldValue = state.memory.cells[config.address] ?? 0;
+      const resultValue = config.operation === "write" ? config.data : oldValue;
+      if (config.operation === "write") {
+        state.memory.cells[config.address] = config.data;
+      }
+      state.memory.lastConfig = config;
+      state.memory.steps = createMemorySteps(config, oldValue, resultValue);
+      state.memory.cursor = 0;
+      renderMemoryAccess();
+    } catch (error) {
+      $("#memoryStepCounter").textContent = "输入有误";
+      $("#memoryAccessResult").innerHTML = `<div class="status-error">${escapeHtml(error.message)}</div>`;
     }
   }
 
-  function reloadMemorySimulation() {
-    const active = $(".memory-sim-option.active");
-    setMemorySimulation(active ? active.dataset.memorySim : "sram-read", true);
+  function stepMemoryAccess(delta) {
+    if (!state.memory.steps.length) {
+      runMemoryAccess();
+      return;
+    }
+    stopMemoryAuto();
+    state.memory.cursor = Math.max(0, Math.min(state.memory.steps.length - 1, state.memory.cursor + delta));
+    renderMemoryAccess();
+  }
+
+  function toggleMemoryAuto() {
+    if (!state.memory.steps.length) {
+      runMemoryAccess();
+    }
+    if (state.memory.timer) {
+      stopMemoryAuto();
+      return;
+    }
+    $("#memoryAuto").textContent = "暂停";
+    state.memory.timer = setInterval(() => {
+      if (state.memory.cursor >= state.memory.steps.length - 1) {
+        stopMemoryAuto();
+        return;
+      }
+      state.memory.cursor += 1;
+      renderMemoryAccess();
+    }, 1200);
+  }
+
+  function clearMemoryAccess() {
+    stopMemoryAuto();
+    state.memory.cells = {};
+    state.memory.steps = [];
+    state.memory.cursor = 0;
+    state.memory.lastConfig = null;
+    renderMemoryAccess();
+  }
+
+  function renderExpansionChips(result) {
+    const visibleCount = Math.min(result.chipCount, 16);
+    const chips = Array.from({ length: visibleCount }, (_, index) => {
+      const label = result.mode === "bit"
+        ? `D${index * result.chipBits}~D${Math.min((index + 1) * result.chipBits - 1, result.realizedBits - 1)}`
+        : `块 ${index}: ${index * result.chipWords}~${Math.min((index + 1) * result.chipWords - 1, result.realizedWords - 1)}`;
+      return `
+        <div class="expansion-chip">
+          <strong>芯片 ${index + 1}</strong>
+          <span>${result.chipWords} × ${result.chipBits}</span>
+          <em>${label}</em>
+        </div>
+      `;
+    }).join("");
+    const omitted = result.chipCount > visibleCount ? `<div class="expansion-chip muted">还有 ${result.chipCount - visibleCount} 片...</div>` : "";
+    return `${chips}${omitted}`;
+  }
+
+  function formatAddressLineRange(count) {
+    return count <= 0 ? "无片内地址线" : `A0~A${count - 1}`;
+  }
+
+  function simulateMemoryExpansion() {
+    const mode = $("#expansionMode").value;
+    const chipWords = parsePositiveInteger($("#chipWords").value, "单片字数");
+    const chipBits = parsePositiveInteger($("#chipBits").value, "单片位宽", 1024);
+    const targetWords = parsePositiveInteger($("#targetWords").value, "目标字数");
+    const targetBits = parsePositiveInteger($("#targetBits").value, "目标位宽", 1024);
+    if (mode === "bit") {
+      const chipCount = ceilDivide(targetBits, chipBits);
+      return {
+        mode,
+        chipWords,
+        chipBits,
+        targetWords,
+        targetBits,
+        chipCount,
+        realizedWords: chipWords,
+        realizedBits: chipCount * chipBits,
+        addressLines: ceilLog2(chipWords),
+        selectLines: 0,
+        warning: targetWords === chipWords ? "" : "目标字数与单片字数不同，单纯位扩展只能扩展位宽；若要同时扩展字数，需要再叠加字扩展。",
+      };
+    }
+    const chipCount = ceilDivide(targetWords, chipWords);
+    return {
+      mode,
+      chipWords,
+      chipBits,
+      targetWords,
+      targetBits,
+      chipCount,
+      realizedWords: chipCount * chipWords,
+      realizedBits: chipBits,
+      addressLines: ceilLog2(chipWords),
+      selectLines: ceilLog2(chipCount),
+      warning: targetBits === chipBits ? "" : "目标位宽与单片位宽不同，单纯字扩展只能扩展字数；若要同时扩展位宽，需要再叠加位扩展。",
+    };
+  }
+
+  function renderMemoryExpansion(result) {
+    const modeName = result.mode === "bit" ? "位扩展法" : "字扩展法";
+    $("#memoryExpansionResult").innerHTML = `
+      ${result.warning ? `<div class="status-warn">${escapeHtml(result.warning)}</div>` : `<div class="status-good">${modeName}结构已生成。</div>`}
+      <div class="cache-fields">
+        <div class="cache-field"><strong>芯片数量</strong><span>${result.chipCount} 片</span></div>
+        <div class="cache-field"><strong>实现容量</strong><span>${result.realizedWords} × ${result.realizedBits} 位</span></div>
+        <div class="cache-field"><strong>地址/片选</strong><span>${result.addressLines} 条片内地址线${result.selectLines ? `，${result.selectLines} 条片选线` : ""}</span></div>
+      </div>
+      <div class="expansion-diagram ${result.mode === "bit" ? "bit-mode" : "word-mode"}">
+        <div class="expansion-source">CPU<br><span>${result.mode === "bit" ? "地址共用，数据分片" : "低位地址共用，高位片选"}</span></div>
+        <div class="expansion-bus">
+          <strong>${result.mode === "bit" ? `${formatAddressLineRange(result.addressLines)} 广播到所有芯片` : `${formatAddressLineRange(result.addressLines)} 接入片内地址`}</strong>
+          <span>${result.mode === "bit" ? `数据线拼接为 ${result.realizedBits} 位` : `高位地址译码产生 ${result.chipCount} 路片选`}</span>
+        </div>
+        <div class="expansion-chip-grid">${renderExpansionChips(result)}</div>
+      </div>
+    `;
+  }
+
+  function runMemoryExpansion() {
+    try {
+      renderMemoryExpansion(simulateMemoryExpansion());
+    } catch (error) {
+      $("#memoryExpansionResult").innerHTML = `<div class="status-error">${escapeHtml(error.message)}</div>`;
+    }
   }
 
   function renderTwosComplement(result) {
@@ -889,10 +1214,12 @@
     $("#floatRun").addEventListener("click", runFloat);
     $("#cacheRun").addEventListener("click", runCache);
     $("#vmRun").addEventListener("click", runVirtualMemory);
-    $all(".memory-sim-option").forEach((button) => {
-      button.addEventListener("click", () => setMemorySimulation(button.dataset.memorySim));
-    });
-    $("#memoryReload").addEventListener("click", reloadMemorySimulation);
+    $("#memoryRun").addEventListener("click", runMemoryAccess);
+    $("#memoryPrev").addEventListener("click", () => stepMemoryAccess(-1));
+    $("#memoryNext").addEventListener("click", () => stepMemoryAccess(1));
+    $("#memoryAuto").addEventListener("click", toggleMemoryAuto);
+    $("#memoryClear").addEventListener("click", clearMemoryAccess);
+    $("#expansionRun").addEventListener("click", runMemoryExpansion);
     $("#pipelineRun").addEventListener("click", runPipeline);
     $("#assemblyLoad").addEventListener("click", loadAssembly);
     $("#assemblyPrev").addEventListener("click", () => stepAssembly(-1));
@@ -907,7 +1234,8 @@
     runFloat();
     runCache();
     runVirtualMemory();
-    setMemorySimulation("sram-read");
+    runMemoryAccess();
+    runMemoryExpansion();
     runPipeline();
     loadAssembly();
   }

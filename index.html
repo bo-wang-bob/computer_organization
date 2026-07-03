@@ -334,31 +334,99 @@
           <div id="memory-sim" class="sim-panel">
           <div class="section-subheading">
             <p class="eyebrow">Memory Interactive Lab</p>
-            <h3>存储器结构交互仿真</h3>
+            <h3>存储读写与容量扩展交互仿真</h3>
           </div>
 
-          <div class="panel memory-workbench">
-            <div class="panel-title">
-              <div>
-                <h3 id="memorySimTitle">SRAM 读操作全过程</h3>
-                <span id="memorySimDescription">逐步观察片选、地址译码、列选择和数据输出路径。</span>
+          <div class="two-column">
+            <div class="panel">
+              <div class="panel-title compact">
+                <h3>存储读写仿真</h3>
+                <span>输入地址和数据，逐步观察总线与存储单元变化</span>
               </div>
-              <button id="memoryReload" class="secondary-button compact-button">重新加载</button>
+              <div class="form-grid">
+                <label>
+                  <span class="field-label">操作</span>
+                  <select id="memoryOperation">
+                    <option value="write" selected>写入</option>
+                    <option value="read">读取</option>
+                  </select>
+                </label>
+                <label>
+                  <span class="field-label">地址位数</span>
+                  <input id="memoryAddressBits" type="number" min="2" max="12" value="8" />
+                </label>
+                <label>
+                  <span class="field-label">数据位数</span>
+                  <input id="memoryDataBits" type="number" min="1" max="16" value="8" />
+                </label>
+                <label>
+                  <span class="field-label">地址</span>
+                  <input id="memoryAddress" value="0x2A" />
+                </label>
+                <label>
+                  <span class="field-label">写入数据</span>
+                  <input id="memoryData" value="0x5C" />
+                </label>
+              </div>
+              <button id="memoryRun" class="primary-button">执行读写过程</button>
+              <div class="button-row">
+                <button id="memoryPrev" class="secondary-button">上一步</button>
+                <button id="memoryNext" class="secondary-button">下一步</button>
+                <button id="memoryAuto" class="secondary-button">自动演示</button>
+                <button id="memoryClear" class="secondary-button">清空存储</button>
+              </div>
             </div>
 
-            <div class="memory-switcher" aria-label="存储器仿真选择">
-              <button class="memory-sim-option active" data-memory-sim="sram-read">SRAM 读</button>
-              <button class="memory-sim-option" data-memory-sim="sram-write">SRAM 写</button>
-              <button class="memory-sim-option" data-memory-sim="bit-expansion">位扩展法</button>
-              <button class="memory-sim-option" data-memory-sim="word-expansion">字扩展法</button>
+            <div class="panel result-panel">
+              <div class="panel-title">
+                <h3>读写过程可视化</h3>
+                <span id="memoryStepCounter">等待执行</span>
+              </div>
+              <div id="memoryAccessResult"></div>
+            </div>
+          </div>
+
+          <div class="two-column">
+            <div class="panel">
+              <div class="panel-title compact">
+                <h3>存储器扩展仿真</h3>
+                <span>输入芯片规格和目标规格，生成扩展结构</span>
+              </div>
+              <div class="form-grid">
+                <label>
+                  <span class="field-label">扩展方式</span>
+                  <select id="expansionMode">
+                    <option value="bit" selected>位扩展法</option>
+                    <option value="word">字扩展法</option>
+                  </select>
+                </label>
+                <label>
+                  <span class="field-label">单片字数</span>
+                  <input id="chipWords" type="number" min="1" value="1024" />
+                </label>
+                <label>
+                  <span class="field-label">单片位宽</span>
+                  <input id="chipBits" type="number" min="1" value="2" />
+                </label>
+                <label>
+                  <span class="field-label">目标字数</span>
+                  <input id="targetWords" type="number" min="1" value="1024" />
+                </label>
+                <label>
+                  <span class="field-label">目标位宽</span>
+                  <input id="targetBits" type="number" min="1" value="8" />
+                </label>
+              </div>
+              <button id="expansionRun" class="primary-button">生成扩展结构</button>
             </div>
 
-            <iframe
-              id="memorySimFrame"
-              class="memory-frame"
-              title="存储器交互仿真"
-              src="./scripts/SRAM读.html"
-            ></iframe>
+            <div class="panel result-panel">
+              <div class="panel-title">
+                <h3>扩展结果</h3>
+                <span>芯片数量、地址线与片选关系</span>
+              </div>
+              <div id="memoryExpansionResult"></div>
+            </div>
           </div>
           </div>
 
