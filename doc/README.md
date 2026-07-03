@@ -27,6 +27,12 @@ python -m pip install -r requirements.txt
 python -m uvicorn backend.app:app --reload --host 127.0.0.1 --port 8000
 ```
 
+未安装 FastAPI 时，也可以直接使用标准库服务：
+
+```bash
+python -m backend.simple_server --host 127.0.0.1 --port 8000
+```
+
 启动后访问 `http://127.0.0.1:8000/`，接口文档位于 `http://127.0.0.1:8000/docs`。
 
 ## 如何测试
@@ -58,6 +64,7 @@ tests/test_backend_core.py
 backend/
   core.py
   app.py
+  simple_server.py
 doc/
   README.md
   IMPLEMENTATION_PLAN.md

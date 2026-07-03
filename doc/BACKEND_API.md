@@ -16,12 +16,20 @@ python -m pip install -r requirements.txt
 python -m uvicorn backend.app:app --reload --host 127.0.0.1 --port 8000
 ```
 
+如果暂时没有安装 FastAPI，也可以使用无第三方依赖的本地服务入口：
+
+```bash
+python -m backend.simple_server --host 127.0.0.1 --port 8000
+```
+
 启动后访问：
 
 ```text
 http://127.0.0.1:8000/
 http://127.0.0.1:8000/docs
 ```
+
+其中 `/docs` 由 FastAPI 提供；使用轻量服务入口时，请参考本文件中的接口清单。
 
 当前版本不在仓库中保存 API Key。后续接入大模型时，请从环境变量读取密钥。
 
