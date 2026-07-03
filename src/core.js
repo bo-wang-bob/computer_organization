@@ -58,18 +58,44 @@
       followups: ["演示补码加法", "讲溢出判断", "出一道补码题"],
     },
     {
+      id: "ieee754_float",
+      chapterId: "data",
+      title: "IEEE 754 浮点数加减法",
+      keywords: ["IEEE", "754", "浮点", "单精度", "阶码", "尾数", "对阶", "规格化"],
+      summary: "IEEE 754 加减法先拆分符号、阶码和尾数，再对阶、尾数运算、规格化并舍入。",
+      explanation:
+        "浮点加减不能直接把 32 位编码相加，而要先比较阶码，把阶码较小的尾数右移到同一阶，再按符号做尾数加减。结果需要规格化，最后按目标精度舍入。",
+      example: "1.5 + (-0.25) 的单精度结果是 1.25，对应编码 00111111101000000000000000000000。",
+      commonMistakes: ["把浮点编码当整数直接相加", "忘记减法可以转为加上相反数", "忽略舍入误差"],
+      checkQuestion: "为什么浮点加法前通常需要对阶？",
+      followups: ["运行 IEEE 754 仿真", "讲对阶过程", "解释规格化"],
+    },
+    {
       id: "cache_mapping",
       chapterId: "memory",
-      title: "直接映射 Cache 的地址划分",
-      keywords: ["cache", "Cache", "直接映射", "组相联", "地址", "命中", "tag", "index"],
-      summary: "直接映射 Cache 将主存块唯一映射到某一行，地址通常拆为 Tag、Index 和 Offset。",
+      title: "Cache 映射与替换",
+      keywords: ["cache", "Cache", "缓存", "直接映射", "组相联", "全相联", "替换", "LRU", "FIFO", "LFU", "地址", "命中", "tag", "index"],
+      summary: "Cache 映射决定主存块能放到哪些行，替换算法决定冲突时换出哪一行。",
       explanation:
-        "块内偏移由块大小决定，行索引由 Cache 行数决定，剩余高位是标记位。访问时先用 Index 找到 Cache 行，再比较 Tag，Tag 相同且有效位为 1 才命中。",
+        "块内偏移由块大小决定；直接映射只有一个候选行，组相联映射在某一组内选择一路，全相联可放入任意行。发生冲突时，可用 LRU、FIFO、LFU 等策略选择牺牲行。",
       example:
         "16 行 Cache、块大小 4B 时，Offset 为 2 位，Index 为 4 位，Tag 为地址剩余高位。",
       commonMistakes: ["用主存块数计算 Index 位数", "把块内偏移和 Cache 行号混淆"],
       checkQuestion: "块大小从 4B 变为 16B 时，Offset 位数会怎样变化？",
       followups: ["运行 Cache 仿真", "比较直接映射和组相联", "出一道地址划分题"],
+    },
+    {
+      id: "virtual_memory",
+      chapterId: "memory",
+      title: "虚拟存储映射与页面置换",
+      keywords: ["虚存", "虚拟存储", "页表", "段表", "段页式", "页面置换", "缺页", "页框", "LRU", "OPT"],
+      summary: "虚拟存储把逻辑地址转换为物理地址，并在页不在内存时通过页面置换处理缺页。",
+      explanation:
+        "页式存储把地址拆成页号和页内偏移，段式存储先检查段号和段内偏移，段页式先查段表再查页表。页面置换算法用于物理页框不足时选择换出的页面。",
+      example: "页大小 1024B 时，逻辑地址 2052 可拆为页号 2、页内偏移 4。",
+      commonMistakes: ["把页号当成页框号", "忘记段式存储需要越界检查", "混淆缺页和地址越界"],
+      checkQuestion: "页式地址转换中，页内偏移为什么不参与页表查找？",
+      followups: ["运行虚存仿真", "比较页表和段表", "讲页面置换算法"],
     },
     {
       id: "pipeline_hazard",
@@ -291,6 +317,198 @@
     };
   }
 
+  function assertSignedRange(value, bits, label) {
+    const min = -(2 ** (bits - 1));
+    const max = 2 ** (bits - 1) - 1;
+    if (value < min || value > max) {
+      throw new Error(`${label} 超出 ${bits} 位补码范围：${min} 到 ${max}`);
+    }
+    return { min, max };
+  }
+
+  function simulateFixedPointMultiply(xValue, yValue, bitsValue) {
+    const x = parseInteger(xValue);
+    const y = parseInteger(yValue);
+    const bits = parseInteger(bitsValue);
+    assertInteger(x, "x");
+    assertInteger(y, "y");
+    assertInteger(bits, "位数");
+    if (bits < 2 || bits > 16) {
+      throw new Error("乘法位数建议在 2 到 16 之间，便于展示双倍位宽乘积");
+    }
+
+    const range = assertSignedRange(x, bits, "x");
+    assertSignedRange(y, bits, "y");
+    const raw = x * y;
+    const productBits = bits * 2;
+    const lowResult = fromUnsigned(toUnsigned(raw, bits), bits);
+    const overflow = raw < range.min || raw > range.max;
+    const sign = raw < 0 ? -1 : 1;
+    const absX = Math.abs(x);
+    const absY = Math.abs(y);
+    const partials = [];
+    for (let pos = 0; pos < bits; pos += 1) {
+      const bit = (absY >> pos) & 1;
+      partials.push({
+        position: pos,
+        multiplierBit: bit,
+        partialValue: bit ? absX << pos : 0,
+        partialBinary: toBinaryUnsigned(bit ? absX << pos : 0, productBits),
+      });
+    }
+
+    return {
+      operation: "multiply",
+      x,
+      y,
+      bits,
+      productBits,
+      raw,
+      result: lowResult,
+      overflow,
+      xBinary: toBinaryUnsigned(x, bits),
+      yBinary: toBinaryUnsigned(y, bits),
+      productBinary: toBinaryUnsigned(raw, productBits),
+      truncatedBinary: toBinaryUnsigned(raw, bits),
+      partials,
+      explanation: overflow
+        ? `数学乘积 ${raw} 超出 ${bits} 位补码范围，低 ${bits} 位机器结果为 ${lowResult}。`
+        : `数学乘积 ${raw} 可由 ${bits} 位补码表示，机器结果为 ${lowResult}。`,
+      signExplanation: `符号由两个操作数符号异或决定：结果为${sign < 0 ? "负" : "非负"}。`,
+    };
+  }
+
+  function simulateFixedPointDivide(xValue, yValue, bitsValue) {
+    const x = parseInteger(xValue);
+    const y = parseInteger(yValue);
+    const bits = parseInteger(bitsValue);
+    assertInteger(x, "x");
+    assertInteger(y, "y");
+    assertInteger(bits, "位数");
+    if (bits < 2 || bits > 16) {
+      throw new Error("除法位数建议在 2 到 16 之间，便于展示步骤");
+    }
+    if (y === 0) {
+      throw new Error("除数不能为 0");
+    }
+
+    const range = assertSignedRange(x, bits, "x");
+    assertSignedRange(y, bits, "y");
+    const quotient = Math.trunc(x / y);
+    const remainder = x - quotient * y;
+    const overflow = quotient < range.min || quotient > range.max;
+    const absDividend = Math.abs(x);
+    const absDivisor = Math.abs(y);
+    const steps = [];
+    let current = 0;
+    for (let pos = bits - 1; pos >= 0; pos -= 1) {
+      current = current * 2 + ((absDividend >> pos) & 1);
+      const qBit = current >= absDivisor ? 1 : 0;
+      if (qBit) current -= absDivisor;
+      steps.push({
+        position: pos,
+        shiftedRemainder: current,
+        quotientBit: qBit,
+      });
+    }
+
+    return {
+      operation: "divide",
+      x,
+      y,
+      bits,
+      quotient,
+      remainder,
+      overflow,
+      xBinary: toBinaryUnsigned(x, bits),
+      yBinary: toBinaryUnsigned(y, bits),
+      quotientBinary: toBinaryUnsigned(quotient, bits),
+      remainderBinary: toBinaryUnsigned(remainder, bits),
+      steps,
+      explanation: overflow
+        ? `商 ${quotient} 超出 ${bits} 位补码范围，发生除法溢出。`
+        : `商为 ${quotient}，余数为 ${remainder}，满足 ${x} = ${quotient} × ${y} + ${remainder}。`,
+    };
+  }
+
+  function simulateFixedPointOperation(params) {
+    const op = params.operation || "add";
+    if (op === "multiply") {
+      return simulateFixedPointMultiply(params.x, params.y, params.bits);
+    }
+    if (op === "divide") {
+      return simulateFixedPointDivide(params.x, params.y, params.bits);
+    }
+    return { operation: "add", ...simulateTwosComplementAdd(params.x, params.y, params.bits) };
+  }
+
+  function float32Bits(value) {
+    const buffer = new ArrayBuffer(4);
+    const view = new DataView(buffer);
+    view.setFloat32(0, Math.fround(value), false);
+    return view.getUint32(0, false);
+  }
+
+  function decodeFloat32(value) {
+    const rounded = Math.fround(value);
+    const bits = float32Bits(rounded);
+    const sign = bits >>> 31;
+    const exponentRaw = (bits >>> 23) & 0xff;
+    const fraction = bits & 0x7fffff;
+    const exponent = exponentRaw === 0 ? -126 : exponentRaw - 127;
+    const category = exponentRaw === 0xff
+      ? (fraction === 0 ? "infinity" : "nan")
+      : exponentRaw === 0
+        ? (fraction === 0 ? "zero" : "subnormal")
+        : "normal";
+    return {
+      value: rounded,
+      bits,
+      binary: bits.toString(2).padStart(32, "0"),
+      sign,
+      exponentRaw,
+      exponent,
+      fraction,
+      fractionBinary: fraction.toString(2).padStart(23, "0"),
+      category,
+    };
+  }
+
+  function simulateIeee754Operation(aValue, bValue, operationValue) {
+    const a = Number.parseFloat(aValue);
+    const b = Number.parseFloat(bValue);
+    const operation = operationValue || "add";
+    if (!Number.isFinite(a) || !Number.isFinite(b)) {
+      throw new Error("请输入有限十进制浮点数");
+    }
+
+    const left = decodeFloat32(a);
+    const right = decodeFloat32(b);
+    const signedRight = operation === "subtract" ? decodeFloat32(-b) : right;
+    const rawResult = operation === "subtract" ? Math.fround(Math.fround(a) - Math.fround(b)) : Math.fround(Math.fround(a) + Math.fround(b));
+    const result = decodeFloat32(rawResult);
+    const exponentDelta = left.exponent - signedRight.exponent;
+    const alignedOperand = exponentDelta >= 0 ? "右操作数尾数右移" : "左操作数尾数右移";
+
+    return {
+      operation,
+      a,
+      b,
+      left,
+      right,
+      effectiveRight: signedRight,
+      result,
+      resultValue: rawResult,
+      steps: [
+        `拆分 IEEE 754 单精度：符号位、8 位阶码、23 位尾数。`,
+        `对阶：阶码差为 ${Math.abs(exponentDelta)}，${alignedOperand}。`,
+        operation === "subtract" ? "减法转化为加上第二个操作数的相反数。" : "尾数按符号执行加法。",
+        "规格化并按单精度舍入，得到最终 32 位结果。",
+      ],
+      explanation: `单精度结果为 ${rawResult}，二进制编码为 ${result.binary}。`,
+    };
+  }
+
   function simulateCacheAddress(params) {
     const address = parseInteger(params.address);
     const addressBits = parseInteger(params.addressBits);
@@ -364,11 +582,335 @@
     };
   }
 
+  function parseAddressList(value) {
+    return String(value || "")
+      .split(/[\s,;]+/)
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .map(parseInteger);
+  }
+
+  function chooseCacheVictim(lines, policy, clock) {
+    if (policy === "fifo") {
+      return lines.reduce((best, line) => line.insertedAt < best.insertedAt ? line : best, lines[0]);
+    }
+    if (policy === "lfu") {
+      return lines.reduce((best, line) => {
+        if (line.frequency !== best.frequency) return line.frequency < best.frequency ? line : best;
+        return line.lastUsed < best.lastUsed ? line : best;
+      }, lines[0]);
+    }
+    if (policy === "random") {
+      return lines[clock % lines.length];
+    }
+    return lines.reduce((best, line) => line.lastUsed < best.lastUsed ? line : best, lines[0]);
+  }
+
+  function simulateCacheSystem(params) {
+    const accesses = parseAddressList(params.accesses || params.address);
+    const addressBits = parseInteger(params.addressBits);
+    const lines = parseInteger(params.lines);
+    const blockSize = parseInteger(params.blockSize);
+    const mapping = params.mapping || "direct";
+    const replacement = params.replacement || "lru";
+    const associativityInput = parseInteger(params.associativity || 2);
+
+    if (!accesses.length) throw new Error("请输入至少一个访问地址");
+    if (!isPowerOfTwo(lines)) throw new Error("缓存行数必须是 2 的幂");
+    if (!isPowerOfTwo(blockSize)) throw new Error("块大小必须是 2 的幂");
+    if (addressBits < 4 || addressBits > 32) throw new Error("地址位数建议在 4 到 32 之间");
+
+    const associativity = mapping === "direct" ? 1 : mapping === "fully" ? lines : Math.min(associativityInput, lines);
+    if (!isPowerOfTwo(associativity)) throw new Error("组相联路数必须是 2 的幂");
+    if (lines % associativity !== 0) throw new Error("缓存行数必须能被组相联路数整除");
+
+    const setCount = lines / associativity;
+    const offsetBits = Math.log2(blockSize);
+    const indexBits = Math.log2(setCount);
+    const tagBits = addressBits - offsetBits - indexBits;
+    if (tagBits < 0) throw new Error("地址位数不足，无法容纳 tag、index 和 offset");
+
+    const sets = Array.from({ length: setCount }, (_, setIndex) => ({
+      setIndex,
+      lines: Array.from({ length: associativity }, (_, way) => ({
+        setIndex,
+        way,
+        valid: false,
+        tag: null,
+        block: null,
+        lastUsed: 0,
+        insertedAt: 0,
+        frequency: 0,
+      })),
+    }));
+    const events = [];
+    let hits = 0;
+    let misses = 0;
+
+    accesses.forEach((address, accessIndex) => {
+      if (address < 0 || address >= 2 ** addressBits) {
+        throw new Error(`地址 ${address} 超出 ${addressBits} 位地址空间`);
+      }
+      const blockNumber = Math.floor(address / blockSize);
+      const offset = address % blockSize;
+      const setIndex = mapping === "fully" ? 0 : blockNumber % setCount;
+      const tag = mapping === "direct" ? Math.floor(blockNumber / setCount) : mapping === "set" ? Math.floor(blockNumber / setCount) : blockNumber;
+      const set = sets[setIndex];
+      const hitLine = set.lines.find((line) => line.valid && line.tag === tag);
+      const clock = accessIndex + 1;
+
+      if (hitLine) {
+        hits += 1;
+        hitLine.lastUsed = clock;
+        hitLine.frequency += 1;
+        events.push({
+          accessIndex,
+          address,
+          blockNumber,
+          setIndex,
+          tag,
+          offset,
+          hit: true,
+          action: `命中：第 ${setIndex} 组第 ${hitLine.way} 路。`,
+        });
+        return;
+      }
+
+      misses += 1;
+      const emptyLine = set.lines.find((line) => !line.valid);
+      const target = emptyLine || chooseCacheVictim(set.lines, replacement, clock);
+      const evicted = target.valid ? { tag: target.tag, block: target.block, way: target.way } : null;
+      Object.assign(target, {
+        valid: true,
+        tag,
+        block: blockNumber,
+        lastUsed: clock,
+        insertedAt: clock,
+        frequency: 1,
+      });
+      events.push({
+        accessIndex,
+        address,
+        blockNumber,
+        setIndex,
+        tag,
+        offset,
+        hit: false,
+        evicted,
+        action: evicted
+          ? `未命中：按 ${replacement.toUpperCase()} 替换第 ${setIndex} 组第 ${evicted.way} 路。`
+          : `未命中：装入第 ${setIndex} 组第 ${target.way} 路空行。`,
+      });
+    });
+
+    const rows = sets.flatMap((set) => set.lines.map((line) => ({
+      set: set.setIndex,
+      way: line.way,
+      valid: line.valid,
+      tag: line.valid ? line.tag : "-",
+      block: line.valid ? line.block : "-",
+      frequency: line.frequency,
+      lastUsed: line.lastUsed,
+    })));
+
+    return {
+      mapping,
+      replacement,
+      addressBits,
+      lines,
+      blockSize,
+      associativity,
+      setCount,
+      offsetBits,
+      indexBits,
+      tagBits,
+      accesses,
+      events,
+      rows,
+      hits,
+      misses,
+      hitRate: accesses.length ? hits / accesses.length : 0,
+      explanation: `${mapping === "direct" ? "直接映射" : mapping === "fully" ? "全相联" : `${associativity} 路组相联`}，替换算法 ${replacement.toUpperCase()}，命中 ${hits} 次，未命中 ${misses} 次。`,
+    };
+  }
+
   function cleanAssemblyLines(program) {
     return String(program || "")
       .split(/\r?\n/)
       .map((line) => line.replace(/\/\/.*$/, "").replace(/;.*/, "").trim())
       .filter(Boolean);
+  }
+
+  function choosePageVictim(frames, policy, currentIndex, references) {
+    if (policy === "fifo") {
+      return frames.reduce((best, frame) => frame.loadedAt < best.loadedAt ? frame : best, frames[0]);
+    }
+    if (policy === "lfu") {
+      return frames.reduce((best, frame) => {
+        if (frame.frequency !== best.frequency) return frame.frequency < best.frequency ? frame : best;
+        return frame.lastUsed < best.lastUsed ? frame : best;
+      }, frames[0]);
+    }
+    if (policy === "opt") {
+      return frames.reduce((best, frame) => {
+        const nextUse = references.slice(currentIndex + 1).indexOf(frame.page);
+        const score = nextUse === -1 ? Number.POSITIVE_INFINITY : nextUse;
+        const bestNextUse = references.slice(currentIndex + 1).indexOf(best.page);
+        const bestScore = bestNextUse === -1 ? Number.POSITIVE_INFINITY : bestNextUse;
+        return score > bestScore ? frame : best;
+      }, frames[0]);
+    }
+    return frames.reduce((best, frame) => frame.lastUsed < best.lastUsed ? frame : best, frames[0]);
+  }
+
+  function parseSegmentTable(text) {
+    return String(text || "")
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const [segment, base, limit] = line.split(/[\s,;:]+/).map(parseInteger);
+        return { segment, base, limit };
+      });
+  }
+
+  function parseSegmentPageTable(text) {
+    return String(text || "")
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const [segment, page, frame] = line.split(/[\s,;:]+/).map(parseInteger);
+        return { segment, page, frame };
+      });
+  }
+
+  function simulatePageReplacement(referencesValue, frameCountValue, policyValue) {
+    const references = parseAddressList(referencesValue);
+    const frameCount = parseInteger(frameCountValue);
+    const policy = policyValue || "lru";
+    if (!references.length) throw new Error("请输入页面访问序列");
+    if (!Number.isInteger(frameCount) || frameCount <= 0 || frameCount > 16) throw new Error("物理页框数建议在 1 到 16 之间");
+
+    const frames = Array.from({ length: frameCount }, (_, frame) => ({
+      frame,
+      page: null,
+      loadedAt: 0,
+      lastUsed: 0,
+      frequency: 0,
+    }));
+    const events = [];
+    let faults = 0;
+
+    references.forEach((page, index) => {
+      const clock = index + 1;
+      const hit = frames.find((frame) => frame.page === page);
+      if (hit) {
+        hit.lastUsed = clock;
+        hit.frequency += 1;
+        events.push({
+          index,
+          page,
+          hit: true,
+          frame: hit.frame,
+          snapshot: frames.map((frame) => frame.page),
+          action: `页 ${page} 命中页框 ${hit.frame}。`,
+        });
+        return;
+      }
+
+      faults += 1;
+      const empty = frames.find((frame) => frame.page === null);
+      const target = empty || choosePageVictim(frames, policy, index, references);
+      const evicted = target.page;
+      Object.assign(target, {
+        page,
+        loadedAt: clock,
+        lastUsed: clock,
+        frequency: 1,
+      });
+      events.push({
+        index,
+        page,
+        hit: false,
+        frame: target.frame,
+        evicted,
+        snapshot: frames.map((frame) => frame.page),
+        action: evicted === null
+          ? `缺页：页 ${page} 装入空页框 ${target.frame}。`
+          : `缺页：按 ${policy.toUpperCase()} 置换页 ${evicted}，装入页 ${page}。`,
+      });
+    });
+
+    return {
+      references,
+      frameCount,
+      policy,
+      events,
+      faults,
+      hits: references.length - faults,
+      faultRate: faults / references.length,
+      frames: frames.map((frame) => ({ frame: frame.frame, page: frame.page })),
+    };
+  }
+
+  function simulateVirtualMemory(params) {
+    const mode = params.mode || "paging";
+    const pageSize = parseInteger(params.pageSize || 1024);
+    if (!isPowerOfTwo(pageSize)) throw new Error("页大小必须是 2 的幂");
+
+    if (mode === "segmentation") {
+      const [segment, offset] = String(params.logicalAddress || "0:0").split(/[:\s,]+/).map(parseInteger);
+      const table = parseSegmentTable(params.segmentTable);
+      const entry = table.find((item) => item.segment === segment);
+      if (!entry) throw new Error(`段 ${segment} 不在段表中`);
+      const valid = offset >= 0 && offset < entry.limit;
+      return {
+        mode,
+        logicalAddress: `${segment}:${offset}`,
+        table,
+        valid,
+        physicalAddress: valid ? entry.base + offset : null,
+        explanation: valid
+          ? `段 ${segment} 基址 ${entry.base} + 段内偏移 ${offset} = 物理地址 ${entry.base + offset}。`
+          : `段内偏移 ${offset} 超出段长 ${entry.limit}，发生越界。`,
+      };
+    }
+
+    if (mode === "segmented-paging") {
+      const [segment, page, offset] = String(params.logicalAddress || "0:0:0").split(/[:\s,]+/).map(parseInteger);
+      const table = parseSegmentPageTable(params.segmentPageTable);
+      const entry = table.find((item) => item.segment === segment && item.page === page);
+      if (!entry) throw new Error(`段 ${segment} 的页 ${page} 不在段页表中`);
+      if (offset < 0 || offset >= pageSize) throw new Error(`页内偏移必须在 0 到 ${pageSize - 1} 之间`);
+      const physicalAddress = entry.frame * pageSize + offset;
+      return {
+        mode,
+        logicalAddress: `${segment}:${page}:${offset}`,
+        table,
+        physicalAddress,
+        explanation: `先查段 ${segment} 的页表，再由页 ${page} → 页框 ${entry.frame}，物理地址 = ${entry.frame} × ${pageSize} + ${offset} = ${physicalAddress}。`,
+      };
+    }
+
+    const logicalAddress = parseInteger(params.logicalAddress || 0);
+    const page = Math.floor(logicalAddress / pageSize);
+    const offset = logicalAddress % pageSize;
+    const replacement = simulatePageReplacement(params.references, params.frames, params.replacement || "lru");
+    const resident = replacement.frames.find((frame) => frame.page === page);
+    return {
+      mode: "paging",
+      logicalAddress,
+      page,
+      offset,
+      pageSize,
+      physicalAddress: resident ? resident.frame * pageSize + offset : null,
+      residentFrame: resident ? resident.frame : null,
+      replacement,
+      explanation: resident
+        ? `逻辑地址 ${logicalAddress} 拆为页号 ${page}、页内偏移 ${offset}；页 ${page} 当前在页框 ${resident.frame}，物理地址为 ${resident.frame * pageSize + offset}。`
+        : `逻辑地址 ${logicalAddress} 对应页 ${page}，该页当前不在物理页框中，会触发缺页。`,
+    };
   }
 
   function tokenizeInstruction(line) {
@@ -704,7 +1246,15 @@
     diagnosticQuestions,
     answerQuestion,
     simulateTwosComplementAdd,
+    simulateFixedPointOperation,
+    simulateFixedPointMultiply,
+    simulateFixedPointDivide,
+    decodeFloat32,
+    simulateIeee754Operation,
     simulateCacheAddress,
+    simulateCacheSystem,
+    simulatePageReplacement,
+    simulateVirtualMemory,
     parseAssembly,
     executeAssembly,
     simulatePipeline,
@@ -713,4 +1263,3 @@
     fromUnsigned,
   };
 });
-

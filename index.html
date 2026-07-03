@@ -125,61 +125,109 @@
           <div class="sim-tabs" aria-label="知识仿真类型">
             <button class="sim-tab active" data-sim-panel="twos-sim">补码推演</button>
             <button class="sim-tab" data-sim-panel="cache-sim">缓存仿真</button>
+            <button class="sim-tab" data-sim-panel="virtual-sim">虚存仿真</button>
             <button class="sim-tab" data-sim-panel="pipeline-sim">流水线</button>
             <button class="sim-tab" data-sim-panel="assembly-sim">汇编解释</button>
           </div>
 
           <div id="twos-sim" class="sim-panel active">
             <div class="section-subheading">
-              <p class="eyebrow">Two's Complement</p>
-              <h3>补码加法可视化推演</h3>
+              <p class="eyebrow">Fixed Point & IEEE 754</p>
+              <h3>定点补码与浮点运算仿真</h3>
             </div>
 
-          <div class="two-column">
-            <div class="panel">
-              <div class="form-grid">
-                <label>
-                  <span class="field-label">x</span>
-                  <input id="twosX" type="number" value="5" />
-                </label>
-                <label>
-                  <span class="field-label">y</span>
-                  <input id="twosY" type="number" value="-3" />
-                </label>
-                <label>
-                  <span class="field-label">位数</span>
-                  <select id="twosBits">
-                    <option value="4">4</option>
-                    <option value="8" selected>8</option>
-                    <option value="16">16</option>
-                  </select>
-                </label>
+            <div class="two-column">
+              <div class="panel">
+                <div class="panel-title compact">
+                  <h3>定点数补码运算</h3>
+                  <span>加法 / 乘法 / 除法</span>
+                </div>
+                <div class="form-grid">
+                  <label>
+                    <span class="field-label">运算</span>
+                    <select id="fixedOperation">
+                      <option value="add" selected>补码加法</option>
+                      <option value="multiply">定点乘法</option>
+                      <option value="divide">定点除法</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span class="field-label">x</span>
+                    <input id="twosX" type="number" value="5" />
+                  </label>
+                  <label>
+                    <span class="field-label">y</span>
+                    <input id="twosY" type="number" value="-3" />
+                  </label>
+                  <label>
+                    <span class="field-label">位数</span>
+                    <select id="twosBits">
+                      <option value="4">4</option>
+                      <option value="8" selected>8</option>
+                      <option value="16">16</option>
+                    </select>
+                  </label>
+                </div>
+                <button id="twosRun" class="primary-button">开始推演</button>
               </div>
-              <button id="twosRun" class="primary-button">开始推演</button>
+
+              <div class="panel result-panel">
+                <div class="panel-title">
+                  <h3>定点推演结果</h3>
+                  <span>二进制过程可见</span>
+                </div>
+                <div id="twosResult"></div>
+              </div>
             </div>
 
-            <div class="panel result-panel">
-              <div class="panel-title">
-                <h3>推演结果</h3>
-                <span>逐位进位可见</span>
+            <div class="two-column">
+              <div class="panel">
+                <div class="panel-title compact">
+                  <h3>IEEE 754 浮点运算</h3>
+                  <span>单精度加减法</span>
+                </div>
+                <div class="form-grid">
+                  <label>
+                    <span class="field-label">a</span>
+                    <input id="floatA" type="number" step="any" value="1.5" />
+                  </label>
+                  <label>
+                    <span class="field-label">b</span>
+                    <input id="floatB" type="number" step="any" value="-0.25" />
+                  </label>
+                  <label>
+                    <span class="field-label">运算</span>
+                    <select id="floatOperation">
+                      <option value="add" selected>加法</option>
+                      <option value="subtract">减法</option>
+                    </select>
+                  </label>
+                </div>
+                <button id="floatRun" class="primary-button">运行浮点仿真</button>
               </div>
-              <div id="twosResult"></div>
+
+              <div class="panel result-panel">
+                <div class="panel-title">
+                  <h3>浮点推演结果</h3>
+                  <span>符号 / 阶码 / 尾数</span>
+                </div>
+                <div id="floatResult"></div>
+              </div>
             </div>
-          </div>
           </div>
 
           <div id="cache-sim" class="sim-panel">
           <div class="section-subheading">
             <p class="eyebrow">Cache Simulator</p>
-            <h3>直接映射缓存地址划分</h3>
+            <h3>缓存映射与替换策略仿真</h3>
           </div>
 
           <div class="two-column">
             <div class="panel">
               <div class="form-grid">
                 <label>
-                  <span class="field-label">主存地址</span>
-                  <input id="cacheAddress" value="0x3A7" />
+                  <span class="field-label">地址序列</span>
+                  <textarea id="cacheAccesses" rows="4">0x3A7 0x3AB 0x3A7 0x1A7 0x2A7 0x3AF</textarea>
                 </label>
                 <label>
                   <span class="field-label">地址位数</span>
@@ -193,16 +241,102 @@
                   <span class="field-label">块大小 B</span>
                   <input id="cacheBlockSize" type="number" value="4" />
                 </label>
+                <label>
+                  <span class="field-label">映射算法</span>
+                  <select id="cacheMapping">
+                    <option value="direct" selected>直接映射</option>
+                    <option value="set">组相联映射</option>
+                    <option value="fully">全相联映射</option>
+                  </select>
+                </label>
+                <label>
+                  <span class="field-label">相联度</span>
+                  <input id="cacheAssociativity" type="number" value="2" min="1" />
+                </label>
+                <label>
+                  <span class="field-label">替换算法</span>
+                  <select id="cacheReplacement">
+                    <option value="lru" selected>LRU</option>
+                    <option value="fifo">FIFO</option>
+                    <option value="lfu">LFU</option>
+                    <option value="random">随机</option>
+                  </select>
+                </label>
               </div>
-              <button id="cacheRun" class="primary-button">划分缓存地址</button>
+              <button id="cacheRun" class="primary-button">运行缓存仿真</button>
             </div>
 
             <div class="panel result-panel">
               <div class="panel-title">
-                <h3>缓存地址字段</h3>
-                <span>Tag / Index / Offset</span>
+                <h3>缓存仿真结果</h3>
+                <span>命中率与最终状态</span>
               </div>
               <div id="cacheResult"></div>
+            </div>
+          </div>
+          </div>
+
+          <div id="virtual-sim" class="sim-panel">
+          <div class="section-subheading">
+            <p class="eyebrow">Virtual Memory</p>
+            <h3>虚存映射与页面置换仿真</h3>
+          </div>
+
+          <div class="two-column">
+            <div class="panel">
+              <div class="form-grid">
+                <label>
+                  <span class="field-label">映射方式</span>
+                  <select id="vmMode">
+                    <option value="paging" selected>页表</option>
+                    <option value="segmentation">段表</option>
+                    <option value="segmented-paging">段页式</option>
+                  </select>
+                </label>
+                <label>
+                  <span class="field-label">逻辑地址</span>
+                  <input id="vmLogicalAddress" value="2052" />
+                </label>
+                <label>
+                  <span class="field-label">页大小 B</span>
+                  <input id="vmPageSize" type="number" value="1024" />
+                </label>
+                <label>
+                  <span class="field-label">物理页框数</span>
+                  <input id="vmFrames" type="number" value="3" />
+                </label>
+                <label>
+                  <span class="field-label">页面置换</span>
+                  <select id="vmReplacement">
+                    <option value="lru" selected>LRU</option>
+                    <option value="fifo">FIFO</option>
+                    <option value="lfu">LFU</option>
+                    <option value="opt">OPT</option>
+                  </select>
+                </label>
+              </div>
+
+              <label class="field-label" for="vmReferences">页面访问序列</label>
+              <textarea id="vmReferences" rows="3">0 1 2 3 0 1 4 0 1 2 3 4</textarea>
+
+              <label class="field-label" for="vmSegmentTable">段表：段号 基址 长度</label>
+              <textarea id="vmSegmentTable" rows="3">0 4096 1024
+1 8192 2048</textarea>
+
+              <label class="field-label" for="vmSegmentPageTable">段页表：段号 页号 页框号</label>
+              <textarea id="vmSegmentPageTable" rows="3">0 0 2
+0 1 5
+1 0 7</textarea>
+
+              <button id="vmRun" class="primary-button">运行虚存仿真</button>
+            </div>
+
+            <div class="panel result-panel">
+              <div class="panel-title">
+                <h3>虚存仿真结果</h3>
+                <span>地址转换与缺页过程</span>
+              </div>
+              <div id="vmResult"></div>
             </div>
           </div>
           </div>

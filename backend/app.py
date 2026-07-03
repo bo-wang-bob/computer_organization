@@ -58,11 +58,48 @@ class TwosComplementRequest(BaseModel):
     bits: int | str = 8
 
 
+class FixedPointRequest(TwosComplementRequest):
+    operation: str = "add"
+
+
+class IEEE754Request(BaseModel):
+    a: float | str
+    b: float | str
+    operation: str = "add"
+
+
 class CacheRequest(BaseModel):
     address: int | str
     addressBits: int | str = 12
     lines: int | str = 16
     blockSize: int | str = 4
+
+
+class CacheSystemRequest(BaseModel):
+    accesses: str | list[int | str]
+    addressBits: int | str = 12
+    lines: int | str = 16
+    blockSize: int | str = 4
+    mapping: str = "direct"
+    associativity: int | str = 2
+    replacement: str = "lru"
+
+
+class PageReplacementRequest(BaseModel):
+    references: str | list[int | str]
+    frames: int | str = 3
+    replacement: str = "lru"
+
+
+class VirtualMemoryRequest(BaseModel):
+    mode: str = "paging"
+    logicalAddress: int | str = 0
+    pageSize: int | str = 1024
+    frames: int | str = 3
+    replacement: str = "lru"
+    references: str = "0 1 2 3 0 1 4 0 1 2 3 4"
+    segmentTable: str = "0 4096 1024\n1 8192 2048"
+    segmentPageTable: str = "0 0 2\n0 1 5\n1 0 7"
 
 
 class PipelineRequest(BaseModel):
@@ -135,9 +172,34 @@ def twos_complement(request: TwosComplementRequest) -> dict[str, Any]:
     return call_tool(core.simulate_twos_complement_add, request.x, request.y, request.bits)
 
 
+@app.post("/api/simulations/fixed-point")
+def fixed_point(request: FixedPointRequest) -> dict[str, Any]:
+    return call_tool(core.simulate_fixed_point_operation, request.model_dump())
+
+
+@app.post("/api/simulations/ieee754")
+def ieee754(request: IEEE754Request) -> dict[str, Any]:
+    return call_tool(core.simulate_ieee754_operation, request.a, request.b, request.operation)
+
+
 @app.post("/api/simulations/cache")
 def cache(request: CacheRequest) -> dict[str, Any]:
     return call_tool(core.simulate_cache_address, request.model_dump())
+
+
+@app.post("/api/simulations/cache-system")
+def cache_system(request: CacheSystemRequest) -> dict[str, Any]:
+    return call_tool(core.simulate_cache_system, request.model_dump())
+
+
+@app.post("/api/simulations/page-replacement")
+def page_replacement(request: PageReplacementRequest) -> dict[str, Any]:
+    return call_tool(core.simulate_page_replacement, request.references, request.frames, request.replacement)
+
+
+@app.post("/api/simulations/virtual-memory")
+def virtual_memory(request: VirtualMemoryRequest) -> dict[str, Any]:
+    return call_tool(core.simulate_virtual_memory, request.model_dump())
 
 
 @app.post("/api/simulations/pipeline")

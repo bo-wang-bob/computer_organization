@@ -71,7 +71,7 @@ def choose_agent(agent_id: str | None, intent: str) -> AgentProfile:
         return AGENT_PROFILES[agent_id]
     if intent == "assembly_help":
         return AGENT_PROFILES["assembly"]
-    if intent in {"twos_complement_help", "cache_help", "pipeline_help"}:
+    if intent in {"twos_complement_help", "fixed_point_help", "float_help", "cache_help", "virtual_memory_help", "pipeline_help"}:
         return AGENT_PROFILES["derivation"]
     if intent == "diagnosis_help":
         return AGENT_PROFILES["diagnosis"]
@@ -118,11 +118,32 @@ def build_tool_context(payload: dict[str, Any], intent: str) -> dict[str, Any]:
                 context["toolResult"] = core.simulate_twos_complement_add(
                     params.get("x"), params.get("y"), params.get("bits", 8)
                 )
-        elif intent == "cache_help":
-            params = tool_input.get("cache")
+        elif intent == "fixed_point_help":
+            params = tool_input.get("fixedPoint")
             if params:
-                context["tool"] = "simulate_cache_address"
-                context["toolResult"] = core.simulate_cache_address(params)
+                context["tool"] = "simulate_fixed_point_operation"
+                context["toolResult"] = core.simulate_fixed_point_operation(params)
+        elif intent == "float_help":
+            params = tool_input.get("ieee754") or tool_input.get("float")
+            if params:
+                context["tool"] = "simulate_ieee754_operation"
+                context["toolResult"] = core.simulate_ieee754_operation(
+                    params.get("a"), params.get("b"), params.get("operation", "add")
+                )
+        elif intent == "cache_help":
+            params = tool_input.get("cacheSystem") or tool_input.get("cache")
+            if params:
+                if params.get("accesses"):
+                    context["tool"] = "simulate_cache_system"
+                    context["toolResult"] = core.simulate_cache_system(params)
+                else:
+                    context["tool"] = "simulate_cache_address"
+                    context["toolResult"] = core.simulate_cache_address(params)
+        elif intent == "virtual_memory_help":
+            params = tool_input.get("virtualMemory")
+            if params:
+                context["tool"] = "simulate_virtual_memory"
+                context["toolResult"] = core.simulate_virtual_memory(params)
         elif intent == "pipeline_help":
             params = tool_input.get("pipeline") or {}
             program = params.get("program") or extract_assembly_program(message)
@@ -151,10 +172,16 @@ def classify_intent(message: str, agent_id: str | None = None) -> str:
         return "assembly_help"
     if agent_id == "derivation":
         lowered = core.normalize(message)
-        if "cache" in lowered:
+        if any(keyword in lowered for keyword in ["ieee", "754", "浮点"]):
+            return "float_help"
+        if any(keyword in lowered for keyword in ["虚存", "虚拟存储", "页表", "段表", "段页", "页面置换"]):
+            return "virtual_memory_help"
+        if any(keyword in lowered for keyword in ["cache", "缓存", "组相联", "全相联", "lru", "fifo", "lfu"]):
             return "cache_help"
         if "流水线" in lowered or "pipeline" in lowered:
             return "pipeline_help"
+        if "乘" in lowered or "除" in lowered:
+            return "fixed_point_help"
         return "twos_complement_help"
     if agent_id == "diagnosis":
         return "diagnosis_help"

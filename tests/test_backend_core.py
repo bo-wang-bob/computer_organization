@@ -24,6 +24,22 @@ class BackendCoreTest(unittest.TestCase):
         self.assertEqual(overflow["sumBinary"], "10000000")
         self.assertTrue(overflow["overflow"])
 
+    def test_fixed_point_multiply_and_divide(self):
+        multiply = core.simulate_fixed_point_operation({"operation": "multiply", "x": -3, "y": 4, "bits": 8})
+        self.assertEqual(multiply["raw"], -12)
+        self.assertEqual(multiply["result"], -12)
+        self.assertFalse(multiply["overflow"])
+
+        divide = core.simulate_fixed_point_operation({"operation": "divide", "x": -13, "y": 4, "bits": 8})
+        self.assertEqual(divide["quotient"], -3)
+        self.assertEqual(divide["remainder"], -1)
+        self.assertFalse(divide["overflow"])
+
+    def test_ieee754_addition(self):
+        result = core.simulate_ieee754_operation(1.5, -0.25, "add")
+        self.assertAlmostEqual(result["resultValue"], 1.25)
+        self.assertEqual(result["result"]["binary"], "00111111101000000000000000000000")
+
     def test_cache_address_split(self):
         result = core.simulate_cache_address(
             {"address": "0x3A7", "addressBits": 12, "lines": 16, "blockSize": 4}
@@ -35,6 +51,58 @@ class BackendCoreTest(unittest.TestCase):
         self.assertEqual(result["index"], 9)
         self.assertEqual(result["offset"], 3)
         self.assertEqual(result["rows"][9]["block"], 233)
+
+    def test_cache_system_mapping_and_replacement(self):
+        result = core.simulate_cache_system(
+            {
+                "accesses": "0x3A7 0x3AB 0x3A7 0x1A7",
+                "addressBits": 12,
+                "lines": 16,
+                "blockSize": 4,
+                "mapping": "set",
+                "associativity": 2,
+                "replacement": "lru",
+            }
+        )
+
+        self.assertEqual(result["mapping"], "set")
+        self.assertEqual(result["associativity"], 2)
+        self.assertGreaterEqual(result["hits"], 1)
+        self.assertEqual(len(result["events"]), 4)
+
+    def test_virtual_memory_modes(self):
+        paging = core.simulate_virtual_memory(
+            {
+                "mode": "paging",
+                "logicalAddress": 2052,
+                "pageSize": 1024,
+                "frames": 3,
+                "replacement": "lru",
+                "references": "0 1 2 3 0 1 4 0 1 2 3 4",
+            }
+        )
+        self.assertEqual(paging["page"], 2)
+        self.assertIn("replacement", paging)
+
+        segmentation = core.simulate_virtual_memory(
+            {
+                "mode": "segmentation",
+                "logicalAddress": "0:12",
+                "pageSize": 1024,
+                "segmentTable": "0 4096 1024\n1 8192 2048",
+            }
+        )
+        self.assertEqual(segmentation["physicalAddress"], 4108)
+
+        segmented_paging = core.simulate_virtual_memory(
+            {
+                "mode": "segmented-paging",
+                "logicalAddress": "0:1:12",
+                "pageSize": 1024,
+                "segmentPageTable": "0 0 2\n0 1 5",
+            }
+        )
+        self.assertEqual(segmented_paging["physicalAddress"], 5132)
 
     def test_assembly_execution_supports_riscv_and_simple_mov(self):
         riscv = """addi x1, x0, 5
