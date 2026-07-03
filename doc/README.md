@@ -20,20 +20,26 @@
 index.html
 ```
 
-后端服务启动方式：
+后端服务推荐使用项目 Conda 环境启动：
 
-```bash
-python -m pip install -r requirements.txt
-python -m uvicorn backend.app:app --reload --host 127.0.0.1 --port 8000
+```powershell
+.\scripts\setup_conda_env.ps1
+.\scripts\run_fastapi.ps1
 ```
 
-未安装 FastAPI 时，也可以直接使用标准库服务：
+后端测试也使用同一个 Conda 环境：
+
+```powershell
+.\scripts\test_backend.ps1
+```
+
+启动后访问 `http://127.0.0.1:8000/`，接口文档位于 `http://127.0.0.1:8000/docs`。
+
+如果暂时不想安装依赖，也可以使用标准库服务预览：
 
 ```bash
 python -m backend.simple_server --host 127.0.0.1 --port 8000
 ```
-
-启动后访问 `http://127.0.0.1:8000/`，接口文档位于 `http://127.0.0.1:8000/docs`。
 
 ## 如何测试
 
@@ -57,6 +63,7 @@ python -m unittest tests.test_backend_core
 index.html
 styles.css
 requirements.txt
+environment.yml
 src/core.js
 src/app.js
 tests/core.test.js
@@ -65,6 +72,10 @@ backend/
   core.py
   app.py
   simple_server.py
+scripts/
+  setup_conda_env.ps1
+  run_fastapi.ps1
+  test_backend.ps1
 doc/
   README.md
   IMPLEMENTATION_PLAN.md

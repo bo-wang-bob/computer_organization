@@ -4,16 +4,16 @@
 
 ## 启动方式
 
-安装依赖：
+推荐使用项目 Conda 环境：
 
-```bash
-python -m pip install -r requirements.txt
+```powershell
+.\scripts\setup_conda_env.ps1
 ```
 
 启动服务：
 
-```bash
-python -m uvicorn backend.app:app --reload --host 127.0.0.1 --port 8000
+```powershell
+.\scripts\run_fastapi.ps1
 ```
 
 如果暂时没有安装 FastAPI，也可以使用无第三方依赖的本地服务入口：
