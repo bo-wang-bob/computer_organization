@@ -20,10 +20,7 @@
         <nav class="nav-list">
           <button class="nav-item active" data-section="dashboard">工作台</button>
           <button class="nav-item" data-section="qa">知识问答</button>
-          <button class="nav-item" data-section="twos">补码推演</button>
-          <button class="nav-item" data-section="cache">缓存仿真</button>
-          <button class="nav-item" data-section="pipeline">流水线</button>
-          <button class="nav-item" data-section="assembly">汇编解释</button>
+          <button class="nav-item" data-section="simulation">知识仿真</button>
         </nav>
 
         <div class="sidebar-note">
@@ -50,8 +47,8 @@
               </div>
               <div class="quick-actions">
                 <button class="action-button" data-section="qa">问一个知识点</button>
-                <button class="action-button" data-section="twos">运行补码推演</button>
-                <button class="action-button" data-section="assembly">解释汇编代码</button>
+                <button class="action-button" data-section="simulation" data-sim-panel="twos-sim">运行补码推演</button>
+                <button class="action-button" data-section="simulation" data-sim-panel="assembly-sim">解释汇编代码</button>
               </div>
             </div>
 
@@ -117,13 +114,26 @@
           </div>
         </section>
 
-        <section id="twos" class="page-section">
+        <section id="simulation" class="page-section">
           <div class="section-heading">
             <div>
-              <p class="eyebrow">Two's Complement</p>
-              <h2>补码加法可视化推演</h2>
+              <p class="eyebrow">Knowledge Simulation</p>
+              <h2>知识仿真</h2>
             </div>
           </div>
+
+          <div class="sim-tabs" aria-label="知识仿真类型">
+            <button class="sim-tab active" data-sim-panel="twos-sim">补码推演</button>
+            <button class="sim-tab" data-sim-panel="cache-sim">缓存仿真</button>
+            <button class="sim-tab" data-sim-panel="pipeline-sim">流水线</button>
+            <button class="sim-tab" data-sim-panel="assembly-sim">汇编解释</button>
+          </div>
+
+          <div id="twos-sim" class="sim-panel active">
+            <div class="section-subheading">
+              <p class="eyebrow">Two's Complement</p>
+              <h3>补码加法可视化推演</h3>
+            </div>
 
           <div class="two-column">
             <div class="panel">
@@ -156,14 +166,12 @@
               <div id="twosResult"></div>
             </div>
           </div>
-        </section>
+          </div>
 
-        <section id="cache" class="page-section">
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">Cache Simulator</p>
-              <h2>直接映射缓存地址划分</h2>
-            </div>
+          <div id="cache-sim" class="sim-panel">
+          <div class="section-subheading">
+            <p class="eyebrow">Cache Simulator</p>
+            <h3>直接映射缓存地址划分</h3>
           </div>
 
           <div class="two-column">
@@ -197,14 +205,12 @@
               <div id="cacheResult"></div>
             </div>
           </div>
-        </section>
+          </div>
 
-        <section id="pipeline" class="page-section">
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">Pipeline Timeline</p>
-              <h2>五级流水线可视化推演</h2>
-            </div>
+          <div id="pipeline-sim" class="sim-panel">
+          <div class="section-subheading">
+            <p class="eyebrow">Pipeline Timeline</p>
+            <h3>五级流水线可视化推演</h3>
           </div>
 
           <div class="two-column">
@@ -228,14 +234,12 @@ sub x5, x3, x6</textarea>
               <div id="pipelineResult"></div>
             </div>
           </div>
-        </section>
+          </div>
 
-        <section id="assembly" class="page-section">
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">Assembly Tutor</p>
-              <h2>汇编指令逐步解释</h2>
-            </div>
+          <div id="assembly-sim" class="sim-panel">
+          <div class="section-subheading">
+            <p class="eyebrow">Assembly Tutor</p>
+            <h3>汇编指令逐步解释</h3>
           </div>
 
           <div class="assembly-layout">
@@ -280,6 +284,7 @@ lw x4, 0(x0)</textarea>
                 </div>
               </div>
             </div>
+          </div>
           </div>
         </section>
 

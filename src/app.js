@@ -43,6 +43,15 @@
     });
   }
 
+  function setSimulationPanel(panelId) {
+    $all(".sim-panel").forEach((panel) => {
+      panel.classList.toggle("active", panel.id === panelId);
+    });
+    $all(".sim-tab").forEach((button) => {
+      button.classList.toggle("active", button.dataset.simPanel === panelId);
+    });
+  }
+
   function renderChapters() {
     const progress = $("#chapterProgress");
     progress.innerHTML = core.chapters
@@ -429,7 +438,18 @@
 
   function bindEvents() {
     $all("[data-section]").forEach((button) => {
-      button.addEventListener("click", () => setSection(button.dataset.section));
+      button.addEventListener("click", () => {
+        setSection(button.dataset.section);
+        if (button.dataset.simPanel) {
+          setSimulationPanel(button.dataset.simPanel);
+        }
+      });
+    });
+    $all(".sim-tab").forEach((button) => {
+      button.addEventListener("click", () => {
+        setSection("simulation");
+        setSimulationPanel(button.dataset.simPanel);
+      });
     });
     $("#askButton").addEventListener("click", runQuestionAnswer);
     $("#twosRun").addEventListener("click", runTwosComplement);
