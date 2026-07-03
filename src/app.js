@@ -2,6 +2,28 @@
   "use strict";
 
   const core = window.CompOrgCore;
+  const memorySimulations = {
+    "sram-read": {
+      title: "SRAM 读操作全过程",
+      description: "逐步观察片选、地址译码、列选择和数据输出路径。",
+      src: "./scripts/SRAM读.html",
+    },
+    "sram-write": {
+      title: "SRAM 写操作全过程",
+      description: "跟随写使能、输入数据控制、地址选择和位元写入过程。",
+      src: "./scripts/SRAM写.html",
+    },
+    "bit-expansion": {
+      title: "位扩展法",
+      description: "用多片低位宽芯片并联，组成更宽的数据字长。",
+      src: "./scripts/位扩展法.html",
+    },
+    "word-expansion": {
+      title: "字扩展法",
+      description: "用高位地址片选多片芯片，扩展存储器字数容量。",
+      src: "./scripts/字扩展法.html",
+    },
+  };
   const state = {
     assembly: {
       execution: null,
@@ -272,6 +294,26 @@
 
   function formatAddress(value) {
     return `0x${Number(value).toString(16).toUpperCase()}`;
+  }
+
+  function setMemorySimulation(simId, forceReload = false) {
+    const simulation = memorySimulations[simId] || memorySimulations["sram-read"];
+    $("#memorySimTitle").textContent = simulation.title;
+    $("#memorySimDescription").textContent = simulation.description;
+    $all(".memory-sim-option").forEach((button) => {
+      button.classList.toggle("active", button.dataset.memorySim === simId);
+    });
+
+    const frame = $("#memorySimFrame");
+    const currentSrc = frame.getAttribute("src") || "";
+    if (forceReload || currentSrc !== simulation.src) {
+      frame.setAttribute("src", simulation.src);
+    }
+  }
+
+  function reloadMemorySimulation() {
+    const active = $(".memory-sim-option.active");
+    setMemorySimulation(active ? active.dataset.memorySim : "sram-read", true);
   }
 
   function renderTwosComplement(result) {
@@ -847,6 +889,10 @@
     $("#floatRun").addEventListener("click", runFloat);
     $("#cacheRun").addEventListener("click", runCache);
     $("#vmRun").addEventListener("click", runVirtualMemory);
+    $all(".memory-sim-option").forEach((button) => {
+      button.addEventListener("click", () => setMemorySimulation(button.dataset.memorySim));
+    });
+    $("#memoryReload").addEventListener("click", reloadMemorySimulation);
     $("#pipelineRun").addEventListener("click", runPipeline);
     $("#assemblyLoad").addEventListener("click", loadAssembly);
     $("#assemblyPrev").addEventListener("click", () => stepAssembly(-1));
@@ -861,6 +907,7 @@
     runFloat();
     runCache();
     runVirtualMemory();
+    setMemorySimulation("sram-read");
     runPipeline();
     loadAssembly();
   }

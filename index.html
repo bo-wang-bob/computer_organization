@@ -115,6 +115,7 @@
             <button class="sim-tab active" data-sim-panel="twos-sim">补码推演</button>
             <button class="sim-tab" data-sim-panel="cache-sim">缓存仿真</button>
             <button class="sim-tab" data-sim-panel="virtual-sim">虚存仿真</button>
+            <button class="sim-tab" data-sim-panel="memory-sim">存储器仿真</button>
             <button class="sim-tab" data-sim-panel="pipeline-sim">流水线</button>
             <button class="sim-tab" data-sim-panel="assembly-sim">汇编解释</button>
           </div>
@@ -327,6 +328,37 @@
               </div>
               <div id="vmResult"></div>
             </div>
+          </div>
+          </div>
+
+          <div id="memory-sim" class="sim-panel">
+          <div class="section-subheading">
+            <p class="eyebrow">Memory Interactive Lab</p>
+            <h3>存储器结构交互仿真</h3>
+          </div>
+
+          <div class="panel memory-workbench">
+            <div class="panel-title">
+              <div>
+                <h3 id="memorySimTitle">SRAM 读操作全过程</h3>
+                <span id="memorySimDescription">逐步观察片选、地址译码、列选择和数据输出路径。</span>
+              </div>
+              <button id="memoryReload" class="secondary-button compact-button">重新加载</button>
+            </div>
+
+            <div class="memory-switcher" aria-label="存储器仿真选择">
+              <button class="memory-sim-option active" data-memory-sim="sram-read">SRAM 读</button>
+              <button class="memory-sim-option" data-memory-sim="sram-write">SRAM 写</button>
+              <button class="memory-sim-option" data-memory-sim="bit-expansion">位扩展法</button>
+              <button class="memory-sim-option" data-memory-sim="word-expansion">字扩展法</button>
+            </div>
+
+            <iframe
+              id="memorySimFrame"
+              class="memory-frame"
+              title="存储器交互仿真"
+              src="./scripts/SRAM读.html"
+            ></iframe>
           </div>
           </div>
 
