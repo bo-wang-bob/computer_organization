@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>计算机组成原理教学智能体</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="功能导航">
+        <div class="brand">
+          <div class="brand-mark">CO</div>
+          <div>
+            <h1>计组教学智能体</h1>
+            <p>规则推演 + 教学解释</p>
+          </div>
+        </div>
+
+        <nav class="nav-list">
+          <button class="nav-item active" data-section="dashboard">工作台</button>
+          <button class="nav-item" data-section="qa">章节问答</button>
+          <button class="nav-item" data-section="twos">补码推演</button>
+          <button class="nav-item" data-section="cache">Cache 仿真</button>
+          <button class="nav-item" data-section="pipeline">流水线</button>
+          <button class="nav-item" data-section="assembly">汇编解释</button>
+          <button class="nav-item" data-section="diagnosis">学习诊断</button>
+        </nav>
+
+        <div class="sidebar-note">
+          <span class="status-dot"></span>
+          <span>当前为本地 MVP，可后续接入后端与大模型。</span>
+        </div>
+      </aside>
+
+      <main class="main-content">
+        <section id="dashboard" class="page-section active">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Learning Workspace</p>
+              <h2>计算机组成原理学习工作台</h2>
+            </div>
+            <div class="mode-badge">MVP 迭代 1</div>
+          </div>
+
+          <div class="dashboard-grid">
+            <div class="panel wide">
+              <div class="panel-title">
+                <h3>今日建议</h3>
+                <span>从可验证的规则推演开始</span>
+              </div>
+              <div class="quick-actions">
+                <button class="action-button" data-section="qa">问一个概念</button>
+                <button class="action-button" data-section="twos">运行补码推演</button>
+                <button class="action-button" data-section="assembly">解释汇编代码</button>
+              </div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-title">
+                <h3>学习进度</h3>
+                <span>示例课程结构</span>
+              </div>
+              <div id="chapterProgress" class="progress-list"></div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-title">
+                <h3>智能体分工</h3>
+                <span>解释与计算分离</span>
+              </div>
+              <div class="agent-flow">
+                <div>用户输入</div>
+                <div>意图判断</div>
+                <div>规则工具</div>
+                <div>教学反馈</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="qa" class="page-section">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Chapter QA</p>
+              <h2>章节知识问答</h2>
+            </div>
+          </div>
+
+          <div class="two-column">
+            <div class="panel">
+              <label class="field-label" for="qaChapter">章节</label>
+              <select id="qaChapter"></select>
+
+              <label class="field-label" for="qaMode">讲解模式</label>
+              <select id="qaMode">
+                <option value="standard">标准</option>
+                <option value="beginner">入门</option>
+                <option value="exam">考试</option>
+                <option value="lab">实验</option>
+              </select>
+
+              <label class="field-label" for="qaQuestion">问题</label>
+              <textarea id="qaQuestion" rows="7">为什么补码可以把减法变成加法？</textarea>
+
+              <button id="askButton" class="primary-button">生成解释</button>
+            </div>
+
+            <div class="panel result-panel">
+              <div class="panel-title">
+                <h3>智能体回答</h3>
+                <span id="qaMatched">等待提问</span>
+              </div>
+              <div id="qaAnswer" class="answer-box"></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="twos" class="page-section">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Two's Complement</p>
+              <h2>补码加法可视化推演</h2>
+            </div>
+          </div>
+
+          <div class="two-column">
+            <div class="panel">
+              <div class="form-grid">
+                <label>
+                  <span class="field-label">x</span>
+                  <input id="twosX" type="number" value="5" />
+                </label>
+                <label>
+                  <span class="field-label">y</span>
+                  <input id="twosY" type="number" value="-3" />
+                </label>
+                <label>
+                  <span class="field-label">位数</span>
+                  <select id="twosBits">
+                    <option value="4">4</option>
+                    <option value="8" selected>8</option>
+                    <option value="16">16</option>
+                  </select>
+                </label>
+              </div>
+              <button id="twosRun" class="primary-button">开始推演</button>
+            </div>
+
+            <div class="panel result-panel">
+              <div class="panel-title">
+                <h3>推演结果</h3>
+                <span>逐位进位可见</span>
+              </div>
+              <div id="twosResult"></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="cache" class="page-section">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Cache Simulator</p>
+              <h2>直接映射 Cache 地址划分</h2>
+            </div>
+          </div>
+
+          <div class="two-column">
+            <div class="panel">
+              <div class="form-grid">
+                <label>
+                  <span class="field-label">主存地址</span>
+                  <input id="cacheAddress" value="0x3A7" />
+                </label>
+                <label>
+                  <span class="field-label">地址位数</span>
+                  <input id="cacheAddressBits" type="number" value="12" />
+                </label>
+                <label>
+                  <span class="field-label">Cache 行数</span>
+                  <input id="cacheLines" type="number" value="16" />
+                </label>
+                <label>
+                  <span class="field-label">块大小 B</span>
+                  <input id="cacheBlockSize" type="number" value="4" />
+                </label>
+              </div>
+              <button id="cacheRun" class="primary-button">划分地址</button>
+            </div>
+
+            <div class="panel result-panel">
+              <div class="panel-title">
+                <h3>地址字段</h3>
+                <span>Tag / Index / Offset</span>
+              </div>
+              <div id="cacheResult"></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="pipeline" class="page-section">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Pipeline Timeline</p>
+              <h2>五级流水线可视化推演</h2>
+            </div>
+          </div>
+
+          <div class="two-column">
+            <div class="panel">
+              <label class="check-row">
+                <input id="pipelineForwarding" type="checkbox" checked />
+                <span>开启转发</span>
+              </label>
+              <label class="field-label" for="pipelineCode">指令序列</label>
+              <textarea id="pipelineCode" rows="9">lw x1, 0(x2)
+add x3, x1, x4
+sub x5, x3, x6</textarea>
+              <button id="pipelineRun" class="primary-button">生成周期表</button>
+            </div>
+
+            <div class="panel result-panel">
+              <div class="panel-title">
+                <h3>流水线表</h3>
+                <span>IF / ID / EX / MEM / WB</span>
+              </div>
+              <div id="pipelineResult"></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="assembly" class="page-section">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Assembly Tutor</p>
+              <h2>汇编指令逐步解释</h2>
+            </div>
+          </div>
+
+          <div class="assembly-layout">
+            <div class="panel">
+              <label class="field-label" for="assemblyCode">代码</label>
+              <textarea id="assemblyCode" rows="12">addi x1, x0, 5
+addi x2, x0, 7
+add x3, x1, x2
+sw x3, 0(x0)
+lw x4, 0(x0)</textarea>
+              <div class="button-row">
+                <button id="assemblyLoad" class="primary-button">解析执行</button>
+                <button id="assemblyPrev" class="secondary-button">上一步</button>
+                <button id="assemblyNext" class="secondary-button">下一步</button>
+                <button id="assemblyReset" class="secondary-button">重置</button>
+              </div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-title">
+                <h3>执行日志</h3>
+                <span id="assemblyCursor">未执行</span>
+              </div>
+              <div id="assemblyLog" class="execution-log"></div>
+            </div>
+
+            <div class="panel wide">
+              <div class="state-grid">
+                <div>
+                  <div class="panel-title compact">
+                    <h3>寄存器</h3>
+                    <span>变化高亮</span>
+                  </div>
+                  <div id="registerView" class="register-grid"></div>
+                </div>
+                <div>
+                  <div class="panel-title compact">
+                    <h3>内存</h3>
+                    <span>仅显示写入项</span>
+                  </div>
+                  <div id="memoryView" class="memory-list"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="diagnosis" class="page-section">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Learning Diagnosis</p>
+              <h2>学习评价与反馈</h2>
+            </div>
+          </div>
+
+          <div class="two-column">
+            <div class="panel">
+              <label class="field-label" for="diagQuestion">练习题</label>
+              <select id="diagQuestion"></select>
+              <label class="field-label" for="diagAnswer">你的答案</label>
+              <textarea id="diagAnswer" rows="5">溢出</textarea>
+              <button id="diagSubmit" class="primary-button">提交诊断</button>
+            </div>
+            <div class="panel result-panel">
+              <div class="panel-title">
+                <h3>诊断反馈</h3>
+                <span>先定位关键错误</span>
+              </div>
+              <div id="diagResult"></div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="./src/core.js"></script>
+    <script src="./src/app.js"></script>
+  </body>
+</html>
+
