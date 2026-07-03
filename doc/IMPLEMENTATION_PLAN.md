@@ -37,9 +37,7 @@ tests/
   test_backend_core.py      后端规则测试
 doc/
   README.md
-  BACKEND_API.md            后端接口说明
-  WEB_AGENT_DESIGN.md       完整产品设计文档
-  网页端计算机组成原理教学智能体设计流程.md
+  网页端计算机组成原理教学智能体设计流程.md  整体目标与设计流程
   IMPLEMENTATION_PLAN.md    当前实现迭代计划
 ```
 

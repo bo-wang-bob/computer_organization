@@ -68,8 +68,6 @@ backend/
 doc/
   README.md
   IMPLEMENTATION_PLAN.md
-  WEB_AGENT_DESIGN.md
-  BACKEND_API.md
   网页端计算机组成原理教学智能体设计流程.md
 ```
 
