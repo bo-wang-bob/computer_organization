@@ -193,11 +193,19 @@ def build_messages(profile: AgentProfile, payload: dict[str, Any], context: dict
     context_text = json.dumps(context, ensure_ascii=False, indent=2)
     system_prompt = (
         f"{profile.system_prompt}\n"
-        "请遵守：\n"
-        "1. 用中文回答，面向正在学习《计算机组成原理》的学生。\n"
-        "2. 如果给出了规则工具结果，必须以工具结果为准，不要重新编造数值。\n"
-        "3. 回答结构控制为：结论、关键步骤、易错点、下一步建议。\n"
-        "4. 如果缺少推演参数，先说明需要哪些输入。"
+        "你必须输出适合网页直接渲染的 Markdown 正文。请严格遵守：\n"
+        "1. 只输出 Markdown 内容，不要包裹 ```markdown 代码块，不要输出 HTML。\n"
+        "2. 固定使用这些二级标题，且标题文字不要改名：\n"
+        "   ## 结论\n"
+        "   ## 关键步骤\n"
+        "   ## 易错点\n"
+        "   ## 下一步\n"
+        "3. “结论”写 1 到 2 句，先直接回答学生问题。\n"
+        "4. “关键步骤”使用 3 到 5 条有序列表，每条尽量短，必要的二进制、寄存器名、公式用反引号包起来。\n"
+        "5. “易错点”和“下一步”使用无序列表，每节 1 到 3 条。\n"
+        "6. 不要使用嵌套列表，不要使用表格，不要使用 LaTeX 语法；公式请用普通文本或行内代码表示。\n"
+        "7. 如果给出了规则工具结果，必须以工具结果为准，不要重新编造数值。\n"
+        "8. 如果缺少推演参数，在“结论”说明还需要哪些输入，并仍保持上述 Markdown 结构。"
     )
     user_prompt = f"学生问题：\n{message}\n\n平台检索和规则工具上下文：\n{context_text}"
     return [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}]
@@ -206,16 +214,26 @@ def build_messages(profile: AgentProfile, payload: dict[str, Any], context: dict
 def fallback_answer(profile: AgentProfile, context: dict[str, Any], llm_error: str | None = None) -> str:
     retrieval = context.get("retrieval", {})
     parts = [
-        f"{profile.name}已准备好。",
-        f"结论：{retrieval.get('summary', '已找到相关课程知识点。')}",
-        f"关键解释：{retrieval.get('explanation', '')}",
+        "## 结论",
+        retrieval.get("summary", "已找到相关课程知识点。"),
+        "## 关键步骤",
+        f"1. {retrieval.get('explanation', '先确认题目涉及的核心概念。')}",
+        f"2. 例子：{retrieval.get('example', '结合具体输入再做一步推演。')}",
+        "3. 回到题目条件，检查范围、单位和边界情况。",
+        "## 易错点",
     ]
+    for mistake in retrieval.get("commonMistakes", ["忽略题目中的位数、地址大小或硬件约束。"])[:3]:
+        parts.append(f"- {mistake}")
+    parts.append("## 下一步")
+    followups = retrieval.get("followups", ["换一组参数继续验证。"])
+    for followup in followups[:3]:
+        parts.append(f"- {followup}")
     if context.get("toolResult") is not None:
-        parts.append("规则工具已完成计算，结果见 toolResult 字段。")
+        parts.append("- 规则工具已完成计算，页面可查看对应仿真结果。")
     if context.get("toolError"):
-        parts.append(f"工具提示：{context['toolError']}")
+        parts.append(f"- 工具提示：{context['toolError']}")
     if llm_error:
-        parts.append(f"大模型暂未返回，已使用本地规则兜底。原因：{llm_error}")
+        parts.append(f"- 大模型暂未返回，已使用本地规则兜底。原因：{llm_error}")
     return "\n\n".join(part for part in parts if part)
 
 

@@ -603,12 +603,18 @@ tr:last-child td {
   line-height: 1.65;
 }
 
+.markdown-body h2,
 .markdown-body h3,
 .markdown-body h4,
-.markdown-body h5 {
+.markdown-body h5,
+.markdown-body h6 {
   margin: 4px 0 0;
   color: var(--text);
   font-size: 15px;
+}
+
+.markdown-body h2 {
+  font-size: 17px;
 }
 
 .markdown-body p,
@@ -653,6 +659,21 @@ td code {
 .markdown-body a {
   color: var(--teal);
   font-weight: 700;
+}
+
+.markdown-body blockquote {
+  margin: 0;
+  border-left: 3px solid var(--teal);
+  padding: 6px 10px;
+  background: var(--teal-soft);
+  color: #24424a;
+}
+
+.markdown-body hr {
+  width: 100%;
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: 2px 0;
 }
 
 .markdown-table {

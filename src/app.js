@@ -28,18 +28,21 @@
       .replace(/'/g, "&#039;");
   }
 
-  function renderPlainText(value) {
-    return escapeHtml(value || "")
-      .replace(/\n{2,}/g, "</p><p>")
-      .replace(/\n/g, "<br>");
-  }
-
   function renderInlineMarkdown(value) {
-    return escapeHtml(value || "")
+    const codeSpans = [];
+    const escaped = escapeHtml(value || "").replace(/`([^`]+)`/g, (_, code) => {
+      const token = `@@CODE_${codeSpans.length}@@`;
+      codeSpans.push(`<code>${code}</code>`);
+      return token;
+    });
+    return escaped
       .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>')
-      .replace(/`([^`]+)`/g, "<code>$1</code>")
       .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
-      .replace(/\*([^*]+)\*/g, "<em>$1</em>");
+      .replace(/__([^_]+)__/g, "<strong>$1</strong>")
+      .replace(/(^|[^\*])\*([^*]+)\*/g, "$1<em>$2</em>")
+      .replace(/(^|[^_])_([^_]+)_/g, "$1<em>$2</em>")
+      .replace(/\$([^$]+)\$/g, "<code>$1</code>")
+      .replace(/@@CODE_(\d+)@@/g, (_, index) => codeSpans[Number(index)] || "");
   }
 
   function splitMarkdownCells(line) {
@@ -107,6 +110,20 @@
         continue;
       }
 
+      if (/^(-{3,}|\*{3,}|_{3,})$/.test(trimmed)) {
+        flushParagraph();
+        closeList();
+        html.push("<hr>");
+        continue;
+      }
+
+      if (trimmed.startsWith(">")) {
+        flushParagraph();
+        closeList();
+        html.push(`<blockquote>${renderInlineMarkdown(trimmed.replace(/^>\s?/, ""))}</blockquote>`);
+        continue;
+      }
+
       const nextLine = lines[index + 1] || "";
       const isTableStart = /^\|?.+\|.+\|?$/.test(trimmed) && /^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?$/.test(nextLine.trim());
       if (isTableStart) {
@@ -135,11 +152,11 @@
         continue;
       }
 
-      const heading = /^(#{1,3})\s+(.+)$/.exec(trimmed);
+      const heading = /^(#{1,6})\s+(.+)$/.exec(trimmed);
       if (heading) {
         flushParagraph();
         closeList();
-        const level = heading[1].length + 2;
+        const level = Math.min(6, heading[1].length + 1);
         html.push(`<h${level}>${renderInlineMarkdown(heading[2])}</h${level}>`);
         continue;
       }
@@ -206,14 +223,6 @@
       })
       .join("");
 
-    const qaChapter = $("#qaChapter");
-    qaChapter.innerHTML = `
-      <option value="all">全部章节</option>
-      ${core.chapters
-        .map((chapter) => `<option value="${chapter.id}">${escapeHtml(chapter.title)}</option>`)
-        .join("")}
-    `;
-
   }
 
   function renderKnowledgeAnswer(result) {
@@ -240,8 +249,8 @@
     try {
       const result = await apiPost("/api/agent/chat", {
         agentId: "qa",
-        chapterId: $("#qaChapter").value,
-        mode: $("#qaMode").value,
+        chapterId: "all",
+        mode: "standard",
         message: $("#qaQuestion").value,
         useLLM: true,
       });
