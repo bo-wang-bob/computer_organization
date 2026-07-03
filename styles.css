@@ -602,6 +602,37 @@ tr:last-child td {
   line-height: 1.55;
 }
 
+.memory-line-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.memory-line-summary div {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 10px;
+}
+
+.memory-line-summary strong,
+.memory-line-summary span {
+  display: block;
+}
+
+.memory-line-summary strong {
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.memory-line-summary span {
+  font-family: Consolas, "Courier New", monospace;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
 .memory-machine {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -669,6 +700,45 @@ tr:last-child td {
 .memory-cell.selected {
   border-color: var(--amber);
   background: var(--amber-soft);
+}
+
+.memory-glossary {
+  margin-top: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfd;
+  padding: 12px;
+}
+
+.memory-glossary h4 {
+  margin: 0 0 10px;
+  font-size: 15px;
+}
+
+.memory-glossary dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.memory-glossary div {
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 10px;
+}
+
+.memory-glossary dt {
+  margin-bottom: 5px;
+  color: var(--text);
+  font-weight: 800;
+}
+
+.memory-glossary dd {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+  font-size: 13px;
 }
 
 .expansion-diagram {
@@ -966,7 +1036,9 @@ td code {
   }
 
   .memory-machine,
+  .memory-line-summary,
   .memory-cell-grid,
+  .memory-glossary dl,
   .expansion-diagram,
   .expansion-chip-grid {
     grid-template-columns: 1fr;

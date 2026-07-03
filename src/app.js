@@ -326,6 +326,10 @@
 
   function getMemoryConfig() {
     const addressBits = parsePositiveInteger($("#memoryAddressBits").value, "地址位数", 12);
+    const columnBits = parsePositiveInteger($("#memoryColumnBits").value, "列地址位数", 11);
+    if (columnBits >= addressBits) {
+      throw new Error("列地址位数必须小于地址位数，才能同时形成字线和列线");
+    }
     const dataBits = parsePositiveInteger($("#memoryDataBits").value, "数据位数", 16);
     const address = parseMemoryInteger($("#memoryAddress").value, "地址");
     const maxAddress = 2 ** addressBits - 1;
@@ -334,19 +338,31 @@
     }
     const mask = 2 ** dataBits - 1;
     const data = parseMemoryInteger($("#memoryData").value, "写入数据") & mask;
+    const rowBits = addressBits - columnBits;
+    const columnMask = 2 ** columnBits - 1;
+    const wordLine = Math.floor(address / (2 ** columnBits));
+    const columnLine = address & columnMask;
     return {
       operation: $("#memoryOperation").value,
       addressBits,
+      columnBits,
+      rowBits,
       dataBits,
       address,
       data,
       maxAddress,
       mask,
+      wordLine,
+      columnLine,
     };
   }
 
   function createMemorySteps(config, oldValue, resultValue) {
     const addressLabel = `${formatMemoryValue(config.address, config.addressBits)} (${formatBinary(config.address, config.addressBits)})`;
+    const rowLines = formatAddressLineSlice(config.addressBits - 1, config.columnBits);
+    const columnLines = formatAddressLineSlice(config.columnBits - 1, 0);
+    const rowLabel = `${rowLines} = ${formatBinary(config.wordLine, config.rowBits)} -> 字线 WL${config.wordLine}`;
+    const columnLabel = `${columnLines} = ${formatBinary(config.columnLine, config.columnBits)} -> 列线 CL${config.columnLine}`;
     const writeLabel = formatMemoryValue(config.data, config.dataBits);
     const readLabel = formatMemoryValue(resultValue, config.dataBits);
     if (config.operation === "write") {
@@ -360,7 +376,7 @@
         {
           phase: "decode",
           title: "2. 地址译码",
-          detail: `地址译码器根据 A${config.addressBits - 1}~A0 选中目标存储单元。`,
+          detail: `地址高 ${config.rowBits} 位译码为 ${rowLabel}，低 ${config.columnBits} 位选择为 ${columnLabel}。`,
           active: ["address", "decoder", "cell"],
         },
         {
@@ -393,7 +409,7 @@
       {
         phase: "decode",
         title: "2. 地址译码",
-        detail: `地址译码器选中目标字线，读控制信号打开输出通路。`,
+        detail: `地址高 ${config.rowBits} 位译码为 ${rowLabel}，低 ${config.columnBits} 位选择为 ${columnLabel}，读控制信号打开输出通路。`,
         active: ["address", "decoder", "cell", "control"],
       },
       {
@@ -442,6 +458,25 @@
     }).join("");
   }
 
+  function renderMemoryGlossary() {
+    const terms = [
+      ["MAR", "Memory Address Register，存储器地址寄存器，用来暂存本次访问的地址。"],
+      ["MDR", "Memory Data Register，存储器数据寄存器，用来暂存写入或读出的数据。"],
+      ["地址译码器", "把地址位翻译成具体被选中的字线和列线。"],
+      ["字线 WL", "由行地址选中的一整行存储单元，同一时刻通常只激活一条。"],
+      ["列线 CL", "由列地址选中的列或列组，用来确定这一行中的具体数据位/字。"],
+      ["CS / WE", "CS 表示片选信号，WE 表示写使能；WE=0 通常表示写入，WE=1 通常表示读取。"],
+    ];
+    return `
+      <div class="memory-glossary">
+        <h4>术语说明</h4>
+        <dl>
+          ${terms.map(([term, desc]) => `<div><dt>${term}</dt><dd>${desc}</dd></div>`).join("")}
+        </dl>
+      </div>
+    `;
+  }
+
   function renderMemoryAccess() {
     const config = state.memory.lastConfig;
     if (!config || !state.memory.steps.length) {
@@ -453,11 +488,30 @@
     const isActive = (name) => step.active.includes(name) ? "active" : "";
     const storedValue = state.memory.cells[config.address] ?? 0;
     const dataBusValue = config.operation === "write" ? config.data : storedValue;
+    const addressBinary = formatBinary(config.address, config.addressBits);
+    const rowBinary = formatBinary(config.wordLine, config.rowBits);
+    const columnBinary = formatBinary(config.columnLine, config.columnBits);
+    const rowLines = formatAddressLineSlice(config.addressBits - 1, config.columnBits);
+    const columnLines = formatAddressLineSlice(config.columnBits - 1, 0);
     $("#memoryStepCounter").textContent = `第 ${state.memory.cursor + 1} / ${state.memory.steps.length} 步`;
     $("#memoryAccessResult").innerHTML = `
       <div class="memory-stage-card">
         <h4>${escapeHtml(step.title)}</h4>
         <p>${escapeHtml(step.detail)}</p>
+      </div>
+      <div class="memory-line-summary">
+        <div>
+          <strong>完整地址 A${config.addressBits - 1}~A0</strong>
+          <span>${addressBinary}</span>
+        </div>
+        <div>
+          <strong>字线 WL${config.wordLine}</strong>
+          <span>${rowLines} = ${rowBinary}，十进制 ${config.wordLine}</span>
+        </div>
+        <div>
+          <strong>列线 CL${config.columnLine}</strong>
+          <span>${columnLines} = ${columnBinary}，十进制 ${config.columnLine}</span>
+        </div>
       </div>
       <div class="memory-machine">
         <div class="memory-node ${isActive("cpu")}">
@@ -471,7 +525,7 @@
         </div>
         <div class="memory-node ${isActive("decoder")}">
           <strong>地址译码器</strong>
-          <span>选择字线 / 列线</span>
+          <span>WL${config.wordLine} / CL${config.columnLine}</span>
         </div>
         <div class="memory-node ${isActive("cell")}">
           <strong>存储阵列</strong>
@@ -493,6 +547,7 @@
         <div class="cache-field"><strong>操作模式</strong><span>${config.operation === "write" ? "写入" : "读取"}</span></div>
       </div>
       <div class="memory-cell-grid">${renderMemoryCellGrid(config, step)}</div>
+      ${renderMemoryGlossary()}
     `;
   }
 
@@ -573,6 +628,10 @@
 
   function formatAddressLineRange(count) {
     return count <= 0 ? "无片内地址线" : `A0~A${count - 1}`;
+  }
+
+  function formatAddressLineSlice(high, low) {
+    return high === low ? `A${high}` : `A${high}~A${low}`;
   }
 
   function simulateMemoryExpansion() {
