@@ -244,7 +244,7 @@ button {
 
 .quick-actions {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -549,10 +549,6 @@ tr:last-child td {
 .check-row input {
   width: 18px;
   height: 18px;
-}
-
-.agent-toggle {
-  margin-top: 12px;
 }
 
 .llm-answer p {

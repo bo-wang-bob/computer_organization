@@ -1,80 +1,66 @@
-# 网页端教学智能体实现迭代计划
+# 网页端教学智能体当前进度
 
-## 1. 当前迭代目标
+## 1. 当前状态
 
-本迭代先完成一个可演示、可交互、可继续扩展的 MVP，并在第二轮补齐后端接口。范围包含：
+当前版本已经形成 Docker 运行的网页端教学工作台，并接入 DeepSeek V4 知识问答智能体。页面保留的主要学习入口包括：
 
-- 章节知识问答：基于本地结构化知识点进行检索式回答。
-- 补码加法推演：由程序计算二进制表示、逐位进位、结果和溢出。
-- Cache 地址划分：支持直接映射 Cache 的 tag、index、offset 拆分。
-- 流水线可视化：生成 IF、ID、EX、MEM、WB 周期表，并提示基础 RAW 冒险。
-- 汇编逐步解释：支持简化 MOV/ADD/SUB 与 RISC-V RV32I 常用 add/addi/sub/lw/sw。
-- 学习诊断：对典型练习答案进行规则化反馈。
-- 后端服务：使用 FastAPI 暴露问答、补码、Cache、流水线、汇编执行和诊断接口。
+- 知识问答：由 DeepSeek V4 知识问答智能体生成教学解释。
+- 补码推演：由规则程序计算补码表示、逐位进位、结果和溢出。
+- 缓存仿真：支持直接映射缓存地址的 Tag、Index、Offset 拆分。
+- 流水线推演：生成 IF、ID、EX、MEM、WB 周期表，并提示基础 RAW 冒险。
+- 汇编解释：支持简化 MOV/ADD/SUB 与 RISC-V 常用 add/addi/sub/lw/sw。
 
-## 2. 开发原则
+## 2. 当前运行方式
 
-- 大模型负责解释，规则程序负责计算。
-- 第一版优先保证教学过程可见、计算结果可信。
-- 前端不依赖外部包，降低运行门槛。
-- 仿真核心与页面逻辑分离，便于后续迁移到后端。
-- 每个功能都提供可验证输入和明确输出。
+项目统一使用 Docker 环境运行：
 
-## 3. 文件结构
-
-```text
-index.html                  页面入口
-styles.css                  页面样式
-requirements.txt            后端依赖
-src/
-  core.js                   知识检索、补码、Cache、流水线、汇编解释等核心逻辑
-  app.js                    DOM 交互与页面渲染
-backend/
-  core.py                   后端规则核心
-  app.py                    FastAPI 接口入口
-tests/
-  core.test.js              核心逻辑测试
-  test_backend_core.py      后端规则测试
-doc/
-  README.md
-  网页端计算机组成原理教学智能体设计流程.md  整体目标与设计流程
-  IMPLEMENTATION_PLAN.md    当前实现迭代计划
+```powershell
+docker compose up -d --build
 ```
 
-## 4. 当前 MVP 验收标准
+访问地址：
 
-- 打开 `index.html` 后能进入学习工作台。
-- 能在章节问答中输入问题并获得结构化解释。
-- 能输入两个整数和位数，生成补码加法推演。
-- 能输入 Cache 参数，生成地址字段拆分和命中位置解释。
-- 能输入指令序列，生成五级流水线周期表。
-- 能输入汇编代码，逐步查看寄存器和内存变化。
-- 能提交练习答案并看到错因和推荐练习。
-- 核心规则函数通过 `tests/core.test.js` 测试。
-- 后端规则函数通过 `tests/test_backend_core.py` 测试。
+```text
+http://127.0.0.1:8001/
+```
 
-## 5. 后续迭代建议
+## 3. 已完成的后端能力
 
-### 迭代 2：接入后端服务（已完成第一版）
+- DeepSeek V4 配置读取：优先环境变量，其次读取本地 `configs.yaml`。
+- 智能体接口：`/api/agent/chat`、`/api/agents`、`/api/agent/status`。
+- 规则工具接口：补码、缓存、流水线、汇编解析与执行。
+- API Key 防泄漏：`configs.yaml` 已被 Git 和 Docker 构建忽略。
 
-- 使用 FastAPI 提供 `/api/agent/qa`、`/api/simulations/cache`、`/api/assembly/step`。
-- 将 `src/core.js` 中的规则逻辑迁移为后端服务或共享包。
-- 将 API Key 移到环境变量，不在前端和仓库中保存。
+## 4. 当前文件结构
 
-### 迭代 3：课程知识库
+```text
+index.html
+styles.css
+Dockerfile
+docker-compose.yml
+requirements.txt
+src/
+  core.js
+  app.js
+backend/
+  agents.py
+  app.py
+  config.py
+  core.py
+  llm.py
+tests/
+  core.test.js
+  test_agents.py
+  test_backend_core.py
+doc/
+  README.md
+  IMPLEMENTATION_PLAN.md
+  网页端计算机组成原理教学智能体设计流程.md
+```
 
-- 新增 `knowledge-base/chapters`、`examples`、`rubrics`。
-- 将当前内置知识点改为 Markdown/JSON 驱动。
-- 支持按章节、难度、教学模式检索。
+## 5. 下一步建议
 
-### 迭代 4：大模型智能体调度
-
-- 新增意图识别：问答、例题、补码推演、Cache、流水线、汇编。
-- 确定性计算结果由规则工具返回，大模型只负责组织教学解释。
-- 对智能体输出使用 JSON Schema 约束。
-
-### 迭代 5：教师端与学习画像
-
-- 增加题库配置、知识点管理、学生错因统计。
-- 记录学生练习表现，生成薄弱知识点与下一步练习建议。
-- 支持课堂投屏演示模式。
+- 将内置知识点迁移到独立 `knowledge-base/` 目录。
+- 为知识问答增加引用来源和知识点标签。
+- 继续扩展缓存、流水线、数据通路等规则工具。
+- 为教师端增加题库配置和课堂演示视图。

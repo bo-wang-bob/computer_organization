@@ -69,50 +69,42 @@
         .join("")}
     `;
 
-    const diagQuestion = $("#diagQuestion");
-    diagQuestion.innerHTML = core.diagnosticQuestions
-      .map((question) => `<option value="${question.id}">${escapeHtml(question.title)}</option>`)
-      .join("");
   }
 
-  function renderAnswer(result) {
-    $("#qaMatched").textContent = result.matched ? "已匹配知识点" : "使用章节兜底";
+  function renderKnowledgeAnswer(result) {
+    const fallback = result.usedFallback ? `<div class="status-warn">已使用本地规则兜底：${escapeHtml(result.llmError || "未调用大模型")}</div>` : "";
+    const toolSummary = summarizeToolContext(result.context);
+    $("#qaMatched").textContent = `${result.agent.name} · ${result.model}`;
     $("#qaAnswer").innerHTML = `
-      <div class="answer-section">
-        <h4>${escapeHtml(result.title)}</h4>
-        <p>${escapeHtml(result.modeNote)}</p>
+      ${fallback}
+      <div class="answer-section llm-answer">
+        <h4>回答</h4>
+        <p>${renderPlainText(result.answer)}</p>
       </div>
-      <div class="answer-section">
-        <h4>一句话结论</h4>
-        <p>${escapeHtml(result.summary)}</p>
-      </div>
-      <div class="answer-section">
-        <h4>分层解释</h4>
-        <p>${escapeHtml(result.explanation)}</p>
-      </div>
-      <div class="answer-section">
-        <h4>例子</h4>
-        <p>${escapeHtml(result.example)}</p>
-      </div>
-      <div class="answer-section">
-        <h4>常见误区</h4>
-        <div class="tag-row">
-          ${result.commonMistakes.map((item) => `<span class="tag">${escapeHtml(item)}</span>`).join("")}
-        </div>
-      </div>
-      <div class="answer-section">
-        <h4>理解检查</h4>
-        <p>${escapeHtml(result.checkQuestion)}</p>
-      </div>
-      <div class="tag-row">
-        ${result.followups.map((item) => `<span class="tag">${escapeHtml(item)}</span>`).join("")}
-      </div>
+      ${
+        toolSummary
+          ? `<div class="status-good">${escapeHtml(toolSummary)}</div>`
+          : `<div class="status-warn">本次由知识检索和 DeepSeek 智能体共同生成回答。</div>`
+      }
     `;
   }
 
-  function runQuestionAnswer() {
-    const result = core.answerQuestion($("#qaQuestion").value, $("#qaChapter").value, $("#qaMode").value);
-    renderAnswer(result);
+  async function runQuestionAnswer() {
+    $("#qaMatched").textContent = "生成中";
+    $("#qaAnswer").innerHTML = `<div class="empty-state">DeepSeek 知识问答智能体正在组织回答...</div>`;
+    try {
+      const result = await apiPost("/api/agent/chat", {
+        agentId: "qa",
+        chapterId: $("#qaChapter").value,
+        mode: $("#qaMode").value,
+        message: $("#qaQuestion").value,
+        useLLM: true,
+      });
+      renderKnowledgeAnswer(result);
+    } catch (error) {
+      $("#qaMatched").textContent = "调用失败";
+      $("#qaAnswer").innerHTML = `<div class="status-error">${escapeHtml(error.message)}</div>`;
+    }
   }
 
   function renderTwosComplement(result) {
@@ -398,35 +390,6 @@
     renderAssembly();
   }
 
-  function submitDiagnosis() {
-    const result = core.diagnosePractice($("#diagQuestion").value, $("#diagAnswer").value);
-    $("#diagResult").innerHTML = `
-      <div class="${result.correct ? "status-good" : "status-warn"}">
-        ${result.correct ? "回答正确" : "需要修正"}，得分 ${Math.round(result.score * 100)}。
-      </div>
-      <div class="answer-section" style="margin-top: 12px;">
-        <h4>第一处关键反馈</h4>
-        <p>${escapeHtml(result.firstError)}</p>
-      </div>
-      <div class="answer-section">
-        <h4>提示</h4>
-        <p>${escapeHtml(result.feedback)}</p>
-      </div>
-      <div class="answer-section">
-        <h4>推荐练习</h4>
-        <p>${escapeHtml(result.recommendation)}</p>
-      </div>
-    `;
-  }
-
-  async function apiGet(path) {
-    const response = await fetch(path, { headers: { Accept: "application/json" } });
-    if (!response.ok) {
-      throw new Error(`请求失败：${response.status}`);
-    }
-    return response.json();
-  }
-
   async function apiPost(path, payload) {
     const response = await fetch(path, {
       method: "POST",
@@ -441,18 +404,6 @@
       throw new Error(data.detail || `请求失败：${response.status}`);
     }
     return data;
-  }
-
-  async function loadAgentStatus() {
-    const badge = $("#agentStatusBadge");
-    try {
-      const status = await apiGet("/api/agent/status");
-      badge.textContent = status.configured ? `${status.model} 已配置` : `${status.model} 未配置密钥`;
-      badge.classList.toggle("warning", !status.configured);
-    } catch (error) {
-      badge.textContent = "后端未连接";
-      badge.classList.add("warning");
-    }
   }
 
   function summarizeToolContext(context) {
@@ -476,42 +427,6 @@
     return `规则工具：${toolName}`;
   }
 
-  function renderAgentResult(result) {
-    const fallback = result.usedFallback ? `<div class="status-warn">已使用本地规则兜底：${escapeHtml(result.llmError || "未调用大模型")}</div>` : "";
-    const toolSummary = summarizeToolContext(result.context);
-    $("#agentMeta").textContent = `${result.agent.name} · ${result.model}`;
-    $("#agentResult").innerHTML = `
-      ${fallback}
-      <div class="answer-section llm-answer">
-        <h4>回答</h4>
-        <p>${renderPlainText(result.answer)}</p>
-      </div>
-      ${
-        toolSummary
-          ? `<div class="status-good">${escapeHtml(toolSummary)}</div>`
-          : `<div class="status-warn">本次未触发结构化规则工具，主要使用知识检索与大模型讲解。</div>`
-      }
-    `;
-  }
-
-  async function runAgent() {
-    $("#agentMeta").textContent = "生成中";
-    $("#agentResult").innerHTML = `<div class="empty-state">智能体正在组织回答...</div>`;
-    try {
-      const result = await apiPost("/api/agent/chat", {
-        agentId: $("#agentSelect").value,
-        mode: $("#agentMode").value,
-        message: $("#agentQuestion").value,
-        useLLM: $("#agentUseLLM").checked,
-      });
-      renderAgentResult(result);
-      loadAgentStatus();
-    } catch (error) {
-      $("#agentMeta").textContent = "调用失败";
-      $("#agentResult").innerHTML = `<div class="status-error">${escapeHtml(error.message)}</div>`;
-    }
-  }
-
   function bindEvents() {
     $all("[data-section]").forEach((button) => {
       button.addEventListener("click", () => setSection(button.dataset.section));
@@ -524,20 +439,15 @@
     $("#assemblyPrev").addEventListener("click", () => stepAssembly(-1));
     $("#assemblyNext").addEventListener("click", () => stepAssembly(1));
     $("#assemblyReset").addEventListener("click", resetAssembly);
-    $("#diagSubmit").addEventListener("click", submitDiagnosis);
-    $("#agentRun").addEventListener("click", runAgent);
   }
 
   function boot() {
     renderChapters();
     bindEvents();
-    runQuestionAnswer();
     runTwosComplement();
     runCache();
     runPipeline();
     loadAssembly();
-    submitDiagnosis();
-    loadAgentStatus();
   }
 
   document.addEventListener("DOMContentLoaded", boot);
