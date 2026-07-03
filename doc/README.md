@@ -15,12 +15,6 @@
 
 ## 如何运行
 
-前端静态预览可以直接用浏览器打开：
-
-```text
-index.html
-```
-
 后端服务使用 Docker 启动：
 
 ```powershell
@@ -36,12 +30,6 @@ docker compose exec -T comporg-agent python -m unittest tests.test_backend_core 
 ```
 
 启动后访问 `http://127.0.0.1:8001/`，接口文档位于 `http://127.0.0.1:8001/docs`。
-
-如果暂时不想安装依赖，也可以使用标准库服务预览：
-
-```bash
-python -m backend.simple_server --host 127.0.0.1 --port 8000
-```
 
 ## 如何测试
 
@@ -65,7 +53,8 @@ python -m unittest tests.test_backend_core
 index.html
 styles.css
 requirements.txt
-environment.yml
+Dockerfile
+docker-compose.yml
 src/core.js
 src/app.js
 tests/core.test.js
@@ -76,11 +65,6 @@ backend/
   core.py
   llm.py
   app.py
-  simple_server.py
-scripts/
-  setup_conda_env.ps1
-  run_fastapi.ps1
-  test_backend.ps1
 doc/
   README.md
   IMPLEMENTATION_PLAN.md

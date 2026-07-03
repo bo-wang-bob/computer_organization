@@ -1,9 +1,0 @@
-name: comporg-agent
-channels:
-  - conda-forge
-dependencies:
-  - python=3.12
-  - pip
-  - fastapi>=0.111,<1.0
-  - uvicorn>=0.30,<1.0
-  - pytest>=8,<9
