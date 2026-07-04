@@ -14,12 +14,24 @@
       cursor: 0,
       timer: null,
     },
+    cache: {
+      result: null,
+      cursor: 0,
+    },
+    vm: {
+      result: null,
+      cursor: 0,
+    },
     memory: {
       cells: {},
       steps: [],
       cursor: 0,
       timer: null,
       lastConfig: null,
+    },
+    expansion: {
+      result: null,
+      cursor: 0,
     },
   };
 
@@ -511,7 +523,12 @@
     const count = Math.min(16, config.maxAddress - start + 1);
     return Array.from({ length: count }, (_, index) => {
       const address = start + index;
-      const value = state.memory.cells[address] ?? 0;
+      const showOldValue = address === config.address
+        && config.operation === "write"
+        && config.oldValue !== undefined
+        && selectedStep
+        && !["cell", "complete"].includes(selectedStep.phase);
+      const value = showOldValue ? config.oldValue : state.memory.cells[address] ?? 0;
       const classes = ["memory-cell", address === config.address ? "selected" : ""].filter(Boolean).join(" ");
       return `
         <div class="${classes}">
@@ -541,6 +558,28 @@
     `;
   }
 
+  function renderMemorySignalSummary(config, step) {
+    const isWrite = config.operation === "write";
+    const weText = isWrite ? "WE=0，写使能有效" : "WE=1，写使能关闭";
+    const readText = isWrite ? "存储阵列接收数据总线的值" : "存储阵列把选中单元送到数据总线";
+    return `
+      <div class="signal-explain-grid">
+        <div>
+          <strong>CS 片选</strong>
+          <span>CS=0，本片存储器被选中参与本次访问。</span>
+        </div>
+        <div>
+          <strong>WE 写使能</strong>
+          <span>${weText}；这里沿用常见低有效写使能表示。</span>
+        </div>
+        <div>
+          <strong>当前通路</strong>
+          <span>${step.phase === "address" ? "地址通路正在工作" : step.phase === "decode" ? "译码器正在选择字线和列线" : readText}。</span>
+        </div>
+      </div>
+    `;
+  }
+
   function renderMemoryAccess() {
     const config = state.memory.lastConfig;
     if (!config || !state.memory.steps.length) {
@@ -550,59 +589,75 @@
     }
     const step = state.memory.steps[state.memory.cursor];
     const isActive = (name) => step.active.includes(name) ? "active" : "";
-    const storedValue = state.memory.cells[config.address] ?? 0;
-    const dataBusValue = config.operation === "write" ? config.data : storedValue;
+    const oldValue = config.oldValue ?? state.memory.cells[config.address] ?? 0;
+    const resultValue = config.resultValue ?? state.memory.cells[config.address] ?? 0;
+    const storedValue = config.operation === "write" && !["cell", "complete"].includes(step.phase) ? oldValue : resultValue;
+    const dataBusValue = config.operation === "write" ? config.data : resultValue;
     const addressBinary = formatBinary(config.address, config.addressBits);
     const rowBinary = formatBinary(config.wordLine, config.rowBits);
     const columnBinary = formatBinary(config.columnLine, config.columnBits);
     const rowLines = formatAddressLineSlice(config.addressBits - 1, config.columnBits);
     const columnLines = formatAddressLineSlice(config.columnBits - 1, 0);
+    const stepRail = state.memory.steps.map((item) => ({
+      title: item.title.replace(/^\d+\.\s*/, ""),
+      detail: item.detail,
+      status: item.phase,
+    }));
     $("#memoryStepCounter").textContent = `第 ${state.memory.cursor + 1} / ${state.memory.steps.length} 步`;
     $("#memoryAccessResult").innerHTML = `
-      <div class="memory-stage-card">
+      <div class="memory-stage-card focus-card">
+        <span>当前看这里</span>
         <h4>${escapeHtml(step.title)}</h4>
         <p>${escapeHtml(step.detail)}</p>
       </div>
-      <div class="memory-line-summary">
+      <div class="memory-teaching-grid">
         <div>
-          <strong>完整地址 A${config.addressBits - 1}~A0</strong>
-          <span>${addressBinary}</span>
-        </div>
-        <div>
-          <strong>字线 WL${config.wordLine}</strong>
-          <span>${rowLines} = ${rowBinary}，十进制 ${config.wordLine}</span>
+          ${renderLearningStepper(stepRail, state.memory.cursor, "memory-stepper")}
+          ${renderMemorySignalSummary(config, step)}
         </div>
         <div>
-          <strong>列线 CL${config.columnLine}</strong>
-          <span>${columnLines} = ${columnBinary}，十进制 ${config.columnLine}</span>
-        </div>
-      </div>
-      <div class="memory-machine">
-        <div class="memory-node ${isActive("cpu")}">
-          <strong>CPU</strong>
-          <span>${config.operation === "write" ? "发起写入" : "发起读取"}</span>
-        </div>
-        <div class="memory-bus ${isActive("address")}">地址总线<br>${formatBinary(config.address, config.addressBits)}</div>
-        <div class="memory-node ${isActive("mar")}">
-          <strong>MAR</strong>
-          <span>${formatMemoryValue(config.address, config.addressBits)}</span>
-        </div>
-        <div class="memory-node ${isActive("decoder")}">
-          <strong>地址译码器</strong>
-          <span>WL${config.wordLine} / CL${config.columnLine}</span>
-        </div>
-        <div class="memory-node ${isActive("cell")}">
-          <strong>存储阵列</strong>
-          <span>${formatMemoryValue(config.address, config.addressBits)} = ${formatMemoryValue(storedValue, config.dataBits)}</span>
-        </div>
-        <div class="memory-node ${isActive("mdr")}">
-          <strong>MDR</strong>
-          <span>${formatMemoryValue(dataBusValue, config.dataBits)}</span>
-        </div>
-        <div class="memory-bus ${isActive("data")}">数据总线<br>${formatBinary(dataBusValue, config.dataBits)}</div>
-        <div class="memory-node ${isActive("control")}">
-          <strong>控制信号</strong>
-          <span>${config.operation === "write" ? "CS=0 / WE=0" : "CS=0 / WE=1"}</span>
+          <div class="memory-line-summary">
+            <div>
+              <strong>完整地址 A${config.addressBits - 1}~A0</strong>
+              <span>${addressBinary}</span>
+            </div>
+            <div>
+              <strong>字线 WL${config.wordLine}</strong>
+              <span>${rowLines} = ${rowBinary}，十进制 ${config.wordLine}</span>
+            </div>
+            <div>
+              <strong>列线 CL${config.columnLine}</strong>
+              <span>${columnLines} = ${columnBinary}，十进制 ${config.columnLine}</span>
+            </div>
+          </div>
+          <div class="memory-machine">
+            <div class="memory-node ${isActive("cpu")}">
+              <strong>CPU</strong>
+              <span>${config.operation === "write" ? "发起写入" : "发起读取"}</span>
+            </div>
+            <div class="memory-bus ${isActive("address")}"><strong>地址总线</strong><span>${formatBinary(config.address, config.addressBits)}</span></div>
+            <div class="memory-node ${isActive("mar")}">
+              <strong>MAR</strong>
+              <span>${formatMemoryValue(config.address, config.addressBits)}</span>
+            </div>
+            <div class="memory-node ${isActive("decoder")}">
+              <strong>地址译码器</strong>
+              <span>WL${config.wordLine} / CL${config.columnLine}</span>
+            </div>
+            <div class="memory-node ${isActive("cell")}">
+              <strong>存储阵列</strong>
+              <span>${formatMemoryValue(config.address, config.addressBits)} = ${formatMemoryValue(storedValue, config.dataBits)}</span>
+            </div>
+            <div class="memory-node ${isActive("mdr")}">
+              <strong>MDR</strong>
+              <span>${formatMemoryValue(dataBusValue, config.dataBits)}</span>
+            </div>
+            <div class="memory-bus ${isActive("data")}"><strong>数据总线</strong><span>${formatBinary(dataBusValue, config.dataBits)}</span></div>
+            <div class="memory-node ${isActive("control")}">
+              <strong>控制信号</strong>
+              <span>${config.operation === "write" ? "CS=0 / WE=0" : "CS=0 / WE=1"}</span>
+            </div>
+          </div>
         </div>
       </div>
       <div class="cache-fields">
@@ -624,7 +679,7 @@
       if (config.operation === "write") {
         state.memory.cells[config.address] = config.data;
       }
-      state.memory.lastConfig = config;
+      state.memory.lastConfig = { ...config, oldValue, resultValue };
       state.memory.steps = createMemorySteps(config, oldValue, resultValue);
       state.memory.cursor = 0;
       renderMemoryAccess();
@@ -673,11 +728,19 @@
   }
 
   function renderExpansionChips(result) {
-    const visibleCount = Math.min(result.chipCount, 16);
+    const visibleCount = Math.min(result.chipCount, 24);
     const chips = Array.from({ length: visibleCount }, (_, index) => {
-      const label = result.mode === "bit"
-        ? `D${index * result.chipBits}~D${Math.min((index + 1) * result.chipBits - 1, result.realizedBits - 1)}`
-        : `块 ${index}: ${index * result.chipWords}~${Math.min((index + 1) * result.chipWords - 1, result.realizedWords - 1)}`;
+      const wordGroup = Math.floor(index / result.bitGroups);
+      const bitGroup = index % result.bitGroups;
+      const dataStart = bitGroup * result.chipBits;
+      const dataEnd = Math.min((bitGroup + 1) * result.chipBits - 1, result.realizedBits - 1);
+      const addressStart = wordGroup * result.chipWords;
+      const addressEnd = Math.min((wordGroup + 1) * result.chipWords - 1, result.realizedWords - 1);
+      const label = result.bitGroups > 1 && result.wordGroups > 1
+        ? `字组 ${wordGroup}：${addressStart}~${addressEnd}，D${dataStart}~D${dataEnd}`
+        : result.bitGroups > 1
+          ? `D${dataStart}~D${dataEnd}`
+          : `地址 ${addressStart}~${addressEnd}`;
       return `
         <div class="expansion-chip">
           <strong>芯片 ${index + 1}</strong>
@@ -690,6 +753,12 @@
     return `${chips}${omitted}`;
   }
 
+  function getExpansionModeName(mode) {
+    if (mode === "bit") return "位扩展法";
+    if (mode === "word") return "字扩展法";
+    return "字位同时扩展";
+  }
+
   function formatAddressLineRange(count) {
     return count <= 0 ? "无片内地址线" : `A0~A${count - 1}`;
   }
@@ -698,70 +767,168 @@
     return high === low ? `A${high}` : `A${high}~A${low}`;
   }
 
+  function clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
+  }
+
+  function renderLearningStepper(steps, currentIndex, className = "") {
+    return `
+      <div class="learning-stepper ${className}">
+        ${steps.map((step, index) => `
+          <div class="learning-step ${index === currentIndex ? "active" : ""} ${step.status || ""}">
+            <span>${index + 1}</span>
+            <div>
+              <strong>${escapeHtml(step.title)}</strong>
+              <small>${escapeHtml(step.detail)}</small>
+            </div>
+          </div>
+        `).join("")}
+      </div>
+    `;
+  }
+
   function simulateMemoryExpansion() {
     const mode = $("#expansionMode").value;
     const chipWords = parsePositiveInteger($("#chipWords").value, "单片字数");
     const chipBits = parsePositiveInteger($("#chipBits").value, "单片位宽", 1024);
     const targetWords = parsePositiveInteger($("#targetWords").value, "目标字数");
     const targetBits = parsePositiveInteger($("#targetBits").value, "目标位宽", 1024);
-    if (mode === "bit") {
-      const chipCount = ceilDivide(targetBits, chipBits);
-      return {
-        mode,
-        chipWords,
-        chipBits,
-        targetWords,
-        targetBits,
-        chipCount,
-        realizedWords: chipWords,
-        realizedBits: chipCount * chipBits,
-        addressLines: ceilLog2(chipWords),
-        selectLines: 0,
-        warning: targetWords === chipWords ? "" : "目标字数与单片字数不同，单纯位扩展只能扩展位宽；若要同时扩展字数，需要再叠加字扩展。",
-      };
+    const bitGroups = mode === "word" ? 1 : ceilDivide(targetBits, chipBits);
+    const wordGroups = mode === "bit" ? 1 : ceilDivide(targetWords, chipWords);
+    const chipCount = bitGroups * wordGroups;
+    const realizedWords = wordGroups * chipWords;
+    const realizedBits = bitGroups * chipBits;
+    const warnings = [];
+    if (mode === "bit" && targetWords !== chipWords) {
+      warnings.push("单纯位扩展只能扩展位宽；目标字数不同，需要选择字位同时扩展或再叠加字扩展。");
     }
-    const chipCount = ceilDivide(targetWords, chipWords);
+    if (mode === "word" && targetBits !== chipBits) {
+      warnings.push("单纯字扩展只能扩展字数；目标位宽不同，需要选择字位同时扩展或再叠加位扩展。");
+    }
+    if (mode === "both" && (realizedWords !== targetWords || realizedBits !== targetBits)) {
+      warnings.push("目标规格不能被单片规格整除时，实际容量会向上补齐。");
+    }
     return {
       mode,
       chipWords,
       chipBits,
       targetWords,
       targetBits,
+      bitGroups,
+      wordGroups,
       chipCount,
-      realizedWords: chipCount * chipWords,
-      realizedBits: chipBits,
+      realizedWords,
+      realizedBits,
       addressLines: ceilLog2(chipWords),
-      selectLines: ceilLog2(chipCount),
-      warning: targetBits === chipBits ? "" : "目标位宽与单片位宽不同，单纯字扩展只能扩展字数；若要同时扩展位宽，需要再叠加位扩展。",
+      selectLines: wordGroups > 1 ? ceilLog2(wordGroups) : 0,
+      warning: warnings.join(" "),
     };
   }
 
+  function getExpansionSteps(result) {
+    return [
+      {
+        title: "确认单片规格",
+        detail: `每片芯片容量为 ${result.chipWords} 字 × ${result.chipBits} 位，需要 ${result.addressLines} 条片内地址线。`,
+        status: "spec",
+      },
+      {
+        title: "对齐目标容量",
+        detail: `目标为 ${result.targetWords} 字 × ${result.targetBits} 位，最终实现 ${result.realizedWords} 字 × ${result.realizedBits} 位。`,
+        status: "target",
+      },
+      {
+        title: "计算位扩展",
+        detail: result.bitGroups > 1
+          ? `位宽方向需要 ${result.bitGroups} 片并联，每片承担一段数据线。`
+          : "位宽方向不需要并联，单片位宽已经覆盖目标位宽。",
+        status: "bit",
+      },
+      {
+        title: "计算字扩展",
+        detail: result.wordGroups > 1
+          ? `字数方向需要 ${result.wordGroups} 组，同一时刻由片选译码器只选中其中一组。`
+          : "字数方向不需要分组，所有芯片共享同一组片选。",
+        status: "word",
+      },
+      {
+        title: "连接地址线与片选",
+        detail: `${formatAddressLineRange(result.addressLines)} 接到每片芯片内部地址端${result.selectLines ? `，高位地址经译码形成 ${result.wordGroups} 路片选` : "，不需要额外片选译码"}。`,
+        status: "select",
+      },
+      {
+        title: "拼接数据总线",
+        detail: result.bitGroups > 1
+          ? `${result.bitGroups} 片的输出并成 ${result.realizedBits} 位数据总线，构成一个完整存储字。`
+          : `每片直接连接 ${result.realizedBits} 位数据总线。`,
+        status: "data",
+      },
+    ];
+  }
+
   function renderMemoryExpansion(result) {
-    const modeName = result.mode === "bit" ? "位扩展法" : "字扩展法";
+    const modeName = getExpansionModeName(result.mode);
+    const steps = getExpansionSteps(result);
+    const currentIndex = clamp(state.expansion.cursor, 0, steps.length - 1);
+    const currentStep = steps[currentIndex];
+    const counter = $("#expansionStepCounter");
+    if (counter) counter.textContent = `第 ${currentIndex + 1} / ${steps.length} 步`;
     $("#memoryExpansionResult").innerHTML = `
       ${result.warning ? `<div class="status-warn">${escapeHtml(result.warning)}</div>` : `<div class="status-good">${modeName}结构已生成。</div>`}
+      <div class="memory-stage-card focus-card">
+        <span>当前看这里</span>
+        <h4>${escapeHtml(currentStep.title)}</h4>
+        <p>${escapeHtml(currentStep.detail)}</p>
+      </div>
       <div class="cache-fields">
         <div class="cache-field"><strong>芯片数量</strong><span>${result.chipCount} 片</span></div>
         <div class="cache-field"><strong>实现容量</strong><span>${result.realizedWords} × ${result.realizedBits} 位</span></div>
-        <div class="cache-field"><strong>地址/片选</strong><span>${result.addressLines} 条片内地址线${result.selectLines ? `，${result.selectLines} 条片选线` : ""}</span></div>
+        <div class="cache-field"><strong>扩展分解</strong><span>位扩展 ${result.bitGroups} 片并联 / 字扩展 ${result.wordGroups} 组</span></div>
       </div>
-      <div class="expansion-diagram ${result.mode === "bit" ? "bit-mode" : "word-mode"}">
-        <div class="expansion-source">CPU<br><span>${result.mode === "bit" ? "地址共用，数据分片" : "低位地址共用，高位片选"}</span></div>
-        <div class="expansion-bus">
-          <strong>${result.mode === "bit" ? `${formatAddressLineRange(result.addressLines)} 广播到所有芯片` : `${formatAddressLineRange(result.addressLines)} 接入片内地址`}</strong>
-          <span>${result.mode === "bit" ? `数据线拼接为 ${result.realizedBits} 位` : `高位地址译码产生 ${result.chipCount} 路片选`}</span>
+      <div class="expansion-teaching-grid">
+        ${renderLearningStepper(steps, currentIndex, "expansion-stepper")}
+        <div class="expansion-diagram ${result.mode}-mode">
+          <div class="expansion-source">CPU<br><span>地址线 / 数据线 / 控制线</span></div>
+          <div class="expansion-bus ${["spec", "target", "select"].includes(currentStep.status) ? "active" : ""}">
+            <strong>${formatAddressLineRange(result.addressLines)} 接入片内地址</strong>
+            <span>${result.selectLines ? `${result.selectLines} 条高位地址线用于片选译码` : "所有芯片共享同一组片内地址线"}</span>
+          </div>
+          <div class="expansion-bus ${currentStep.status === "word" || currentStep.status === "select" ? "active" : ""}">
+            <strong>片选译码</strong>
+            <span>${result.wordGroups > 1 ? `产生 ${result.wordGroups} 路片选信号，每次只选中一组` : "无需字扩展片选译码"}</span>
+          </div>
+          <div class="expansion-bus ${currentStep.status === "bit" || currentStep.status === "data" ? "active" : ""}">
+            <strong>数据总线拼接</strong>
+            <span>${result.bitGroups > 1 ? `${result.bitGroups} 片并联组成 ${result.realizedBits} 位` : `单片提供 ${result.realizedBits} 位数据`}</span>
+          </div>
+          <div class="expansion-chip-grid">${renderExpansionChips(result)}</div>
         </div>
-        <div class="expansion-chip-grid">${renderExpansionChips(result)}</div>
       </div>
     `;
   }
 
   function runMemoryExpansion() {
     try {
-      renderMemoryExpansion(simulateMemoryExpansion());
+      const result = simulateMemoryExpansion();
+      state.expansion.result = result;
+      state.expansion.cursor = 0;
+      renderMemoryExpansion(result);
     } catch (error) {
+      state.expansion.result = null;
+      const counter = $("#expansionStepCounter");
+      if (counter) counter.textContent = "输入有误";
       $("#memoryExpansionResult").innerHTML = `<div class="status-error">${escapeHtml(error.message)}</div>`;
     }
+  }
+
+  function stepMemoryExpansion(delta) {
+    if (!state.expansion.result) {
+      runMemoryExpansion();
+      return;
+    }
+    const steps = getExpansionSteps(state.expansion.result);
+    state.expansion.cursor = clamp(state.expansion.cursor + delta, 0, steps.length - 1);
+    renderMemoryExpansion(state.expansion.result);
   }
 
   function renderTwosComplement(result) {
@@ -978,18 +1145,19 @@
     }, new Map());
   }
 
-  function renderCacheSetGrid(result) {
-    const groups = groupCacheRows(result.rows);
+  function renderCacheSetGrid(result, selectedEvent = null) {
+    const rows = selectedEvent && selectedEvent.snapshotRows ? selectedEvent.snapshotRows : result.rows;
+    const groups = groupCacheRows(rows);
     return `
       <div class="cache-set-grid">
         ${Array.from(groups.entries())
           .map(([setIndex, rows]) => `
-            <div class="cache-set-box">
+            <div class="cache-set-box ${selectedEvent && Number(setIndex) === selectedEvent.setIndex ? "active" : ""}">
               <strong>${result.mapping === "direct" ? `行 ${setIndex}` : `组 ${setIndex}`}</strong>
               <div>
                 ${rows
                   .map((row) => `
-                    <span class="${row.valid ? "filled" : ""}">
+                    <span class="${[row.valid ? "filled" : "", selectedEvent && row.set === selectedEvent.setIndex && row.way === selectedEvent.way ? "current" : ""].filter(Boolean).join(" ")}">
                       ${result.mapping === "direct" ? "Line" : `Way ${row.way}`} · V=${row.valid ? 1 : 0} · Tag=${escapeHtml(row.tag)} · B=${escapeHtml(row.block)}
                     </span>
                   `)
@@ -1002,7 +1170,7 @@
     `;
   }
 
-  function renderCacheStructureDiagram(result) {
+  function renderCacheStructureDiagram(result, selectedEvent = null) {
     const fields = [
       { label: "Tag", bits: result.tagBits, hint: "与缓存行中保存的标记比较" },
       { label: result.mapping === "direct" ? "Line Index" : "Set Index", bits: result.indexBits, hint: result.mapping === "fully" ? "全相联无索引" : "定位候选行/组" },
@@ -1018,6 +1186,9 @@
       : result.mapping === "fully"
         ? "并行比较所有有效行的 Tag。"
         : "并行比较目标组内各路的 Tag。";
+    const accessSummary = selectedEvent
+      ? `当前访问 ${selectedEvent.accessIndex + 1}：地址 ${formatAddress(selectedEvent.address)} → 主存块 ${selectedEvent.blockNumber}，Tag=${selectedEvent.tag}，${result.mapping === "fully" ? "全表比较" : `Index=${selectedEvent.setIndex}`}，Offset=${selectedEvent.offset}。`
+      : "运行后可逐次查看地址拆分、候选位置和 Tag 比较。";
     return `
       <div class="mapping-diagram">
         <div class="diagram-title">
@@ -1045,12 +1216,13 @@
             <span>${escapeHtml(compare)}</span>
           </div>
         </div>
-        ${renderCacheSetGrid(result)}
+        <div class="diagram-callout">${escapeHtml(accessSummary)}</div>
+        ${renderCacheSetGrid(result, selectedEvent)}
       </div>
     `;
   }
 
-  function renderCacheProcessSteps(result) {
+  function renderCacheProcessSteps(result, selectedEvent) {
     const locateText = (event) => {
       if (result.mapping === "direct") return `Index=${event.setIndex}，只检查 Cache 行 ${event.setIndex}。`;
       if (result.mapping === "fully") return "全相联没有 Index，需要在所有有效行中查找相同 Tag。";
@@ -1059,30 +1231,35 @@
     const compareText = (event) => event.hit
       ? `找到 Tag=${event.tag} 的有效项，访问命中。`
       : `没有找到 Tag=${event.tag} 的有效项，访问未命中。`;
+    const accessRail = result.events.map((event) => ({
+      title: `${formatAddress(event.address)} · ${event.hit ? "命中" : "未命中"}`,
+      detail: `块 ${event.blockNumber}，Tag=${event.tag}，${event.hit ? `命中第 ${event.setIndex} 组第 ${event.way} 路` : event.evicted ? `替换第 ${event.setIndex} 组第 ${event.way} 路` : `装入第 ${event.setIndex} 组第 ${event.way} 路`}`,
+      status: event.hit ? "hit" : "miss",
+    }));
     return `
-      <div class="process-timeline">
-        ${result.events
-          .map((event) => `
-            <div class="process-card ${event.hit ? "hit" : "miss"}">
-              <div class="process-card-head">
-                <strong>访问 ${event.accessIndex + 1}：${formatAddress(event.address)}</strong>
-                <span>${event.hit ? "命中" : "未命中"}</span>
-              </div>
-              <ol>
-                <li>地址拆分：主存块号 ${event.blockNumber}，Tag=${event.tag}，Offset=${event.offset}。</li>
-                <li>定位候选：${escapeHtml(locateText(event))}</li>
-                <li>Tag 比较：${escapeHtml(compareText(event))}</li>
-                <li>状态更新：${escapeHtml(event.action)}</li>
-              </ol>
-            </div>
-          `)
-          .join("")}
+      <div class="teaching-split">
+        ${renderLearningStepper(accessRail, selectedEvent.accessIndex, "cache-access-rail")}
+        <div class="process-card ${selectedEvent.hit ? "hit" : "miss"}">
+          <div class="process-card-head">
+            <strong>访问 ${selectedEvent.accessIndex + 1}：${formatAddress(selectedEvent.address)}</strong>
+            <span>${selectedEvent.hit ? "命中" : "未命中"}</span>
+          </div>
+          <ol>
+            <li>地址拆分：主存块号 ${selectedEvent.blockNumber}，Tag=${selectedEvent.tag}，Offset=${selectedEvent.offset}。</li>
+            <li>定位候选：${escapeHtml(locateText(selectedEvent))}</li>
+            <li>Tag 比较：${escapeHtml(compareText(selectedEvent))}</li>
+            <li>状态更新：${escapeHtml(selectedEvent.action)}</li>
+          </ol>
+        </div>
       </div>
     `;
   }
 
   function renderCache(result) {
     const mappingName = getCacheMappingName(result);
+    const selectedEvent = result.events[clamp(state.cache.cursor, 0, result.events.length - 1)];
+    const counter = $("#cacheStepCounter");
+    if (counter) counter.textContent = `访问 ${selectedEvent.accessIndex + 1} / ${result.events.length}`;
     $("#cacheResult").innerHTML = `
       <div class="status-good">${escapeHtml(result.explanation)}</div>
       <div class="cache-fields">
@@ -1099,10 +1276,10 @@
           <span>Tag ${result.tagBits} / Index ${result.indexBits} / Offset ${result.offsetBits}</span>
         </div>
       </div>
-      ${renderCacheStructureDiagram(result)}
+      ${renderCacheStructureDiagram(result, selectedEvent)}
       <div class="answer-section">
         <h4>逐步访问过程</h4>
-        ${renderCacheProcessSteps(result)}
+        ${renderCacheProcessSteps(result, selectedEvent)}
       </div>
       <div class="table-wrap" style="margin-top: 12px;">
         <table>
@@ -1115,7 +1292,7 @@
             ${result.events
               .map(
                 (event) => `
-                  <tr class="${event.hit ? "active-row" : ""}">
+                  <tr class="${event.accessIndex === selectedEvent.accessIndex ? "current-row" : event.hit ? "active-row" : ""}">
                     <td>${event.accessIndex + 1}</td>
                     <td><code>${formatAddress(event.address)}</code></td>
                     <td>${event.blockNumber}</td>
@@ -1169,10 +1346,24 @@
         associativity: $("#cacheAssociativity").value,
         replacement: $("#cacheReplacement").value,
       });
+      state.cache.result = result;
+      state.cache.cursor = 0;
       renderCache(result);
     } catch (error) {
+      state.cache.result = null;
+      const counter = $("#cacheStepCounter");
+      if (counter) counter.textContent = "输入有误";
       $("#cacheResult").innerHTML = `<div class="status-error">${escapeHtml(error.message)}</div>`;
     }
+  }
+
+  function stepCache(delta) {
+    if (!state.cache.result) {
+      runCache();
+      return;
+    }
+    state.cache.cursor = clamp(state.cache.cursor + delta, 0, state.cache.result.events.length - 1);
+    renderCache(state.cache.result);
   }
 
   function getVmModeName(mode) {
@@ -1185,7 +1376,20 @@
     return snapshot.map((page) => (page === null ? "-" : page)).join(" / ");
   }
 
-  function renderVirtualStructureDiagram(result) {
+  function renderFrameGrid(snapshot, activeFrame = null) {
+    return `
+      <div class="frame-grid">
+        ${snapshot.map((page, frame) => `
+          <div class="frame-cell ${frame === activeFrame ? "current" : ""} ${page === null ? "empty" : "filled"}">
+            <strong>页框 ${frame}</strong>
+            <span>${page === null ? "空" : `页 ${page}`}</span>
+          </div>
+        `).join("")}
+      </div>
+    `;
+  }
+
+  function renderVirtualStructureDiagram(result, selectedEvent = null) {
     if (result.mode === "segmentation") {
       const [segment, offset] = String(result.logicalAddress).split(":");
       return `
@@ -1249,11 +1453,13 @@
           <div class="diagram-arrow">→</div>
           <div class="diagram-node ${result.physicalAddress === null ? "danger" : "success"}"><strong>${result.physicalAddress === null ? "缺页" : "物理地址"}</strong><span>${result.physicalAddress === null ? "需要页面置换" : result.physicalAddress}</span></div>
         </div>
+        <div class="diagram-callout">${selectedEvent ? `当前置换步骤：访问页 ${selectedEvent.page}，${selectedEvent.hit ? `页已在页框 ${selectedEvent.frame}` : `装入页框 ${selectedEvent.frame}${selectedEvent.evicted === null ? "" : `，替换页 ${selectedEvent.evicted}`}`}。` : "页面访问序列会逐步改变物理页框中的页面。"}</div>
+        ${renderFrameGrid(selectedEvent ? selectedEvent.snapshot : result.replacement.frames.map((frame) => frame.page), selectedEvent ? selectedEvent.frame : result.residentFrame)}
       </div>
     `;
   }
 
-  function renderVirtualProcessSteps(result) {
+  function renderVirtualProcessSteps(result, selectedEvent = null) {
     if (result.mode === "segmentation") {
       const [segment, offset] = String(result.logicalAddress).split(":");
       const entry = result.table.find((row) => String(row.segment) === String(segment));
@@ -1290,18 +1496,12 @@
       `;
     }
 
-    const replacementSteps = result.replacement.events
-      .map((event) => `
-        <div class="process-card ${event.hit ? "hit" : "miss"}">
-          <div class="process-card-head"><strong>页面访问 ${event.index + 1}：页 ${event.page}</strong><span>${event.hit ? "命中" : "缺页"}</span></div>
-          <ol>
-            <li>查页框：当前页框快照为 <code>${renderFrameSnapshot(event.snapshot)}</code>。</li>
-            <li>${event.hit ? `页 ${event.page} 已在页框 ${event.frame}。` : `页 ${event.page} 不在内存，需要装入页框 ${event.frame}。`}</li>
-            <li>状态更新：${escapeHtml(event.action)}</li>
-          </ol>
-        </div>
-      `)
-      .join("");
+    const replacementSteps = result.replacement.events.map((event) => ({
+      title: `页 ${event.page} · ${event.hit ? "命中" : "缺页"}`,
+      detail: event.hit ? `已在页框 ${event.frame}` : event.evicted === null ? `装入空页框 ${event.frame}` : `替换页 ${event.evicted}`,
+      status: event.hit ? "hit" : "miss",
+    }));
+    const event = selectedEvent || result.replacement.events[0];
     return `
       <div class="process-timeline">
         <div class="process-card ${result.physicalAddress === null ? "miss" : "hit"}">
@@ -1312,13 +1512,25 @@
             <li>${escapeHtml(result.explanation)}</li>
           </ol>
         </div>
-        ${replacementSteps}
+        <div class="teaching-split">
+          ${renderLearningStepper(replacementSteps, event.index, "vm-access-rail")}
+          <div class="process-card ${event.hit ? "hit" : "miss"}">
+            <div class="process-card-head"><strong>页面访问 ${event.index + 1}：页 ${event.page}</strong><span>${event.hit ? "命中" : "缺页"}</span></div>
+            <ol>
+              <li>查页框：当前页框快照为 <code>${renderFrameSnapshot(event.snapshot)}</code>。</li>
+              <li>${event.hit ? `页 ${event.page} 已在页框 ${event.frame}。` : `页 ${event.page} 不在内存，需要装入页框 ${event.frame}。`}</li>
+              <li>状态更新：${escapeHtml(event.action)}</li>
+            </ol>
+          </div>
+        </div>
       </div>
     `;
   }
 
   function renderVirtualMemory(result) {
     if (result.mode === "segmentation") {
+      const counter = $("#vmStepCounter");
+      if (counter) counter.textContent = "1 / 1";
       $("#vmResult").innerHTML = `
         <div class="${result.valid ? "status-good" : "status-error"}">${escapeHtml(result.explanation)}</div>
         ${renderVirtualStructureDiagram(result)}
@@ -1339,6 +1551,8 @@
     }
 
     if (result.mode === "segmented-paging") {
+      const counter = $("#vmStepCounter");
+      if (counter) counter.textContent = "1 / 1";
       $("#vmResult").innerHTML = `
         <div class="status-good">${escapeHtml(result.explanation)}</div>
         <div class="cache-fields">
@@ -1364,6 +1578,9 @@
     }
 
     const replacement = result.replacement;
+    const selectedEvent = replacement.events[clamp(state.vm.cursor, 0, replacement.events.length - 1)];
+    const counter = $("#vmStepCounter");
+    if (counter) counter.textContent = `页面访问 ${selectedEvent.index + 1} / ${replacement.events.length}`;
     $("#vmResult").innerHTML = `
       <div class="${result.physicalAddress === null ? "status-warn" : "status-good"}">${escapeHtml(result.explanation)}</div>
       <div class="cache-fields">
@@ -1371,10 +1588,10 @@
         <div class="cache-field"><strong>缺页率</strong><span>${replacement.faults}/${replacement.references.length} = ${(replacement.faultRate * 100).toFixed(1)}%</span></div>
         <div class="cache-field"><strong>页面置换</strong><span>${replacement.policy.toUpperCase()}</span></div>
       </div>
-      ${renderVirtualStructureDiagram(result)}
+      ${renderVirtualStructureDiagram(result, selectedEvent)}
       <div class="answer-section">
         <h4>逐步转换与置换过程</h4>
-        ${renderVirtualProcessSteps(result)}
+        ${renderVirtualProcessSteps(result, selectedEvent)}
       </div>
       <div class="table-wrap" style="margin-top: 12px;">
         <table>
@@ -1383,7 +1600,7 @@
             ${replacement.events
               .map(
                 (event) => `
-                  <tr class="${event.hit ? "active-row" : ""}">
+                  <tr class="${event.index === selectedEvent.index ? "current-row" : event.hit ? "active-row" : ""}">
                     <td>${event.index + 1}</td>
                     <td>${event.page}</td>
                     <td>${event.hit ? "命中" : "缺页"}</td>
@@ -1412,10 +1629,28 @@
         segmentTable: $("#vmSegmentTable").value,
         segmentPageTable: $("#vmSegmentPageTable").value,
       });
+      state.vm.result = result;
+      state.vm.cursor = 0;
       renderVirtualMemory(result);
     } catch (error) {
+      state.vm.result = null;
+      const counter = $("#vmStepCounter");
+      if (counter) counter.textContent = "输入有误";
       $("#vmResult").innerHTML = `<div class="status-error">${escapeHtml(error.message)}</div>`;
     }
+  }
+
+  function stepVirtualMemory(delta) {
+    if (!state.vm.result) {
+      runVirtualMemory();
+      return;
+    }
+    if (state.vm.result.mode !== "paging") {
+      renderVirtualMemory(state.vm.result);
+      return;
+    }
+    state.vm.cursor = clamp(state.vm.cursor + delta, 0, state.vm.result.replacement.events.length - 1);
+    renderVirtualMemory(state.vm.result);
   }
 
   function renderDatapathDiagram(frame) {
@@ -2117,13 +2352,19 @@
     $("#twosRun").addEventListener("click", runTwosComplement);
     $("#floatRun").addEventListener("click", runFloat);
     $("#cacheRun").addEventListener("click", runCache);
+    $("#cachePrev").addEventListener("click", () => stepCache(-1));
+    $("#cacheNext").addEventListener("click", () => stepCache(1));
     $("#vmRun").addEventListener("click", runVirtualMemory);
+    $("#vmPrev").addEventListener("click", () => stepVirtualMemory(-1));
+    $("#vmNext").addEventListener("click", () => stepVirtualMemory(1));
     $("#memoryRun").addEventListener("click", runMemoryAccess);
     $("#memoryPrev").addEventListener("click", () => stepMemoryAccess(-1));
     $("#memoryNext").addEventListener("click", () => stepMemoryAccess(1));
     $("#memoryAuto").addEventListener("click", toggleMemoryAuto);
     $("#memoryClear").addEventListener("click", clearMemoryAccess);
     $("#expansionRun").addEventListener("click", runMemoryExpansion);
+    $("#expansionPrev").addEventListener("click", () => stepMemoryExpansion(-1));
+    $("#expansionNext").addEventListener("click", () => stepMemoryExpansion(1));
     $("#pipelineRun").addEventListener("click", runPipeline);
     $("#datapathLoad").addEventListener("click", runDatapath);
     $("#datapathPrev").addEventListener("click", () => stepDatapath(-1));

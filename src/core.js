@@ -613,6 +613,18 @@
     return lines.reduce((best, line) => line.lastUsed < best.lastUsed ? line : best, lines[0]);
   }
 
+  function snapshotCacheRows(sets) {
+    return sets.flatMap((set) => set.lines.map((line) => ({
+      set: set.setIndex,
+      way: line.way,
+      valid: line.valid,
+      tag: line.valid ? line.tag : "-",
+      block: line.valid ? line.block : "-",
+      frequency: line.frequency,
+      lastUsed: line.lastUsed,
+    })));
+  }
+
   function simulateCacheSystem(params) {
     const accesses = parseAddressList(params.accesses || params.address);
     const addressBits = parseInteger(params.addressBits);
@@ -678,6 +690,8 @@
           tag,
           offset,
           hit: true,
+          way: hitLine.way,
+          snapshotRows: snapshotCacheRows(sets),
           action: `命中：第 ${setIndex} 组第 ${hitLine.way} 路。`,
         });
         return;
@@ -703,22 +717,16 @@
         tag,
         offset,
         hit: false,
+        way: target.way,
         evicted,
+        snapshotRows: snapshotCacheRows(sets),
         action: evicted
           ? `未命中：按 ${replacement.toUpperCase()} 替换第 ${setIndex} 组第 ${evicted.way} 路。`
           : `未命中：装入第 ${setIndex} 组第 ${target.way} 路空行。`,
       });
     });
 
-    const rows = sets.flatMap((set) => set.lines.map((line) => ({
-      set: set.setIndex,
-      way: line.way,
-      valid: line.valid,
-      tag: line.valid ? line.tag : "-",
-      block: line.valid ? line.block : "-",
-      frequency: line.frequency,
-      lastUsed: line.lastUsed,
-    })));
+    const rows = snapshotCacheRows(sets);
 
     return {
       mapping,

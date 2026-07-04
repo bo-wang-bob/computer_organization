@@ -253,12 +253,16 @@
                 </label>
               </div>
               <button id="cacheRun" class="primary-button">运行缓存仿真</button>
+              <div class="button-row">
+                <button id="cachePrev" class="secondary-button">上一步</button>
+                <button id="cacheNext" class="secondary-button">下一步</button>
+              </div>
             </div>
 
             <div class="panel result-panel">
               <div class="panel-title">
                 <h3>缓存结构与过程</h3>
-                <span>映射结构、逐步访问与最终状态</span>
+                <span id="cacheStepCounter">等待运行</span>
               </div>
               <div id="cacheResult"></div>
             </div>
@@ -318,12 +322,16 @@
 1 0 7</textarea>
 
               <button id="vmRun" class="primary-button">运行虚存仿真</button>
+              <div class="button-row">
+                <button id="vmPrev" class="secondary-button">上一步</button>
+                <button id="vmNext" class="secondary-button">下一步</button>
+              </div>
             </div>
 
             <div class="panel result-panel">
               <div class="panel-title">
                 <h3>虚存结构与过程</h3>
-                <span>映射结构、地址转换与缺页过程</span>
+                <span id="vmStepCounter">等待运行</span>
               </div>
               <div id="vmResult"></div>
             </div>
@@ -408,6 +416,7 @@
                   <select id="expansionMode">
                     <option value="bit" selected>位扩展法</option>
                     <option value="word">字扩展法</option>
+                    <option value="both">字位同时扩展</option>
                   </select>
                 </label>
                 <label>
@@ -428,12 +437,16 @@
                 </label>
               </div>
               <button id="expansionRun" class="primary-button">生成扩展结构</button>
+              <div class="button-row">
+                <button id="expansionPrev" class="secondary-button">上一步</button>
+                <button id="expansionNext" class="secondary-button">下一步</button>
+              </div>
             </div>
 
             <div class="panel result-panel">
               <div class="panel-title">
                 <h3>扩展结果</h3>
-                <span>芯片数量、地址线与片选关系</span>
+                <span id="expansionStepCounter">等待运行</span>
               </div>
               <div id="memoryExpansionResult"></div>
             </div>
@@ -601,7 +614,7 @@ lw x4, 0(x0)</textarea>
       </main>
     </div>
 
-    <script src="./src/core.js?v=20260704-cache-vm"></script>
-    <script src="./src/app.js?v=20260704-cache-vm"></script>
+    <script src="./src/core.js?v=20260704-storage-clarity"></script>
+    <script src="./src/app.js?v=20260704-storage-clarity"></script>
   </body>
 </html>
