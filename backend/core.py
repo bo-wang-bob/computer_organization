@@ -13,6 +13,13 @@ from typing import Any
 
 
 PIPELINE_STAGES = ["IF", "ID", "EX", "MEM", "WB"]
+DATAPATH_STAGES = [
+    {"id": "IF", "name": "取指"},
+    {"id": "ID", "name": "译码"},
+    {"id": "EX", "name": "执行"},
+    {"id": "MEM", "name": "访存"},
+    {"id": "WB", "name": "写回"},
+]
 
 
 CHAPTERS: list[dict[str, Any]] = [
@@ -1190,6 +1197,319 @@ def execute_assembly(program: str) -> dict[str, Any]:
     }
 
 
+def datapath_control_signals(instruction: dict[str, Any], values: dict[str, Any]) -> dict[str, Any]:
+    op = instruction["op"]
+    signals = {
+        "RegWrite": 0,
+        "ALUSrc": 0,
+        "MemRead": 0,
+        "MemWrite": 0,
+        "MemToReg": 0,
+        "Branch": 0,
+        "ALUOp": "-",
+    }
+    if op in {"add", "sub"}:
+        return {**signals, "RegWrite": 1, "ALUOp": op}
+    if op == "addi":
+        return {**signals, "RegWrite": 1, "ALUSrc": 1, "ALUOp": "add"}
+    if op == "lw":
+        return {**signals, "RegWrite": 1, "ALUSrc": 1, "MemRead": 1, "MemToReg": 1, "ALUOp": "add"}
+    if op == "sw":
+        return {**signals, "ALUSrc": 1, "MemWrite": 1, "MemToReg": "X", "ALUOp": "add"}
+    if op == "li":
+        return {**signals, "RegWrite": 1, "ALUSrc": 1, "ALUOp": "pass imm"}
+    if op == "mov":
+        return {**signals, "RegWrite": 1, "ALUSrc": 0 if values.get("sourceIsRegister") else 1, "ALUOp": "pass"}
+    return signals
+
+
+def changed_keys(before: dict[Any, Any], after: dict[Any, Any]) -> list[Any]:
+    return sorted([key for key, value in after.items() if before.get(key) != value], key=str)
+
+
+def build_datapath_trace(
+    instruction: dict[str, Any],
+    registers: dict[str, int],
+    memory: dict[Any, int],
+    pc: int,
+) -> dict[str, Any]:
+    before_registers = registers.copy()
+    before_memory = memory.copy()
+    after_registers = registers.copy()
+    after_memory = memory.copy()
+    values: dict[str, Any] = {
+        "pc": pc,
+        "pcNext": pc + 4,
+        "instruction": instruction["raw"],
+        "op": instruction["op"],
+        "type": instruction["type"],
+    }
+    error = None
+
+    try:
+        if not instruction["supported"]:
+            raise ValueError(f"暂不支持指令：{instruction['raw']}")
+
+        if instruction["op"] in {"add", "sub"}:
+            rd, rs1, rs2 = instruction["args"][:3]
+            left = read_register(registers, rs1)
+            right = read_register(registers, rs2)
+            result = left + right if instruction["op"] == "add" else left - right
+            values.update(
+                {
+                    "rd": normalize_register_name(rd),
+                    "rs1": normalize_register_name(rs1),
+                    "rs2": normalize_register_name(rs2),
+                    "rs1Value": left,
+                    "rs2Value": right,
+                    "aluInputA": left,
+                    "aluInputB": right,
+                    "aluResult": result,
+                    "writeBackRegister": normalize_register_name(rd),
+                    "writeBackValue": result,
+                }
+            )
+            write_register(after_registers, rd, result)
+        elif instruction["op"] == "addi":
+            rd, rs1, imm_token = instruction["args"][:3]
+            left = read_register(registers, rs1)
+            imm = parse_immediate(imm_token)
+            result = left + imm
+            values.update(
+                {
+                    "rd": normalize_register_name(rd),
+                    "rs1": normalize_register_name(rs1),
+                    "rs1Value": left,
+                    "imm": imm,
+                    "aluInputA": left,
+                    "aluInputB": imm,
+                    "aluResult": result,
+                    "writeBackRegister": normalize_register_name(rd),
+                    "writeBackValue": result,
+                }
+            )
+            write_register(after_registers, rd, result)
+        elif instruction["op"] == "lw":
+            rd, offset_token, base_reg = instruction["args"][:3]
+            base = read_register(registers, base_reg)
+            imm = parse_immediate(offset_token)
+            address = base + imm
+            memory_data = memory.get(address, 0)
+            values.update(
+                {
+                    "rd": normalize_register_name(rd),
+                    "rs1": normalize_register_name(base_reg),
+                    "rs1Value": base,
+                    "imm": imm,
+                    "aluInputA": base,
+                    "aluInputB": imm,
+                    "aluResult": address,
+                    "memoryAddress": address,
+                    "memoryData": memory_data,
+                    "writeBackRegister": normalize_register_name(rd),
+                    "writeBackValue": memory_data,
+                }
+            )
+            write_register(after_registers, rd, memory_data)
+        elif instruction["op"] == "sw":
+            source_reg, offset_token, base_reg = instruction["args"][:3]
+            base = read_register(registers, base_reg)
+            imm = parse_immediate(offset_token)
+            address = base + imm
+            write_data = read_register(registers, source_reg)
+            values.update(
+                {
+                    "rs1": normalize_register_name(base_reg),
+                    "rs1Value": base,
+                    "rs2": normalize_register_name(source_reg),
+                    "rs2Value": write_data,
+                    "imm": imm,
+                    "aluInputA": base,
+                    "aluInputB": imm,
+                    "aluResult": address,
+                    "memoryAddress": address,
+                    "memoryWriteData": write_data,
+                }
+            )
+            after_memory[address] = write_data
+        elif instruction["op"] == "li":
+            rd, imm_token = instruction["args"][:2]
+            imm = parse_immediate(imm_token)
+            values.update(
+                {
+                    "rd": normalize_register_name(rd),
+                    "imm": imm,
+                    "aluInputB": imm,
+                    "aluResult": imm,
+                    "writeBackRegister": normalize_register_name(rd),
+                    "writeBackValue": imm,
+                }
+            )
+            write_register(after_registers, rd, imm)
+        elif instruction["op"] == "mov":
+            rd, source = instruction["args"][:2]
+            source_is_register = is_register(source)
+            value = read_register(registers, source) if source_is_register else parse_immediate(source)
+            values.update(
+                {
+                    "rd": normalize_register_name(rd),
+                    "sourceIsRegister": source_is_register,
+                    "aluResult": value,
+                    "writeBackRegister": normalize_register_name(rd),
+                    "writeBackValue": value,
+                }
+            )
+            if source_is_register:
+                values.update({"rs1": normalize_register_name(source), "rs1Value": value, "aluInputA": value})
+            else:
+                values.update({"imm": value, "aluInputB": value})
+            write_register(after_registers, rd, value)
+    except Exception as trace_error:
+        error = str(trace_error)
+
+    after_registers["x0"] = 0
+    return {
+        "instruction": instruction,
+        "beforeRegisters": before_registers,
+        "beforeMemory": before_memory,
+        "afterRegisters": after_registers,
+        "afterMemory": after_memory,
+        "values": values,
+        "controlSignals": datapath_control_signals(instruction, values),
+        "error": error,
+        "changedRegisters": changed_keys(before_registers, after_registers),
+        "changedMemory": changed_keys(before_memory, after_memory),
+    }
+
+
+def datapath_flow(trace: dict[str, Any], stage_id: str) -> dict[str, list[str]]:
+    op = trace["instruction"]["op"]
+    if stage_id == "IF":
+        return {"activeNodes": ["pc", "pcAdd", "imem"], "activeEdges": ["pc-imem", "pc-pcadd", "pcadd-pc"]}
+    if stage_id == "ID":
+        return {
+            "activeNodes": ["imem", "control", "regfile", "immgen"],
+            "activeEdges": ["imem-control", "imem-regfile", "imem-immgen"],
+        }
+    if stage_id == "EX":
+        if op in {"add", "sub"} or (op == "mov" and trace["values"].get("sourceIsRegister")):
+            return {"activeNodes": ["regfile", "alu"], "activeEdges": ["regfile-alu-a", "regfile-alu-b"]}
+        return {
+            "activeNodes": ["regfile", "immgen", "aluMux", "alu"],
+            "activeEdges": ["regfile-alu-a", "immgen-alumux", "alumux-alu-b"],
+        }
+    if stage_id == "MEM":
+        if op == "lw":
+            return {"activeNodes": ["alu", "dmem"], "activeEdges": ["alu-dmem"]}
+        if op == "sw":
+            return {"activeNodes": ["regfile", "alu", "dmem"], "activeEdges": ["alu-dmem", "regfile-dmem"]}
+        return {"activeNodes": ["alu"], "activeEdges": []}
+    if stage_id == "WB":
+        if op == "sw":
+            return {"activeNodes": ["control"], "activeEdges": []}
+        if op == "lw":
+            return {"activeNodes": ["dmem", "wbMux", "regfile"], "activeEdges": ["dmem-wbmux", "wbmux-regfile"]}
+        return {"activeNodes": ["alu", "wbMux", "regfile"], "activeEdges": ["alu-wbmux", "wbmux-regfile"]}
+    return {"activeNodes": [], "activeEdges": []}
+
+
+def datapath_stage_explanation(trace: dict[str, Any], stage_id: str) -> str:
+    values = trace["values"]
+    if trace["error"]:
+        return trace["error"]
+    if stage_id == "IF":
+        return (
+            f"PC={values['pc']} 作为取指地址送入指令存储器，取出指令 {values['instruction']}，"
+            f"同时计算 PC+4={values['pcNext']}。"
+        )
+    if stage_id == "ID":
+        return f"控制器根据操作码 {values['op']} 产生控制信号，寄存器堆读取源操作数，立即数生成器准备偏移或常数。"
+    if stage_id == "EX":
+        return (
+            f"ALU 使用输入 {values.get('aluInputA', '-')} 和 {values.get('aluInputB', '-')} "
+            f"执行 {trace['controlSignals']['ALUOp']}，得到结果 {values.get('aluResult', '-')}。"
+        )
+    if stage_id == "MEM":
+        if trace["instruction"]["op"] == "lw":
+            return f"数据存储器使用地址 {values.get('memoryAddress')} 读取数据，读出值为 {values.get('memoryData')}。"
+        if trace["instruction"]["op"] == "sw":
+            return f"数据存储器使用地址 {values.get('memoryAddress')} 写入来自 {values.get('rs2')} 的值 {values.get('memoryWriteData')}。"
+        return "本条指令不访问数据存储器，MEM 阶段只让 ALU 结果继续向后传递。"
+    if stage_id == "WB":
+        if trace["instruction"]["op"] == "sw":
+            return "store 指令只写数据存储器，不写回寄存器堆，因此 RegWrite=0。"
+        source = "内存读出数据" if trace["instruction"]["op"] == "lw" else "ALU 结果"
+        return f"写回多路选择器选择 {source}，写入 {values.get('writeBackRegister')}={values.get('writeBackValue')}。"
+    return ""
+
+
+def build_datapath_frame(
+    trace: dict[str, Any],
+    stage: dict[str, str],
+    stage_index: int,
+    instruction_count: int,
+) -> dict[str, Any]:
+    flow = datapath_flow(trace, stage["id"])
+    register_ready = bool(trace["values"].get("writeBackRegister")) and stage_index >= 4
+    memory_ready = bool(trace["changedMemory"]) and stage_index >= 3
+    return {
+        "instructionIndex": trace["instruction"]["index"],
+        "instructionCount": instruction_count,
+        "instruction": trace["instruction"]["raw"],
+        "op": trace["instruction"]["op"],
+        "stage": stage["id"],
+        "stageName": stage["name"],
+        "activeNodes": flow["activeNodes"],
+        "activeEdges": flow["activeEdges"],
+        "controlSignals": trace["controlSignals"],
+        "values": trace["values"],
+        "explanation": datapath_stage_explanation(trace, stage["id"]),
+        "registers": trace["afterRegisters"] if register_ready else trace["beforeRegisters"],
+        "memory": trace["afterMemory"] if memory_ready else trace["beforeMemory"],
+        "changedRegisters": trace["changedRegisters"] if register_ready else [],
+        "changedMemory": trace["changedMemory"] if memory_ready else [],
+        "error": trace["error"],
+    }
+
+
+def simulate_datapath(program: str) -> dict[str, Any]:
+    instructions = [instruction for instruction in parse_assembly(program) if instruction["raw"]]
+    current_registers = create_registers()
+    current_memory: dict[Any, int] = {}
+    pc = 0
+    frames = []
+    summaries = []
+
+    for instruction in instructions:
+        trace = build_datapath_trace(instruction, current_registers, current_memory, pc)
+        for stage_index, stage in enumerate(DATAPATH_STAGES):
+            frames.append(build_datapath_frame(trace, stage, stage_index, len(instructions)))
+        summaries.append(
+            {
+                "index": instruction["index"],
+                "address": instruction["address"],
+                "raw": instruction["raw"],
+                "op": instruction["op"],
+                "type": instruction["type"],
+                "supported": instruction["supported"],
+                "error": trace["error"],
+                "changedRegisters": trace["changedRegisters"],
+                "changedMemory": trace["changedMemory"],
+            }
+        )
+        current_registers = trace["afterRegisters"].copy()
+        current_memory = trace["afterMemory"].copy()
+        pc += 4
+
+    return {
+        "stages": deepcopy(DATAPATH_STAGES),
+        "instructions": summaries,
+        "frames": frames,
+        "finalRegisters": current_registers,
+        "finalMemory": current_memory,
+    }
+
+
 def has_intersection(left: list[str], right: list[str]) -> bool:
     left_set = set(left)
     return any(item in left_set for item in right)
@@ -1351,6 +1671,12 @@ def dispatch_agent(payload: dict[str, Any]) -> dict[str, Any]:
             "intent": "pipeline_help",
             "answer": answer_question(message, "cpu", payload.get("mode", "standard")),
             "tool": "simulate_pipeline",
+        }
+    if any(keyword in lowered for keyword in ["数据通路", "控制信号", "datapath", "control signal"]):
+        return {
+            "intent": "datapath_help",
+            "answer": answer_question(message, "cpu", payload.get("mode", "standard")),
+            "tool": "simulate_datapath",
         }
     if any(keyword in lowered for keyword in ["汇编", "risc-v", "addi", "lw", "sw", "mov"]):
         return {

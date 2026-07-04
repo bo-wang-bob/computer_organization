@@ -133,6 +133,30 @@ add x3, x1, x4""",
         self.assertEqual(result["hazards"][0]["type"], "load-use")
         self.assertIn("STALL", result["timeline"][1]["cells"])
 
+    def test_datapath_control_signals_and_state(self):
+        result = core.simulate_datapath(
+            """addi x1, x0, 12
+sw x1, 0(x0)
+lw x2, 0(x0)"""
+        )
+
+        self.assertEqual(len(result["frames"]), 15)
+        self.assertEqual(result["finalRegisters"]["x1"], 12)
+        self.assertEqual(result["finalRegisters"]["x2"], 12)
+        self.assertEqual(result["finalMemory"][0], 12)
+
+        load_mem = next(
+            frame for frame in result["frames"] if frame["instruction"] == "lw x2, 0(x0)" and frame["stage"] == "MEM"
+        )
+        self.assertEqual(load_mem["controlSignals"]["MemRead"], 1)
+        self.assertEqual(load_mem["values"]["memoryData"], 12)
+
+        store_mem = next(
+            frame for frame in result["frames"] if frame["instruction"] == "sw x1, 0(x0)" and frame["stage"] == "MEM"
+        )
+        self.assertIn("regfile-dmem", store_mem["activeEdges"])
+        self.assertEqual(store_mem["memory"][0], 12)
+
     def test_assembly_snapshot(self):
         result = core.assembly_snapshot(
             """addi x1, x0, 5

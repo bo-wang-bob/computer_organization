@@ -258,6 +258,37 @@ button {
   gap: 12px;
 }
 
+.demo-planner-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.demo-planner-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 180px;
+  gap: 12px;
+  align-items: stretch;
+}
+
+.demo-planner-row .primary-button {
+  height: 100%;
+  margin-top: 0;
+}
+
+.demo-examples {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.demo-examples .secondary-button {
+  margin-top: 0;
+}
+
+.demo-status {
+  min-height: 44px;
+}
+
 .action-button,
 .primary-button,
 .secondary-button {
@@ -271,6 +302,29 @@ button {
 .action-button {
   background: var(--surface-muted);
   color: var(--text);
+}
+
+.recommended-feature {
+  display: grid;
+  gap: 6px;
+  min-height: 92px;
+  align-content: center;
+  text-align: left;
+}
+
+.recommended-feature strong,
+.recommended-feature span {
+  display: block;
+}
+
+.recommended-feature strong {
+  font-size: 16px;
+}
+
+.recommended-feature span {
+  color: var(--muted);
+  line-height: 1.45;
+  font-size: 13px;
 }
 
 .action-button:hover {
@@ -576,6 +630,216 @@ tr:last-child td {
   font-family: Consolas, "Courier New", monospace;
 }
 
+.mapping-diagram {
+  margin-top: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfd;
+  padding: 14px;
+}
+
+.diagram-title {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: baseline;
+  margin-bottom: 12px;
+}
+
+.diagram-title strong {
+  font-size: 16px;
+}
+
+.diagram-title span {
+  color: var(--muted);
+  line-height: 1.5;
+  font-size: 13px;
+}
+
+.diagram-flow {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.7fr) auto minmax(180px, 1.2fr) auto minmax(160px, 1fr) auto minmax(150px, 0.8fr);
+  gap: 8px;
+  align-items: stretch;
+}
+
+.vm-diagram .diagram-flow {
+  grid-template-columns: minmax(120px, 0.8fr) auto minmax(150px, 1fr) auto minmax(150px, 1fr) auto minmax(150px, 1fr);
+}
+
+.diagram-node {
+  display: grid;
+  gap: 6px;
+  align-content: center;
+  min-height: 88px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 10px;
+}
+
+.diagram-node strong,
+.diagram-node span {
+  display: block;
+}
+
+.diagram-node strong {
+  color: var(--text);
+}
+
+.diagram-node span {
+  color: var(--muted);
+  line-height: 1.45;
+  font-size: 13px;
+}
+
+.diagram-node.success {
+  border-color: var(--green);
+  background: var(--green-soft);
+}
+
+.diagram-node.danger {
+  border-color: var(--red);
+  background: var(--red-soft);
+}
+
+.diagram-arrow {
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.bit-field-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.bit-field {
+  border: 1px solid #cfd8df;
+  border-radius: 6px;
+  background: #f8fafc;
+  padding: 7px;
+}
+
+.bit-field strong,
+.bit-field span,
+.bit-field small {
+  display: block;
+}
+
+.bit-field strong {
+  font-size: 12px;
+}
+
+.bit-field span,
+.bit-field small {
+  color: var(--muted);
+  line-height: 1.4;
+  font-size: 11px;
+}
+
+.cache-set-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+  max-height: 360px;
+  overflow: auto;
+}
+
+.cache-set-box {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 9px;
+}
+
+.cache-set-box strong {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--text);
+  font-size: 13px;
+}
+
+.cache-set-box span {
+  display: block;
+  border-radius: 6px;
+  background: #f1f5f8;
+  color: var(--muted);
+  padding: 5px 6px;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 12px;
+}
+
+.cache-set-box span + span {
+  margin-top: 5px;
+}
+
+.cache-set-box span.filled {
+  background: var(--teal-soft);
+  color: #075e57;
+}
+
+.process-timeline {
+  display: grid;
+  gap: 10px;
+}
+
+.process-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 12px;
+}
+
+.process-card.hit {
+  border-color: var(--teal);
+}
+
+.process-card.miss {
+  border-color: var(--amber);
+}
+
+.process-card-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: baseline;
+  margin-bottom: 8px;
+}
+
+.process-card-head span {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: #eef2f4;
+  color: var(--muted);
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.process-card.hit .process-card-head span {
+  background: var(--teal-soft);
+  color: #075e57;
+}
+
+.process-card.miss .process-card-head span {
+  background: var(--amber-soft);
+  color: #7a520d;
+}
+
+.process-card ol {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding-left: 20px;
+  color: #34434c;
+  line-height: 1.55;
+  font-size: 13px;
+}
+
 .compact-button {
   width: auto;
   margin-top: 0;
@@ -804,6 +1068,231 @@ tr:last-child td {
   background: #f8fafc;
 }
 
+.datapath-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 18px;
+  align-items: start;
+}
+
+.datapath-visual-panel {
+  grid-row: auto;
+  min-height: 700px;
+}
+
+.datapath-controls {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.datapath-list-title {
+  margin-top: 18px;
+}
+
+.datapath-instruction-list {
+  display: grid;
+  gap: 8px;
+}
+
+.datapath-instruction {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px 10px;
+  background: #fbfcfd;
+}
+
+.datapath-instruction.active {
+  border-color: var(--teal);
+  background: var(--teal-soft);
+}
+
+.datapath-instruction code {
+  font-family: Consolas, "Courier New", monospace;
+  white-space: nowrap;
+}
+
+.datapath-instruction span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.datapath-signal-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.datapath-signal-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfd;
+  padding: 11px 12px;
+}
+
+.datapath-signal-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+  margin-bottom: 8px;
+}
+
+.datapath-signal-head strong,
+.datapath-signal-head span {
+  display: block;
+}
+
+.datapath-signal-head strong {
+  color: var(--text);
+  font-family: Consolas, "Courier New", monospace;
+}
+
+.datapath-signal-head span {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.datapath-signal-head code {
+  flex: 0 0 auto;
+  border-radius: 6px;
+  background: var(--teal-soft);
+  color: #075e57;
+  padding: 3px 7px;
+  font-family: Consolas, "Courier New", monospace;
+  font-weight: 800;
+}
+
+.datapath-signal-card p {
+  margin: 0;
+  color: #34434c;
+  line-height: 1.55;
+  font-size: 13px;
+}
+
+.datapath-diagram {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.datapath-svg {
+  display: block;
+  width: 100%;
+  min-width: 1240px;
+  height: auto;
+}
+
+.datapath-arrow {
+  fill: #8a98a3;
+}
+
+.datapath-arrow.active {
+  fill: var(--teal);
+}
+
+.datapath-stage-band {
+  fill: #eef2f4;
+  stroke: #d9e0e5;
+  stroke-width: 1;
+  rx: 10;
+}
+
+.datapath-stage-title {
+  fill: #63717c;
+  font-size: 14px;
+  font-weight: 800;
+  text-anchor: middle;
+}
+
+.datapath-edge {
+  fill: none;
+  stroke: #9aa8b2;
+  stroke-width: 3;
+  opacity: 0.5;
+  transition: stroke 180ms ease, stroke-width 180ms ease, opacity 180ms ease;
+}
+
+.datapath-edge.control {
+  stroke-dasharray: 7 6;
+}
+
+.datapath-edge.active {
+  stroke: var(--teal);
+  stroke-width: 5;
+  opacity: 1;
+}
+
+.datapath-edge.control.active {
+  stroke: var(--indigo);
+}
+
+.datapath-edge-label {
+  fill: #075e57;
+  paint-order: stroke;
+  stroke: #f8fafc;
+  stroke-width: 5;
+  stroke-linejoin: round;
+  font-size: 12px;
+  font-weight: 800;
+  text-anchor: middle;
+}
+
+.datapath-node rect,
+.datapath-node polygon {
+  fill: #ffffff;
+  stroke: #8a98a3;
+  stroke-width: 2;
+  filter: drop-shadow(0 7px 14px rgba(23, 32, 38, 0.08));
+  transition: fill 180ms ease, stroke 180ms ease, stroke-width 180ms ease;
+}
+
+.datapath-node.active rect,
+.datapath-node.active polygon {
+  fill: var(--teal-soft);
+  stroke: var(--teal);
+  stroke-width: 3;
+}
+
+.datapath-node text {
+  fill: #34434c;
+  font-size: 15px;
+  font-weight: 700;
+  text-anchor: middle;
+  dominant-baseline: middle;
+}
+
+.datapath-node .datapath-node-subtitle {
+  fill: #63717c;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.datapath-value-chip {
+  fill: #172026;
+  paint-order: stroke;
+  stroke: #ffffff;
+  stroke-width: 8;
+  stroke-linejoin: round;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 12px;
+  font-weight: 800;
+  text-anchor: middle;
+}
+
+.datapath-explanation {
+  margin-top: 12px;
+}
+
+.memory-item.changed {
+  border-color: var(--teal);
+  background: var(--teal-soft);
+}
+
 .active-row {
   background: var(--teal-soft);
 }
@@ -1008,6 +1497,7 @@ td code {
   .dashboard-grid,
   .two-column,
   .assembly-layout,
+  .datapath-layout,
   .state-grid {
     grid-template-columns: 1fr;
   }
@@ -1026,8 +1516,11 @@ td code {
   .quick-actions,
   .form-grid,
   .button-row,
+  .datapath-controls,
   .cache-fields,
-  .agent-flow {
+  .agent-flow,
+  .demo-planner-row,
+  .demo-examples {
     grid-template-columns: 1fr;
   }
 
@@ -1039,8 +1532,18 @@ td code {
   .memory-line-summary,
   .memory-cell-grid,
   .memory-glossary dl,
+  .diagram-flow,
+  .vm-diagram .diagram-flow,
+  .bit-field-row,
+  .cache-set-grid,
+  .datapath-signal-list,
   .expansion-diagram,
   .expansion-chip-grid {
     grid-template-columns: 1fr;
+  }
+
+  .diagram-arrow {
+    transform: rotate(90deg);
+    min-height: 18px;
   }
 }

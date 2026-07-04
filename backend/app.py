@@ -1,4 +1,4 @@
-"""FastAPI entry point for the teaching agent backend."""
+"""FastAPI entry point for the teaching assistant platform backend."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 app = FastAPI(
-    title="Computer Organization Teaching Agent API",
+    title="Computer Organization Teaching Assistant Platform API",
     version="0.2.0",
     description="Rule-based backend for QA retrieval, simulations, assembly tracing, and learning diagnosis.",
 )
@@ -50,6 +50,11 @@ class AgentChatRequest(BaseModel):
     mode: str = "standard"
     useLLM: bool = True
     toolInput: dict[str, Any] = Field(default_factory=dict)
+
+
+class DemoPlanRequest(BaseModel):
+    message: str = Field(..., min_length=1)
+    useLLM: bool = True
 
 
 class TwosComplementRequest(BaseModel):
@@ -167,6 +172,11 @@ def agent_chat(request: AgentChatRequest) -> dict[str, Any]:
     return call_tool(agents.run_agent, request.model_dump())
 
 
+@app.post("/api/agent/demo-plan")
+def agent_demo_plan(request: DemoPlanRequest) -> dict[str, Any]:
+    return call_tool(agents.plan_demo, request.model_dump())
+
+
 @app.post("/api/simulations/twos-complement")
 def twos_complement(request: TwosComplementRequest) -> dict[str, Any]:
     return call_tool(core.simulate_twos_complement_add, request.x, request.y, request.bits)
@@ -205,6 +215,11 @@ def virtual_memory(request: VirtualMemoryRequest) -> dict[str, Any]:
 @app.post("/api/simulations/pipeline")
 def pipeline(request: PipelineRequest) -> dict[str, Any]:
     return call_tool(core.simulate_pipeline, request.program, {"forwarding": request.forwarding})
+
+
+@app.post("/api/simulations/datapath")
+def datapath(request: AssemblyRequest) -> dict[str, Any]:
+    return call_tool(core.simulate_datapath, request.program)
 
 
 @app.post("/api/assembly/parse")

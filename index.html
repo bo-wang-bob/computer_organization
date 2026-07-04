@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>计算机组成原理教学智能体</title>
+    <title>计组教学辅助平台</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
@@ -12,7 +12,7 @@
         <div class="brand">
           <div class="brand-mark">CO</div>
           <div>
-            <h1>计组教学智能体</h1>
+            <h1>计组教学辅助平台</h1>
             <p>规则推演 + 教学解释</p>
           </div>
         </div>
@@ -25,7 +25,7 @@
 
         <div class="sidebar-note">
           <span class="status-dot"></span>
-          <span>当前支持规则工具与 DeepSeek V4 教学智能体。</span>
+          <span>当前支持规则工具与 DeepSeek V4 教学辅助。</span>
         </div>
       </aside>
 
@@ -34,43 +34,40 @@
           <div class="section-heading">
             <div>
               <p class="eyebrow">Learning Workspace</p>
-              <h2>计算机组成原理学习工作台</h2>
+              <h2>计组教学辅助平台</h2>
             </div>
-            <div class="mode-badge">MVP 迭代 1</div>
           </div>
 
           <div class="dashboard-grid">
+            <div class="panel wide demo-planner-panel">
+              <div class="panel-title">
+                <h3>智能课堂演示入口</h3>
+                <span>输入想演示的知识点，自动生成例子并跳转仿真</span>
+              </div>
+              <label class="field-label" for="demoPrompt">想演示什么过程？</label>
+              <div class="demo-planner-row">
+                <textarea id="demoPrompt" rows="3" placeholder="例如：演示 load-use 冒险">演示 load-use 冒险</textarea>
+                <button id="demoGenerate" class="primary-button">生成并演示</button>
+              </div>
+              <div class="demo-examples" aria-label="课堂演示示例">
+                <button class="secondary-button demo-example" data-demo-prompt="演示 8 位补码 127 + 1 溢出">补码溢出</button>
+                <button class="secondary-button demo-example" data-demo-prompt="演示 IEEE 754 对阶过程">IEEE 754</button>
+                <button class="secondary-button demo-example" data-demo-prompt="演示 Cache 直接映射冲突">Cache 冲突</button>
+                <button class="secondary-button demo-example" data-demo-prompt="演示虚拟存储 LRU 页面置换">虚存置换</button>
+                <button class="secondary-button demo-example" data-demo-prompt="演示存储器写入 0x2A 数据 0x5C 的过程">存储读写</button>
+                <button class="secondary-button demo-example" data-demo-prompt="演示存储器位扩展">存储扩展</button>
+                <button class="secondary-button demo-example" data-demo-prompt="演示 load-use 冒险">流水线冒险</button>
+                <button class="secondary-button demo-example" data-demo-prompt="演示 lw 指令的数据通路">数据通路</button>
+                <button class="secondary-button demo-example" data-demo-prompt="演示汇编程序逐步执行">汇编执行</button>
+              </div>
+              <div id="demoStatus" class="demo-status empty-state">当前支持：补码/定点、IEEE 754、Cache、虚拟存储、存储读写、存储扩展、流水线、CPU 数据通路、汇编解释。</div>
+            </div>
             <div class="panel wide">
               <div class="panel-title">
-                <h3>今日建议</h3>
-                <span>从可验证的规则推演开始</span>
+                <h3>推荐功能</h3>
+                <span>刷新页面随机推荐 3 个入口</span>
               </div>
-              <div class="quick-actions">
-                <button class="action-button" data-section="qa">问一个知识点</button>
-                <button class="action-button" data-section="simulation" data-sim-panel="twos-sim">运行补码推演</button>
-                <button class="action-button" data-section="simulation" data-sim-panel="assembly-sim">解释汇编代码</button>
-              </div>
-            </div>
-
-            <div class="panel">
-              <div class="panel-title">
-                <h3>学习进度</h3>
-                <span>示例课程结构</span>
-              </div>
-              <div id="chapterProgress" class="progress-list"></div>
-            </div>
-
-            <div class="panel">
-              <div class="panel-title">
-                <h3>智能体分工</h3>
-                <span>解释与计算分离</span>
-              </div>
-              <div class="agent-flow">
-                <div>用户输入</div>
-                <div>意图判断</div>
-                <div>规则工具</div>
-                <div>教学反馈</div>
-              </div>
+              <div id="recommendedFeatures" class="quick-actions"></div>
             </div>
           </div>
         </section>
@@ -118,6 +115,7 @@
             <button class="sim-tab" data-sim-panel="memory-access-sim">存储读写</button>
             <button class="sim-tab" data-sim-panel="memory-expansion-sim">存储扩展</button>
             <button class="sim-tab" data-sim-panel="pipeline-sim">流水线</button>
+            <button class="sim-tab" data-sim-panel="datapath-sim">CPU 数据通路</button>
             <button class="sim-tab" data-sim-panel="assembly-sim">汇编解释</button>
           </div>
 
@@ -259,8 +257,8 @@
 
             <div class="panel result-panel">
               <div class="panel-title">
-                <h3>缓存仿真结果</h3>
-                <span>命中率与最终状态</span>
+                <h3>缓存结构与过程</h3>
+                <span>映射结构、逐步访问与最终状态</span>
               </div>
               <div id="cacheResult"></div>
             </div>
@@ -324,8 +322,8 @@
 
             <div class="panel result-panel">
               <div class="panel-title">
-                <h3>虚存仿真结果</h3>
-                <span>地址转换与缺页过程</span>
+                <h3>虚存结构与过程</h3>
+                <span>映射结构、地址转换与缺页过程</span>
               </div>
               <div id="vmResult"></div>
             </div>
@@ -471,6 +469,83 @@ sub x5, x3, x6</textarea>
           </div>
           </div>
 
+          <div id="datapath-sim" class="sim-panel">
+          <div class="section-subheading">
+            <p class="eyebrow">CPU Datapath</p>
+            <h3>单周期 CPU 数据通路与控制信号可视化</h3>
+          </div>
+
+          <div class="datapath-layout">
+            <div class="panel">
+              <div class="panel-title compact">
+                <h3>指令输入</h3>
+                <span>支持 add / sub / addi / lw / sw</span>
+              </div>
+              <label class="field-label" for="datapathCode">汇编代码</label>
+              <textarea id="datapathCode" rows="10">addi x1, x0, 5
+addi x2, x0, 7
+add x3, x1, x2
+sw x3, 0(x0)
+lw x4, 0(x0)</textarea>
+              <div class="button-row datapath-controls">
+                <button id="datapathLoad" class="primary-button">解析执行</button>
+                <button id="datapathPrev" class="secondary-button">上一步</button>
+                <button id="datapathNext" class="secondary-button">下一步</button>
+                <button id="datapathAuto" class="secondary-button">自动演示</button>
+                <button id="datapathReset" class="secondary-button">重置</button>
+              </div>
+
+              <div class="panel-title compact datapath-list-title">
+                <h3>指令序列</h3>
+                <span>当前指令高亮</span>
+              </div>
+              <div id="datapathInstructionList" class="datapath-instruction-list"></div>
+            </div>
+
+            <div class="panel datapath-visual-panel">
+              <div class="panel-title">
+                <h3>CPU 数据通路</h3>
+                <span id="datapathStepCounter">等待执行</span>
+              </div>
+              <div id="datapathDiagram" class="datapath-diagram"></div>
+              <div id="datapathExplanation" class="datapath-explanation"></div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-title compact">
+                <h3>控制信号</h3>
+                <span>值与含义随指令变化</span>
+              </div>
+              <div id="datapathControlSignals"></div>
+
+              <div class="panel-title compact datapath-list-title">
+                <h3>当前数据值</h3>
+                <span>连线携带的数据</span>
+              </div>
+              <div id="datapathValues"></div>
+            </div>
+
+            <div class="panel wide">
+              <div class="state-grid">
+                <div>
+                  <div class="panel-title compact">
+                    <h3>寄存器状态</h3>
+                    <span>写回阶段高亮变化</span>
+                  </div>
+                  <div id="datapathRegisterView" class="register-grid"></div>
+                </div>
+                <div>
+                  <div class="panel-title compact">
+                    <h3>内存状态</h3>
+                    <span>store 阶段高亮变化</span>
+                  </div>
+                  <div id="datapathMemoryView" class="memory-list"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          </div>
+
           <div id="assembly-sim" class="sim-panel">
           <div class="section-subheading">
             <p class="eyebrow">Assembly Tutor</p>
@@ -526,7 +601,7 @@ lw x4, 0(x0)</textarea>
       </main>
     </div>
 
-    <script src="./src/core.js"></script>
-    <script src="./src/app.js"></script>
+    <script src="./src/core.js?v=20260704-cache-vm"></script>
+    <script src="./src/app.js?v=20260704-cache-vm"></script>
   </body>
 </html>

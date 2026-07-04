@@ -50,6 +50,25 @@ add x3, x1, x4`, { forwarding: true });
   assert.ok(result.timeline[1].cells.includes("STALL"));
 }
 
+function testDatapath() {
+  const program = `addi x1, x0, 12
+sw x1, 0(x0)
+lw x2, 0(x0)`;
+  const result = core.simulateDatapath(program);
+  assert.strictEqual(result.frames.length, 15);
+  assert.strictEqual(result.finalRegisters.x1, 12);
+  assert.strictEqual(result.finalRegisters.x2, 12);
+  assert.strictEqual(result.finalMemory[0], 12);
+
+  const loadMem = result.frames.find((frame) => frame.instruction === "lw x2, 0(x0)" && frame.stage === "MEM");
+  assert.strictEqual(loadMem.controlSignals.MemRead, 1);
+  assert.strictEqual(loadMem.values.memoryData, 12);
+
+  const storeMem = result.frames.find((frame) => frame.instruction === "sw x1, 0(x0)" && frame.stage === "MEM");
+  assert.ok(storeMem.activeEdges.includes("regfile-dmem"));
+  assert.strictEqual(storeMem.memory[0], 12);
+}
+
 function testDiagnosis() {
   const result = core.diagnosePractice("cache_offset", "4 位");
   assert.strictEqual(result.correct, true);
@@ -59,7 +78,7 @@ testTwosComplement();
 testCache();
 testAssembly();
 testPipeline();
+testDatapath();
 testDiagnosis();
 
 console.log("core.test.js passed");
-

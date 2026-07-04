@@ -8,6 +8,13 @@
   "use strict";
 
   const PIPELINE_STAGES = ["IF", "ID", "EX", "MEM", "WB"];
+  const DATAPATH_STAGES = [
+    { id: "IF", name: "取指" },
+    { id: "ID", name: "译码" },
+    { id: "EX", name: "执行" },
+    { id: "MEM", name: "访存" },
+    { id: "WB", name: "写回" },
+  ];
 
   const chapters = [
     {
@@ -1138,6 +1145,342 @@
     };
   }
 
+  function datapathControlSignals(instruction, values) {
+    const op = instruction.op;
+    const signals = {
+      RegWrite: 0,
+      ALUSrc: 0,
+      MemRead: 0,
+      MemWrite: 0,
+      MemToReg: 0,
+      Branch: 0,
+      ALUOp: "-",
+    };
+
+    if (op === "add" || op === "sub") {
+      return { ...signals, RegWrite: 1, ALUOp: op };
+    }
+    if (op === "addi") {
+      return { ...signals, RegWrite: 1, ALUSrc: 1, ALUOp: "add" };
+    }
+    if (op === "lw") {
+      return { ...signals, RegWrite: 1, ALUSrc: 1, MemRead: 1, MemToReg: 1, ALUOp: "add" };
+    }
+    if (op === "sw") {
+      return { ...signals, ALUSrc: 1, MemWrite: 1, MemToReg: "X", ALUOp: "add" };
+    }
+    if (op === "li") {
+      return { ...signals, RegWrite: 1, ALUSrc: 1, ALUOp: "pass imm" };
+    }
+    if (op === "mov") {
+      return { ...signals, RegWrite: 1, ALUSrc: values.sourceIsRegister ? 0 : 1, ALUOp: "pass" };
+    }
+    return signals;
+  }
+
+  function changedKeys(before, after) {
+    return Object.keys(after)
+      .filter((key) => after[key] !== before[key])
+      .sort();
+  }
+
+  function buildDatapathTrace(instruction, registers, memory, pc) {
+    const beforeRegisters = { ...registers };
+    const beforeMemory = { ...memory };
+    const afterRegisters = { ...registers };
+    const afterMemory = { ...memory };
+    const values = {
+      pc,
+      pcNext: pc + 4,
+      instruction: instruction.raw,
+      op: instruction.op,
+      type: instruction.type,
+    };
+    let error = null;
+
+    try {
+      if (!instruction.supported) {
+        throw new Error(`暂不支持指令：${instruction.raw}`);
+      }
+
+      if (instruction.op === "add" || instruction.op === "sub") {
+        const [rd, rs1, rs2] = instruction.args;
+        const left = readRegister(registers, rs1);
+        const right = readRegister(registers, rs2);
+        const result = instruction.op === "add" ? left + right : left - right;
+        values.rd = normalizeRegisterName(rd);
+        values.rs1 = normalizeRegisterName(rs1);
+        values.rs2 = normalizeRegisterName(rs2);
+        values.rs1Value = left;
+        values.rs2Value = right;
+        values.aluInputA = left;
+        values.aluInputB = right;
+        values.aluResult = result;
+        values.writeBackRegister = values.rd;
+        values.writeBackValue = result;
+        writeRegister(afterRegisters, rd, result);
+      } else if (instruction.op === "addi") {
+        const [rd, rs1, immToken] = instruction.args;
+        const left = readRegister(registers, rs1);
+        const imm = parseImmediate(immToken);
+        const result = left + imm;
+        values.rd = normalizeRegisterName(rd);
+        values.rs1 = normalizeRegisterName(rs1);
+        values.rs1Value = left;
+        values.imm = imm;
+        values.aluInputA = left;
+        values.aluInputB = imm;
+        values.aluResult = result;
+        values.writeBackRegister = values.rd;
+        values.writeBackValue = result;
+        writeRegister(afterRegisters, rd, result);
+      } else if (instruction.op === "lw") {
+        const [rd, offsetToken, baseReg] = instruction.args;
+        const base = readRegister(registers, baseReg);
+        const imm = parseImmediate(offsetToken);
+        const address = base + imm;
+        const memoryData = memory[address] || 0;
+        values.rd = normalizeRegisterName(rd);
+        values.rs1 = normalizeRegisterName(baseReg);
+        values.rs1Value = base;
+        values.imm = imm;
+        values.aluInputA = base;
+        values.aluInputB = imm;
+        values.aluResult = address;
+        values.memoryAddress = address;
+        values.memoryData = memoryData;
+        values.writeBackRegister = values.rd;
+        values.writeBackValue = memoryData;
+        writeRegister(afterRegisters, rd, memoryData);
+      } else if (instruction.op === "sw") {
+        const [sourceReg, offsetToken, baseReg] = instruction.args;
+        const base = readRegister(registers, baseReg);
+        const imm = parseImmediate(offsetToken);
+        const address = base + imm;
+        const writeData = readRegister(registers, sourceReg);
+        values.rs1 = normalizeRegisterName(baseReg);
+        values.rs1Value = base;
+        values.rs2 = normalizeRegisterName(sourceReg);
+        values.rs2Value = writeData;
+        values.imm = imm;
+        values.aluInputA = base;
+        values.aluInputB = imm;
+        values.aluResult = address;
+        values.memoryAddress = address;
+        values.memoryWriteData = writeData;
+        afterMemory[address] = writeData;
+      } else if (instruction.op === "li") {
+        const [rd, immToken] = instruction.args;
+        const imm = parseImmediate(immToken);
+        values.rd = normalizeRegisterName(rd);
+        values.imm = imm;
+        values.aluInputB = imm;
+        values.aluResult = imm;
+        values.writeBackRegister = values.rd;
+        values.writeBackValue = imm;
+        writeRegister(afterRegisters, rd, imm);
+      } else if (instruction.op === "mov") {
+        const [rd, source] = instruction.args;
+        const sourceIsRegister = isRegister(source);
+        const value = sourceIsRegister ? readRegister(registers, source) : parseImmediate(source);
+        values.rd = normalizeRegisterName(rd);
+        values.sourceIsRegister = sourceIsRegister;
+        if (sourceIsRegister) {
+          values.rs1 = normalizeRegisterName(source);
+          values.rs1Value = value;
+          values.aluInputA = value;
+        } else {
+          values.imm = value;
+          values.aluInputB = value;
+        }
+        values.aluResult = value;
+        values.writeBackRegister = values.rd;
+        values.writeBackValue = value;
+        writeRegister(afterRegisters, rd, value);
+      }
+    } catch (traceError) {
+      error = traceError.message;
+    }
+
+    afterRegisters.x0 = 0;
+    const controlSignals = datapathControlSignals(instruction, values);
+    return {
+      instruction,
+      beforeRegisters,
+      beforeMemory,
+      afterRegisters,
+      afterMemory,
+      values,
+      controlSignals,
+      error,
+      changedRegisters: changedKeys(beforeRegisters, afterRegisters),
+      changedMemory: changedKeys(beforeMemory, afterMemory),
+    };
+  }
+
+  function datapathFlow(trace, stageId) {
+    const op = trace.instruction.op;
+    const common = {
+      IF: {
+        activeNodes: ["pc", "pcAdd", "imem"],
+        activeEdges: ["pc-imem", "pc-pcadd", "pcadd-pc"],
+      },
+      ID: {
+        activeNodes: ["imem", "control", "regfile", "immgen"],
+        activeEdges: ["imem-control", "imem-regfile", "imem-immgen"],
+      },
+    };
+    if (common[stageId]) return common[stageId];
+
+    if (stageId === "EX") {
+      if (op === "add" || op === "sub" || (op === "mov" && trace.values.sourceIsRegister)) {
+        return {
+          activeNodes: ["regfile", "alu"],
+          activeEdges: ["regfile-alu-a", "regfile-alu-b"],
+        };
+      }
+      return {
+        activeNodes: ["regfile", "immgen", "aluMux", "alu"],
+        activeEdges: ["regfile-alu-a", "immgen-alumux", "alumux-alu-b"],
+      };
+    }
+
+    if (stageId === "MEM") {
+      if (op === "lw") {
+        return {
+          activeNodes: ["alu", "dmem"],
+          activeEdges: ["alu-dmem"],
+        };
+      }
+      if (op === "sw") {
+        return {
+          activeNodes: ["regfile", "alu", "dmem"],
+          activeEdges: ["alu-dmem", "regfile-dmem"],
+        };
+      }
+      return {
+        activeNodes: ["alu"],
+        activeEdges: [],
+      };
+    }
+
+    if (stageId === "WB") {
+      if (op === "sw") {
+        return {
+          activeNodes: ["control"],
+          activeEdges: [],
+        };
+      }
+      if (op === "lw") {
+        return {
+          activeNodes: ["dmem", "wbMux", "regfile"],
+          activeEdges: ["dmem-wbmux", "wbmux-regfile"],
+        };
+      }
+      return {
+        activeNodes: ["alu", "wbMux", "regfile"],
+        activeEdges: ["alu-wbmux", "wbmux-regfile"],
+      };
+    }
+
+    return { activeNodes: [], activeEdges: [] };
+  }
+
+  function datapathStageExplanation(trace, stageId) {
+    const v = trace.values;
+    if (trace.error) {
+      return trace.error;
+    }
+    if (stageId === "IF") {
+      return `PC=${v.pc} 作为取指地址送入指令存储器，取出指令 ${v.instruction}，同时计算 PC+4=${v.pcNext}。`;
+    }
+    if (stageId === "ID") {
+      return `控制器根据操作码 ${v.op} 产生控制信号，寄存器堆读取源操作数，立即数生成器准备偏移或常数。`;
+    }
+    if (stageId === "EX") {
+      return `ALU 使用输入 ${v.aluInputA ?? "-"} 和 ${v.aluInputB ?? "-"} 执行 ${trace.controlSignals.ALUOp}，得到结果 ${v.aluResult ?? "-"}。`;
+    }
+    if (stageId === "MEM") {
+      if (trace.instruction.op === "lw") {
+        return `数据存储器使用地址 ${v.memoryAddress} 读取数据，读出值为 ${v.memoryData}。`;
+      }
+      if (trace.instruction.op === "sw") {
+        return `数据存储器使用地址 ${v.memoryAddress} 写入来自 ${v.rs2} 的值 ${v.memoryWriteData}。`;
+      }
+      return "本条指令不访问数据存储器，MEM 阶段只让 ALU 结果继续向后传递。";
+    }
+    if (stageId === "WB") {
+      if (trace.instruction.op === "sw") {
+        return "store 指令只写数据存储器，不写回寄存器堆，因此 RegWrite=0。";
+      }
+      return `写回多路选择器选择 ${trace.instruction.op === "lw" ? "内存读出数据" : "ALU 结果"}，写入 ${v.writeBackRegister}=${v.writeBackValue}。`;
+    }
+    return "";
+  }
+
+  function buildDatapathFrame(trace, stage, stageIndex, instructionCount) {
+    const flow = datapathFlow(trace, stage.id);
+    const registerReady = Boolean(trace.values.writeBackRegister) && stageIndex >= 4;
+    const memoryReady = Boolean(trace.changedMemory.length) && stageIndex >= 3;
+    return {
+      instructionIndex: trace.instruction.index,
+      instructionCount,
+      instruction: trace.instruction.raw,
+      op: trace.instruction.op,
+      stage: stage.id,
+      stageName: stage.name,
+      activeNodes: flow.activeNodes,
+      activeEdges: flow.activeEdges,
+      controlSignals: trace.controlSignals,
+      values: trace.values,
+      explanation: datapathStageExplanation(trace, stage.id),
+      registers: registerReady ? trace.afterRegisters : trace.beforeRegisters,
+      memory: memoryReady ? trace.afterMemory : trace.beforeMemory,
+      changedRegisters: registerReady ? trace.changedRegisters : [],
+      changedMemory: memoryReady ? trace.changedMemory : [],
+      error: trace.error,
+    };
+  }
+
+  function simulateDatapath(program) {
+    const instructions = parseAssembly(program).filter((instruction) => instruction.raw);
+    const registers = createRegisters();
+    let currentRegisters = { ...registers };
+    let currentMemory = {};
+    let pc = 0;
+    const frames = [];
+    const summaries = [];
+
+    instructions.forEach((instruction) => {
+      const trace = buildDatapathTrace(instruction, currentRegisters, currentMemory, pc);
+      DATAPATH_STAGES.forEach((stage, stageIndex) => {
+        frames.push(buildDatapathFrame(trace, stage, stageIndex, instructions.length));
+      });
+      summaries.push({
+        index: instruction.index,
+        address: instruction.address,
+        raw: instruction.raw,
+        op: instruction.op,
+        type: instruction.type,
+        supported: instruction.supported,
+        error: trace.error,
+        changedRegisters: trace.changedRegisters,
+        changedMemory: trace.changedMemory,
+      });
+      currentRegisters = { ...trace.afterRegisters };
+      currentMemory = { ...trace.afterMemory };
+      pc += 4;
+    });
+
+    return {
+      stages: DATAPATH_STAGES,
+      instructions: summaries,
+      frames,
+      finalRegisters: currentRegisters,
+      finalMemory: currentMemory,
+    };
+  }
+
   function hasIntersection(left, right) {
     const set = new Set(left);
     return right.some((item) => set.has(item));
@@ -1257,6 +1600,7 @@
     simulateVirtualMemory,
     parseAssembly,
     executeAssembly,
+    simulateDatapath,
     simulatePipeline,
     diagnosePractice,
     toBinaryUnsigned,
