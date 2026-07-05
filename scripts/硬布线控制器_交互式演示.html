@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>硬布线控制器：控制信号形成过程交互演示</title>
+<style>
+:root{
+  --blue:#0b5cad;--blue2:#1d6fbf;--navy:#123f7a;--ink:#1f2937;--muted:#667085;
+  --line:#d6e1ef;--bg:#eef5fb;--green:#23824b;--orange:#e97818;--red:#c62828;--purple:#6246ea;
+  --shadow:0 16px 36px rgba(18,63,122,.13);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);font-family:"Microsoft YaHei","PingFang SC",Arial,sans-serif;color:var(--ink)}
+.app{width:min(1920px,calc(100vw - 24px));margin:0 auto;padding:14px 0 18px}
+header{display:grid;grid-template-columns:1fr auto;gap:18px;align-items:center;background:#fff;border:1px solid var(--line);box-shadow:var(--shadow);border-radius:10px;padding:16px 20px}
+h1{margin:0 0 8px;color:var(--navy);font-size:30px;line-height:1.18}
+.subtitle{margin:0;color:var(--muted);font-size:14px;line-height:1.5}
+.controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+button{border:1px solid #b9cce3;background:#fff;color:#12355c;border-radius:8px;padding:9px 12px;font-weight:800;min-height:39px;cursor:pointer}
+button.primary{background:var(--blue);color:#fff;border-color:var(--blue)}button:disabled{opacity:.45;cursor:not-allowed}
+.speed{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px}input[type=range]{width:110px;accent-color:var(--blue)}
+.example-strip{display:grid;grid-template-columns:1.15fr .85fr;gap:12px;margin:12px 0}
+.message,.example-card,.panel{background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow)}
+.message{padding:14px 16px;min-height:100px;display:flex;flex-direction:column;justify-content:center}
+.step-label{display:inline-flex;align-items:center;width:max-content;margin-bottom:7px;padding:4px 9px;border-radius:999px;background:#e8f2ff;color:#0b5cad;font-size:12px;font-weight:900;border:1px solid #c7dcf5}.message strong{display:block;color:var(--blue);font-size:18px;margin-bottom:6px}.message span{display:block;line-height:1.55;color:#2b3d55}
+.example-card{padding:13px 16px;background:linear-gradient(135deg,#0f5fb4,#123f7a);color:#fff;display:grid;grid-template-columns:1fr auto;gap:14px;align-items:center}
+.example-card b{display:block;font-size:16px;margin-bottom:5px}.example-card p{margin:0;line-height:1.45;font-size:13px;opacity:.92}
+.result-chip{min-width:142px;text-align:center;padding:11px 14px;border-radius:9px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.42);font-weight:900}
+.result-chip span{display:block;font-size:12px;opacity:.84;margin-bottom:3px}.result-chip strong{font-size:25px;margin:0}
+.workbench{display:grid;grid-template-columns:minmax(0,1.86fr) minmax(330px,.74fr);gap:12px;align-items:start}.workbench>*{min-width:0}.panel{overflow:hidden;min-width:0}.panel h2{margin:0;padding:12px 16px;background:var(--blue);color:#fff;font-size:17px}.panel-body{padding:12px}
+.timeline{display:grid;grid-template-columns:repeat(8,1fr);gap:6px;margin-bottom:12px}.tick{border:1px solid var(--line);border-radius:8px;padding:8px 5px;text-align:center;background:#fff;transition:.2s}.tick b{display:block;color:var(--navy);font-size:13px}.tick span{display:block;color:var(--muted);font-size:10px;margin-top:2px}.tick.current{background:var(--purple);border-color:var(--purple);color:#fff;transform:translateY(-2px);box-shadow:0 5px 12px rgba(98,70,234,.24)}.tick.done{background:#eef9f2;border-color:#aad7bd}.tick.current b,.tick.current span{color:#fff}
+.flow{position:relative;width:100%;height:580px;background:linear-gradient(180deg,#fff 0%,#f8fbff 100%);border-radius:10px;overflow:hidden}.flow-canvas{position:absolute;left:0;top:0;width:950px;height:580px;transform-origin:top left;will-change:transform;transition:transform .16s ease,left .16s ease}
+.module{position:absolute;background:#fff;border:2px solid var(--line);border-radius:12px;padding:10px;text-align:center;box-shadow:0 8px 18px rgba(17,46,81,.08);transition:.25s}.module .label{font-size:15px;font-weight:900;color:var(--navy);margin-bottom:5px}.module .desc{font-size:12px;color:var(--muted);line-height:1.35}.module.active{transform:translateY(-4px);border-color:var(--orange);box-shadow:0 0 0 4px rgba(233,120,24,.18),0 14px 28px rgba(17,46,81,.14)}.module.output{border-color:var(--red)}.module.output.active{box-shadow:0 0 0 4px rgba(198,40,40,.2),0 14px 28px rgba(17,46,81,.14)}
+#clock{left:32px;top:42px;width:124px;height:74px}#timing{left:220px;top:40px;width:180px;height:92px}#ir{left:32px;top:220px;width:124px;height:76px}#decoder{left:220px;top:210px;width:180px;height:96px}#flags{left:32px;top:395px;width:164px;height:86px}#logic{left:470px;top:185px;width:210px;height:135px;border-color:var(--red)}#datapath{left:755px;top:45px;width:175px;height:90px}#alu{left:755px;top:210px;width:175px;height:90px}#memio{left:755px;top:375px;width:175px;height:90px}
+.arrow{position:absolute;height:0;border-top:3px solid #9ab2d2;transform-origin:left center;transition:.25s}.arrow::after{content:"";position:absolute;right:-8px;top:-6px;border-left:9px solid #9ab2d2;border-top:5px solid transparent;border-bottom:5px solid transparent}.arrow.active{border-color:var(--orange);filter:drop-shadow(0 0 6px rgba(233,120,24,.55))}.arrow.active::after{border-left-color:var(--orange)}
+.stage-title{font-size:14px;color:var(--navy);font-weight:900;margin:0 0 8px}.state-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}.state{border:1px solid var(--line);background:#f8fbff;border-radius:8px;padding:9px;text-align:center;transition:.2s}.state b{display:block;color:var(--navy);font-size:12px;margin-bottom:4px}.state strong{font-size:18px;color:#263b55}.state.changed{background:#e9f7ef;border-color:#83c7a0;box-shadow:inset 0 0 0 2px rgba(35,130,75,.14)}.state.changed strong{color:var(--green)}
+.input-box{border:1px solid #cfe1f5;background:#f0f7ff;border-radius:9px;padding:10px;margin-bottom:12px}.input-box b{display:block;color:#0b4b86;font-size:13px;margin-bottom:5px}.input-box div{font-size:13px;line-height:1.55;color:#284763}
+.signal-board{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}.signal{border:1px solid var(--line);background:#f8fbff;border-radius:8px;padding:9px;min-height:52px;transition:.2s}.signal b{display:block;color:var(--navy);font-size:13px;margin-bottom:4px}.signal span{font-size:12px;color:var(--muted)}.signal.on{background:#fff4e5;border-color:#f0aa53;box-shadow:inset 0 0 0 2px rgba(233,120,24,.18)}
+.formula{background:#0f1724;color:#d9e7ff;border-radius:10px;padding:12px;font-family:Consolas,"Courier New",monospace;line-height:1.55;font-size:13px;margin-top:12px;min-height:68px}.formula .hot{color:#ffd166;font-weight:900}.conclusion{margin-top:12px;padding:12px;border-radius:10px;background:#fff7ed;border:1px solid #f2cea5;color:#7a3a08;font-size:13px;line-height:1.55}.conclusion b{display:block;color:#a64b05;margin-bottom:4px}.smallnote{margin:10px 0 0;color:var(--muted);font-size:12px;line-height:1.5}.pulse{animation:pulse 1s ease-in-out infinite}@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(233,120,24,.35)}50%{box-shadow:0 0 0 8px rgba(233,120,24,0)}}
+@media(max-width:1180px){header,.example-strip{grid-template-columns:1fr}.controls{justify-content:flex-start}}
+@media(max-width:980px){.workbench{grid-template-columns:1fr}.timeline{grid-template-columns:repeat(4,1fr)}.flow{height:auto;min-height:680px;overflow:visible}.flow-canvas{position:static;width:auto;height:auto;transform:none !important;left:0 !important}.module{position:static;margin:10px}.arrow{display:none}.signal-board,.state-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:760px){.signal-board,.state-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="app">
+<header>
+  <div>
+    <h1>硬布线控制器：控制信号形成过程交互演示</h1>
+    <p class="subtitle">通过“指令译码结果 + 状态反馈 + 时序信号 → 组合逻辑 → 控制信号”的动态过程，理解硬布线控制器的原理和基本组成。</p>
+  </div>
+  <div class="controls">
+    <button id="prevBtn">上一步</button>
+    <button id="nextBtn" class="primary">下一步</button>
+    <button id="playBtn">自动演示</button>
+    <button id="resetBtn">重新开始</button>
+    <label class="speed">速度 <input id="speed" type="range" min="500" max="1800" value="1000" step="50"></label>
+  </div>
+</header>
+
+<div class="example-strip">
+  <div class="message">
+    <div class="step-label" id="stepCounter">第 1 / 8 步</div>
+    <strong id="stepTitle">逐步演示准备</strong>
+    <span id="stepText">已知 R1=5、R2=3，主存地址 100 中存放指令 ADD R1,R2。点击“下一步”，依次观察取指、译码、执行和写回。</span>
+  </div>
+  <div class="example-card">
+    <div><b>演示场景</b><p>初始：PC=100，R1=5，R2=3<br>指令：ADD R1,R2，即 R1←R1+R2</p></div>
+    <div class="result-chip"><span>当前 R1</span><strong id="topResult">5</strong></div>
+  </div>
+</div>
+
+<div class="workbench">
+<section class="panel">
+<h2>结构图与信号流：控制信号如何一步一步形成</h2>
+<div class="panel-body">
+  <div class="timeline" id="timeline"></div>
+  <div class="flow">
+    <div class="flow-canvas" id="flowCanvas">
+    <div class="module" id="clock"><div class="label">主振 / 启停</div><div class="desc">提供基础时钟与启动控制</div></div>
+    <div class="module" id="timing"><div class="label">时序发生器</div><div class="desc">产生 M、T 节拍信号</div></div>
+    <div class="module" id="ir"><div class="label">IR 指令寄存器</div><div class="desc">保存当前指令</div></div>
+    <div class="module" id="decoder"><div class="label">操作码译码器</div><div class="desc">输出 Im：当前是什么指令</div></div>
+    <div class="module" id="flags"><div class="label">执行部件状态</div><div class="desc">输出 Bj：Z、C 等标志</div></div>
+    <div class="module output" id="logic"><div class="label">控制信号形成部件</div><div class="desc">组合逻辑网络<br>C=f(Im,Bj,Mi,Tk)</div></div>
+    <div class="module output" id="datapath"><div class="label">寄存器 / 总线</div><div class="desc">寄存器读写、总线选通</div></div>
+    <div class="module output" id="alu"><div class="label">ALU / 运算器</div><div class="desc">执行加法并产生状态</div></div>
+    <div class="module output" id="memio"><div class="label">主存</div><div class="desc">读出地址 100 中的指令</div></div>
+    <div class="arrow" id="a1" style="left:155px;top:78px;width:70px;transform:rotate(0deg)"></div>
+    <div class="arrow" id="a2" style="left:400px;top:86px;width:110px;transform:rotate(48deg)"></div>
+    <div class="arrow" id="a3" style="left:156px;top:258px;width:70px;transform:rotate(0deg)"></div>
+    <div class="arrow" id="a4" style="left:400px;top:258px;width:72px;transform:rotate(0deg)"></div>
+    <div class="arrow" id="a5" style="left:195px;top:435px;width:290px;transform:rotate(-28deg)"></div>
+    <div class="arrow" id="a6" style="left:680px;top:245px;width:86px;transform:rotate(-55deg)"></div>
+    <div class="arrow" id="a7" style="left:680px;top:255px;width:78px;transform:rotate(0deg)"></div>
+    <div class="arrow" id="a8" style="left:680px;top:270px;width:100px;transform:rotate(48deg)"></div>
+    </div>
+  </div>
+</div>
+</section>
+
+<aside class="panel">
+<h2>当前状态、输入条件与输出信号</h2>
+<div class="panel-body">
+  <p class="stage-title">① 本步数据状态</p>
+  <div class="state-grid" id="states"></div>
+
+  <p class="stage-title">② 本步为什么会触发</p>
+  <div class="input-box" id="logicInputs"></div>
+
+  <p class="stage-title">③ 本步产生哪些控制信号</p>
+  <div class="signal-board" id="signals"></div>
+
+  <div class="formula" id="formula"></div>
+  <div class="conclusion"><b>观察重点</b><span id="conclusionText">硬布线控制器不读取控制存储器，而是根据当前指令、节拍和状态，直接由门电路生成控制信号。</span></div>
+  <p class="smallnote">课堂讲解时按步骤点击“下一步”：先看高亮模块与信号流，再看右侧输入条件、输出信号和本步结论。空格键也可前进一步。</p>
+</div>
+</aside>
+</div>
+</div>
+
+<script>
+const ticks=[
+  ['准备','给定条件'],['T0','PC→MAR'],['T1','主存读'],['T2','装入IR'],
+  ['T3','指令译码'],['T4','读操作数'],['T5','ALU加法'],['T6','结果写回']
+];
+
+const steps=[
+  {
+    title:'准备：明确初始条件与执行目标',
+    text:'主存 M[100] 中存放 ADD R1,R2。初始 PC=100、R1=5、R2=3，目标是让 R1 最终变为 8。',
+    tick:0,on:['clock'],arr:[],sig:['ClockEnable'],
+    state:{PC:'100',MAR:'—',MDR:'—',IR:'—',R1:'5',R2:'3',ALU:'—',Z:'—',C:'—'},changed:[],
+    inputs:'Im：尚未译码；Bj：尚无有效状态；Tk：等待 T0。',
+    formula:'C_i = f(Im, Bj, Mi, Tk)\n当前处于准备阶段。',
+    conclusion:'先建立初始状态。此时控制器尚未生成具体微命令。'
+  },
+  {
+    title:'T0：把取指地址送入 MAR',
+    text:'时序发生器产生 T0。硬布线逻辑在 T0 直接令 PCout 和 MARin 有效，于是 MAR←PC=100。',
+    tick:1,on:['timing','logic','datapath'],arr:['a1','a2','a6'],sig:['PCout','MARin'],
+    state:{PC:'100',MAR:'100',MDR:'—',IR:'—',R1:'5',R2:'3',ALU:'—',Z:'—',C:'—'},changed:['MAR'],
+    inputs:'Im：尚未译码；Bj：无关；Tk：T0=1。',
+    formula:'PCout = T0\nMARin = T0',
+    conclusion:'同一个 T0 条件同时触发 PC 输出和 MAR 写入，地址 100 被送往主存。'
+  },
+  {
+    title:'T1：读取主存中的指令',
+    text:'当 T1 到来，控制器输出 MemRead 和 MDRin。主存把 M[100] 中的 ADD R1,R2 送入 MDR，同时 PC 更新为 101。',
+    tick:2,on:['timing','logic','memio','datapath'],arr:['a2','a6','a8'],sig:['MemRead','MDRin','PC+1'],
+    state:{PC:'101',MAR:'100',MDR:'ADD R1,R2',IR:'—',R1:'5',R2:'3',ALU:'—',Z:'—',C:'—'},changed:['PC','MDR'],
+    inputs:'Im：尚未译码；Bj：无关；Tk：T1=1。',
+    formula:'MemRead = T1\nMDRin = T1\nPCin = T1',
+    conclusion:'主存读信号也是由 T1 对应的固定组合逻辑直接产生。'
+  },
+  {
+    title:'T2：把指令装入 IR',
+    text:'T2 时，控制器令 MDRout 和 IRin 有效，指令从 MDR 进入 IR，取指阶段完成。',
+    tick:3,on:['timing','logic','ir','datapath'],arr:['a2','a3','a6'],sig:['MDRout','IRin'],
+    state:{PC:'101',MAR:'100',MDR:'ADD R1,R2',IR:'ADD R1,R2',R1:'5',R2:'3',ALU:'—',Z:'—',C:'—'},changed:['IR'],
+    inputs:'Im：等待 IR 译码；Bj：无关；Tk：T2=1。',
+    formula:'MDRout = T2\nIRin = T2',
+    conclusion:'IR 保存当前指令，下一节拍即可由操作码译码器识别指令类型。'
+  },
+  {
+    title:'T3：操作码译码得到 Im=ADD',
+    text:'译码器读取 IR 的操作码，输出 ADD 指令线 Im_ADD=1。这个译码结果将参与后续控制信号的逻辑表达式。',
+    tick:4,on:['timing','ir','decoder','logic'],arr:['a2','a3','a4'],sig:['Decode','Im_ADD'],
+    state:{PC:'101',MAR:'100',MDR:'ADD R1,R2',IR:'ADD R1,R2',R1:'5',R2:'3',ALU:'—',Z:'—',C:'—'},changed:[],
+    inputs:'Im：Im_ADD=1；Bj：暂不参与；Tk：T3=1。',
+    formula:'Im_ADD = Decoder(IR.opcode)\nIm_ADD = 1',
+    conclusion:'译码器不是输出完整控制序列，而是告诉组合逻辑“当前是一条 ADD 指令”。'
+  },
+  {
+    title:'T4：选通 R1、R2 两个操作数',
+    text:'因为 Im_ADD=1 且 T4=1，组合逻辑使 R1out、R2out 和操作数锁存信号有效，把 5 与 3 送到 ALU 输入端。',
+    tick:5,on:['timing','decoder','logic','datapath','alu'],arr:['a2','a4','a6','a7'],sig:['R1out','R2out','Ain','Bin'],
+    state:{PC:'101',MAR:'100',MDR:'ADD R1,R2',IR:'ADD R1,R2',R1:'5',R2:'3',ALU:'A=5, B=3',Z:'—',C:'—'},changed:['ALU'],
+    inputs:'Im：Im_ADD=1；Bj：无关；Tk：T4=1。',
+    formula:'R1out = Im_ADD · T4\nR2out = Im_ADD · T4',
+    conclusion:'控制信号由“指令条件 × 当前节拍”共同决定：只有 ADD 指令走到 T4，两个寄存器才被选通。'
+  },
+  {
+    title:'T5：ALU 执行 5+3，并产生状态标志',
+    text:'当 Im_ADD=1 且 T5=1，组合逻辑输出 ALU_ADD。ALU 得到结果 8，并反馈 Z=0、C=0。',
+    tick:6,on:['timing','decoder','logic','alu','flags'],arr:['a2','a4','a7','a5'],sig:['ALU_ADD','FlagWrite'],
+    state:{PC:'101',MAR:'100',MDR:'ADD R1,R2',IR:'ADD R1,R2',R1:'5',R2:'3',ALU:'8',Z:'0',C:'0'},changed:['ALU','Z','C'],
+    inputs:'Im：Im_ADD=1；Bj：ALU 返回 Z=0、C=0；Tk：T5=1。',
+    formula:'ALU_ADD = Im_ADD · T5\nFlagWrite = Im_ADD · T5',
+    conclusion:'状态标志由执行部件返回。对 ADD 而言，它们被更新；对条件转移指令，它们还会反过来决定是否输出 PCin。'
+  },
+  {
+    title:'T6：结果写回 R1，演示完成',
+    text:'T6 时，硬布线逻辑令 ALUout 和 R1in 有效，结果 8 写回 R1。最终 R1=8，R2 保持 3。',
+    tick:7,on:['timing','decoder','logic','alu','datapath','flags'],arr:['a2','a4','a6','a7'],sig:['ALUout','R1in','CycleEnd'],
+    state:{PC:'101',MAR:'100',MDR:'ADD R1,R2',IR:'ADD R1,R2',R1:'8',R2:'3',ALU:'8',Z:'0',C:'0'},changed:['R1'],
+    inputs:'Im：Im_ADD=1；Bj：Z=0、C=0；Tk：T6=1。',
+    formula:'R1in = Im_ADD · T6\nR1 ← ALUout = 8',
+    conclusion:'完整过程结束：控制器没有读取微指令，而是在每个节拍依据 Im、Bj 和 Tk 直接产生控制信号。'
+  }
+];
+
+const stateOrder=['PC','MAR','MDR','IR','R1','R2','ALU','Z','C'];
+const stateNames={PC:'程序计数器 PC',MAR:'地址寄存器 MAR',MDR:'数据寄存器 MDR',IR:'指令寄存器 IR',R1:'寄存器 R1',R2:'寄存器 R2',ALU:'ALU 当前值',Z:'零标志 Z',C:'进位标志 C'};
+const allSignals=['ClockEnable','PCout','MARin','MemRead','MDRin','PC+1','MDRout','IRin','Decode','Im_ADD','R1out','R2out','Ain','Bin','ALU_ADD','FlagWrite','ALUout','R1in','CycleEnd'];
+const moduleIds=['clock','timing','ir','decoder','flags','logic','datapath','alu','memio'];
+const arrowIds=['a1','a2','a3','a4','a5','a6','a7','a8'];
+let step=0,playing=false,timer=null;
+const el=id=>document.getElementById(id);
+
+
+let flowScaleFrame=null;
+function updateFlowScale(){
+  const flow=document.querySelector('.flow');
+  const canvas=el('flowCanvas');
+  if(!flow||!canvas) return;
+
+  // 小屏幕改为纵向列表；桌面端始终按左栏的“实时宽度”缩放完整结构图。
+  if(window.matchMedia('(max-width: 980px)').matches){
+    flow.style.height='auto';
+    canvas.style.transform='none';
+    canvas.style.left='0px';
+    return;
+  }
+
+  const baseW=950, baseH=580;
+  const available=Math.max(1, flow.getBoundingClientRect().width - 6);
+  const scale=Math.min(1, available/baseW);
+  const renderedW=baseW*scale;
+
+  canvas.style.width=`${baseW}px`;
+  canvas.style.height=`${baseH}px`;
+  canvas.style.transform=`scale(${scale})`;
+  canvas.style.left=`${Math.max(0,(available-renderedW)/2)}px`;
+  flow.style.height=`${Math.ceil(baseH*scale)}px`;
+}
+function scheduleFlowScale(){
+  if(flowScaleFrame) cancelAnimationFrame(flowScaleFrame);
+  flowScaleFrame=requestAnimationFrame(()=>{
+    updateFlowScale();
+    flowScaleFrame=null;
+  });
+}
+
+function renderTimeline(current){
+  el('timeline').innerHTML=ticks.map((x,i)=>`<div class="tick ${i===current?'current':i<current?'done':''}"><b>${x[0]}</b><span>${x[1]}</span></div>`).join('');
+}
+
+function render(){
+  const s=steps[step];
+  el('stepCounter').textContent=`第 ${step+1} / ${steps.length} 步`;
+  el('stepTitle').textContent=s.title;
+  el('stepText').textContent=s.text;
+  el('topResult').textContent=s.state.R1;
+  renderTimeline(s.tick);
+
+  moduleIds.forEach(id=>{
+    const node=el(id);
+    node.classList.toggle('active',s.on.includes(id));
+    node.classList.toggle('pulse',s.on.includes(id));
+  });
+  arrowIds.forEach(id=>el(id).classList.toggle('active',s.arr.includes(id)));
+
+  el('states').innerHTML=stateOrder.map(key=>`<div class="state ${s.changed.includes(key)?'changed':''}"><b>${stateNames[key]}</b><strong>${s.state[key]}</strong></div>`).join('');
+  el('logicInputs').innerHTML=`<b>指令、状态与节拍条件</b><div>${s.inputs}</div>`;
+  el('signals').innerHTML=allSignals.map(sig=>`<div class="signal ${s.sig.includes(sig)?'on':''}"><b>${sig}</b><span>${s.sig.includes(sig)?'本步有效':'本步无效'}</span></div>`).join('');
+  el('formula').innerHTML=s.formula.split('\n').map(line=>line.replace(/(Im_ADD|T\d|R1in|R1out|R2out|ALU_ADD|MemRead|MARin|IRin|Z=0|C=0|8)/g,'<span class="hot">$1</span>')).join('<br>');
+  el('conclusionText').textContent=s.conclusion;
+
+  el('prevBtn').disabled=step===0;
+  el('nextBtn').disabled=step===steps.length-1;
+  el('playBtn').textContent=playing?'暂停':'自动演示';
+  scheduleFlowScale();
+}
+
+function next(){
+  if(step<steps.length-1){step++;render();}
+  else stop();
+}
+function prev(){if(step>0){step--;render();}}
+function stop(){playing=false;clearInterval(timer);timer=null;render();}
+function play(){
+  if(playing){stop();return;}
+  if(step===steps.length-1) step=0;
+  playing=true;render();
+  timer=setInterval(()=>{if(step>=steps.length-1){stop();return;}next();},Number(el('speed').value));
+}
+function reset(){stop();step=0;render();}
+
+el('nextBtn').onclick=next;
+el('prevBtn').onclick=prev;
+el('playBtn').onclick=play;
+el('resetBtn').onclick=reset;
+el('speed').oninput=()=>{if(playing){stop();play();}};
+document.addEventListener('keydown',e=>{
+  if(e.code==='Space'&&!['INPUT','BUTTON'].includes(document.activeElement.tagName)){
+    e.preventDefault();next();
+  }
+});
+window.addEventListener('resize',scheduleFlowScale);
+const observedFlow=document.querySelector('.flow');
+if('ResizeObserver' in window && observedFlow){
+  const flowObserver=new ResizeObserver(scheduleFlowScale);
+  flowObserver.observe(observedFlow);
+  const leftPanel=observedFlow.closest('.panel');
+  if(leftPanel) flowObserver.observe(leftPanel);
+  const workbench=document.querySelector('.workbench');
+  if(workbench) flowObserver.observe(workbench);
+}
+render();
+scheduleFlowScale();
+requestAnimationFrame(scheduleFlowScale);
+window.addEventListener('load',scheduleFlowScale);
+if(document.fonts&&document.fonts.ready){document.fonts.ready.then(scheduleFlowScale);}
+</script>
+</body>
+</html>

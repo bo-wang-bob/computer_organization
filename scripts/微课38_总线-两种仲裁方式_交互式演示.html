@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>微课38：总线—两种仲裁方式｜交互式演示</title>
+<style>
+:root{
+  --ink:#132238;--muted:#667085;--line:#d7e2ef;--blue:#1967bf;--blue-dark:#0b4b86;
+  --blue-soft:#edf6ff;--orange:#d96c00;--orange-soft:#fff2df;--green:#218a53;
+  --green-soft:#e9f7ef;--purple:#6c42bd;--purple-soft:#f1ebff;--red:#d64545;
+  --red-soft:#fff0f0;--shadow:0 12px 32px rgba(17,46,81,.12);--radius:10px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;min-height:100vh;font-family:"Microsoft YaHei","PingFang SC",Arial,sans-serif;color:var(--ink);
+  background:radial-gradient(circle at 12% 0%,rgba(25,103,191,.10),transparent 28%),
+             radial-gradient(circle at 92% 10%,rgba(108,66,189,.08),transparent 24%),#eef5fb;
+}
+button,input,select{font:inherit}button{touch-action:manipulation}
+.app{width:min(1760px,calc(100% - 36px));margin:0 auto;padding:12px 0 28px}
+.topbar{
+  display:grid;grid-template-columns:minmax(0,1fr) auto;gap:18px;align-items:center;background:#fff;
+  border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px 20px;
+  position:sticky;top:8px;z-index:30;
+}
+.eyebrow{display:inline-flex;align-items:center;gap:8px;color:var(--blue);font-weight:900;font-size:13px;letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px}
+.eyebrow::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--orange);box-shadow:0 0 0 5px rgba(217,108,0,.12)}
+h1{margin:0;font-size:clamp(25px,2.25vw,36px);line-height:1.16;color:#0b2b59}
+.subtitle{margin:7px 0 0;color:var(--muted);font-size:14px;line-height:1.55}
+.controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.btn{border:1px solid #b8cbe0;background:#fff;color:#12355c;font-weight:800;border-radius:8px;padding:9px 12px;min-height:40px;cursor:pointer;transition:.16s}
+.btn:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 7px 16px rgba(17,46,81,.11)}
+.btn.primary{background:var(--blue);border-color:var(--blue);color:#fff}.btn.warn{background:var(--orange);border-color:var(--orange);color:#fff}
+.btn:disabled{opacity:.45;cursor:not-allowed}.speed{display:flex;align-items:center;gap:7px;color:var(--muted);font-size:12px;font-weight:700;white-space:nowrap}
+input[type="range"]{accent-color:var(--blue);width:92px}
+.overview{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(320px,.55fr);gap:12px;margin:12px 0}
+.card,section{background:#fff;border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+.lesson-status{padding:15px 17px;display:grid;grid-template-columns:auto minmax(0,1fr);gap:14px;align-items:center}
+.step-badge{width:68px;height:62px;border-radius:16px;background:linear-gradient(135deg,var(--blue),#4b8bd0);color:#fff;display:grid;place-items:center;text-align:center;font-weight:900;line-height:1.05;box-shadow:0 9px 20px rgba(25,103,191,.24)}
+.step-badge strong{font-size:24px;display:block}.lesson-status h2{margin:0 0 5px;font-size:18px;color:var(--blue-dark)}
+.lesson-status p{margin:0;color:#33465f;line-height:1.55;font-size:14px}.goal-card{padding:14px 16px}.goal-card h3{margin:0 0 9px;color:#0b2b59;font-size:16px}
+.goal-tags{display:flex;flex-wrap:wrap;gap:7px}.goal-tag{border:1px solid #cfe1f5;background:#f7fbff;border-radius:999px;padding:6px 9px;font-size:12px;font-weight:800;color:#285377}
+.mode-nav{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:12px}
+.mode-btn{border:1px solid var(--line);background:#fff;border-radius:9px;min-height:74px;padding:10px 12px;text-align:left;cursor:pointer;display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;align-items:center;color:#2a4058;box-shadow:0 7px 18px rgba(17,46,81,.07);transition:.2s}
+.mode-btn:hover{transform:translateY(-1px)}.mode-btn.active{border-color:var(--blue);background:var(--blue-soft);box-shadow:0 0 0 3px rgba(25,103,191,.12)}
+.mode-num{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;background:#e7eef6;color:var(--blue-dark);font-weight:900}.mode-btn.active .mode-num{background:var(--blue);color:#fff}
+.mode-btn strong{display:block;font-size:14px;margin-bottom:2px}.mode-btn small{display:block;color:var(--muted);font-size:11px;line-height:1.35}
+.section-title{padding:13px 16px;background:linear-gradient(90deg,#0f5fb4,#347fc7);color:#fff;display:flex;justify-content:space-between;align-items:center;gap:12px;font-weight:900;font-size:17px;border-radius:9px 9px 0 0}
+.section-title small{font-size:12px;font-weight:700;opacity:.88;text-align:right}
+.workspace{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(340px,.45fr);gap:12px;align-items:start}
+.sim-panel,.side-panel{overflow:hidden}.sim-body{min-height:600px;padding:18px;background:linear-gradient(rgba(25,103,191,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(25,103,191,.035) 1px,transparent 1px),#fbfdff;background-size:28px 28px}
+.device-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.device{border:2px solid #bdd1e5;border-radius:12px;padding:12px;background:#fff;text-align:center;transition:.22s;box-shadow:0 9px 20px rgba(17,46,81,.08)}
+.device.requesting{border-color:var(--orange);background:var(--orange-soft);box-shadow:0 0 0 3px rgba(217,108,0,.10)}
+.device.probing{border-color:var(--purple);background:var(--purple-soft);box-shadow:0 0 0 4px rgba(108,66,189,.11);transform:translateY(-2px)}
+.device.winner{border-color:var(--green);background:var(--green-soft);box-shadow:0 0 0 4px rgba(33,138,83,.13);transform:translateY(-3px)}
+.device.eliminated{opacity:.35;filter:grayscale(.5)}.device-icon{width:44px;height:44px;border-radius:12px;background:#edf3f9;display:grid;place-items:center;margin:0 auto 8px;color:#274b6d;font-weight:900}
+.device h4{margin:0;font-size:14px;color:#173a5e}.device p{margin:4px 0 8px;color:var(--muted);font-size:11px}.code{display:inline-flex;border-radius:6px;padding:4px 7px;background:#f0f5fa;border:1px solid #d2deea;color:#3d5873;font:800 12px Consolas,monospace}
+.request-btn{margin-top:8px;border:1px solid #b8cbe0;background:#fff;border-radius:7px;padding:7px 9px;font-size:11px;font-weight:900;color:#244b71;cursor:pointer}.request-btn.active{background:var(--orange);border-color:var(--orange);color:#fff}
+.arbiter-area{margin:30px auto 0;max-width:930px}.arbiter{width:min(360px,82%);margin:0 auto;border:2px solid var(--purple);background:var(--purple-soft);border-radius:15px;padding:14px;text-align:center;box-shadow:0 12px 24px rgba(108,66,189,.15)}
+.arbiter strong{color:var(--purple);font-size:17px}.arbiter span{display:block;color:#65547b;font-size:11px;margin-top:4px;line-height:1.45}
+.chain-track,.counter-track,.parallel-track,.distributed-track{display:none}.chain-track.show,.counter-track.show,.parallel-track.show,.distributed-track.show{display:block}
+.chain-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;align-items:center;margin-top:16px}.chain-node{height:48px;border-radius:8px;border:1px solid #cbd8e5;background:#fff;display:grid;place-items:center;font-size:12px;font-weight:900;color:#375875;position:relative}
+.chain-node::after{content:"→";position:absolute;right:-18px;color:#8da7bf;font-size:20px}.chain-node:last-child::after{display:none}.chain-node.active{background:var(--purple-soft);border-color:var(--purple);color:var(--purple)}.chain-node.stop{background:var(--green-soft);border-color:var(--green);color:var(--green)}
+.counter-box{display:grid;grid-template-columns:190px 1fr;gap:12px;margin-top:16px;align-items:center}.counter-display{border:2px solid var(--purple);border-radius:14px;padding:14px;background:var(--purple-soft);text-align:center}
+.counter-display span{display:block;font-size:12px;color:#6a5686;font-weight:800}.counter-display strong{display:block;font-size:38px;color:var(--purple);font-family:Consolas,monospace;margin-top:3px}
+.address-track,.parallel-lines{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.address-cell,.parallel-line{border:1px solid #cad9e7;background:#fff;border-radius:9px;padding:10px;text-align:center;font-size:12px;font-weight:900;color:#47627b}
+.address-cell.active,.parallel-line.active{background:var(--orange-soft);border-color:var(--orange);color:#8b4300}.address-cell.hit,.parallel-line.grant{background:var(--green-soft);border-color:var(--green);color:#17633a}
+.parallel-lines{margin-top:16px}.bit-table{display:grid;grid-template-columns:110px repeat(4,1fr);gap:7px;margin-top:16px}.bit-cell{min-height:38px;border:1px solid #d0ddea;background:#fff;border-radius:8px;display:grid;place-items:center;font-size:12px;font-weight:900;color:#47627b}
+.bit-cell.head{background:#0f5fb4;color:#fff;border-color:#0f5fb4}.bit-cell.label{background:#e9f2fb;color:#164d86}.bit-cell.bit-active{background:var(--orange-soft);border-color:var(--orange);color:#8b4300}.bit-cell.bit-win{background:var(--green-soft);border-color:var(--green);color:#17633a}.bit-cell.bit-out{opacity:.3}
+.bus-box{margin:18px auto 0;height:82px;border-radius:14px;background:linear-gradient(135deg,#174b7b,#1967bf);padding:12px;color:#fff;text-align:center;position:relative;overflow:hidden}.bus-box strong{display:block;font-size:16px;margin-bottom:4px}.bus-box span{font-size:11px;opacity:.88}
+.bus-progress{position:absolute;left:12px;right:12px;bottom:10px;height:18px;border-radius:999px;background:rgba(255,255,255,.16);overflow:hidden}.bus-progress-fill{height:100%;width:0;background:linear-gradient(90deg,#fff,#bfe0ff);border-radius:999px;transition:width .2s}
+.side-body{padding:15px;display:flex;flex-direction:column;gap:11px}.selector-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}.selector-row label{font-size:12px;font-weight:900;color:#31506e}.selector-row select{width:100%;margin-top:5px;border:1px solid #c6d7e8;border-radius:8px;padding:8px;background:#fff;color:#24496b;font-weight:800}
+.timeline{display:grid;gap:8px}.timeline-step{border:1px solid var(--line);border-radius:9px;padding:10px;background:#f9fbfd;display:grid;grid-template-columns:32px 1fr;gap:9px;align-items:start;transition:.2s}.timeline-step.active{border-color:var(--orange);background:var(--orange-soft);box-shadow:0 0 0 3px rgba(217,108,0,.10)}.timeline-step.done{border-color:#9ed2b4;background:var(--green-soft)}
+.timeline-index{width:28px;height:28px;border-radius:50%;background:#dfe8f1;color:#36536e;display:grid;place-items:center;font-weight:900;font-size:12px}.timeline-step.active .timeline-index{background:var(--orange);color:#fff}.timeline-step.done .timeline-index{background:var(--green);color:#fff}
+.timeline-step strong{font-size:13px;color:#173a5e;display:block;margin-bottom:3px}.timeline-step p{font-size:11px;line-height:1.42;color:var(--muted);margin:0}.status-box{border-radius:8px;padding:10px 11px;background:#f4f7fb;font-size:12px;line-height:1.55;color:#42566c;min-height:66px}.concept-tip{border-left:4px solid var(--blue);background:#f4f9ff;padding:11px 12px;border-radius:0 8px 8px 0;font-size:12px;line-height:1.55;color:#2e4b69}
+.compare{margin-top:12px;overflow:hidden}.compare-body{padding:14px;overflow-x:auto}.compare-grid{display:grid;grid-template-columns:150px repeat(4,minmax(180px,1fr));gap:7px;min-width:930px}.compare-cell{min-height:48px;border:1px solid var(--line);border-radius:8px;background:#fbfdff;padding:8px;display:flex;align-items:center;justify-content:center;text-align:center;font-size:12px;color:#445b72;line-height:1.4}.compare-cell.head{background:#0f5fb4;color:#fff;font-weight:900;border-color:#0f5fb4}.compare-cell.rowhead{background:#e9f2fb;color:#164d86;font-weight:900}.compare-cell.best{background:var(--green-soft);border-color:#8fc9a7;color:#17633a;font-weight:900}.compare-cell.warn{background:var(--orange-soft);border-color:#efb46c;color:#8a4400}.compare-cell.active-col{box-shadow:0 0 0 3px rgba(25,103,191,.13);border-color:var(--blue)}
+.footer-note{margin-top:13px;text-align:right;color:var(--muted);font-size:12px}
+@media(max-width:1180px){.topbar,.overview,.workspace{grid-template-columns:1fr}.topbar{position:relative;top:auto}.controls{justify-content:flex-start}.mode-nav{grid-template-columns:1fr 1fr}.sim-body{min-height:auto}}
+@media(max-width:820px){.app{width:min(100% - 18px,1760px)}.device-grid{grid-template-columns:1fr 1fr}.chain-row,.address-track,.parallel-lines{grid-template-columns:1fr 1fr}.counter-box{grid-template-columns:1fr}}
+@media(max-width:560px){.mode-nav{grid-template-columns:1fr}.lesson-status{grid-template-columns:1fr}.step-badge{width:100%;height:45px;display:flex;gap:6px;border-radius:9px}.step-badge strong{font-size:18px}.device-grid{grid-template-columns:1fr}.selector-row{grid-template-columns:1fr}.bit-table{grid-template-columns:90px repeat(4,70px);overflow-x:auto}}
+</style>
+</head>
+<body>
+<div class="app">
+<header class="topbar">
+  <div>
+    <div class="eyebrow">Micro Lesson 38</div>
+    <h1>总线—两种仲裁方式｜交互式微课</h1>
+    <p class="subtitle">让同一组主设备同时申请总线，观察集中式仲裁与分布式仲裁如何决定唯一获胜者，并比较四种典型实现的速度、灵活性和硬件成本。</p>
+  </div>
+  <div class="controls">
+    <button class="btn" id="prevBtn">上一步</button>
+    <button class="btn primary" id="nextBtn">下一步</button>
+    <button class="btn" id="playBtn">自动演示</button>
+    <button class="btn" id="resetBtn">重置</button>
+    <label class="speed">速度 <input id="speed" type="range" min="650" max="1800" step="50" value="1100"></label>
+  </div>
+</header>
+<div class="overview">
+  <div class="card lesson-status">
+    <div class="step-badge"><strong id="guideNo">1</strong><span>/ 4</span></div>
+    <div><h2 id="guideTitle">链式查询：授权沿链逐级传递</h2><p id="guideText">总线授权信号从链首向后传播，遇到第一个正在请求的设备便停止，因此物理位置直接决定固定优先级。</p></div>
+  </div>
+  <div class="card goal-card"><h3>本讲达成</h3><div class="goal-tags"><span class="goal-tag">理解集中与分布式仲裁</span><span class="goal-tag">掌握三种集中式实现</span><span class="goal-tag">比较速度、灵活性与成本</span></div></div>
+</div>
+<nav class="mode-nav" aria-label="仲裁方式">
+  <button class="mode-btn active" data-mode="chain"><span class="mode-num">1</span><span><strong>链式查询</strong><small>授权串行传递，位置决定优先级</small></span></button>
+  <button class="mode-btn" data-mode="counter"><span class="mode-num">2</span><span><strong>计数器定时查询</strong><small>地址依次扫描，起点决定公平性</small></span></button>
+  <button class="mode-btn" data-mode="parallel"><span class="mode-num">3</span><span><strong>独立请求</strong><small>请求并行进入中央仲裁器</small></span></button>
+  <button class="mode-btn" data-mode="distributed"><span class="mode-num">4</span><span><strong>分布式仲裁</strong><small>无中央仲裁器，仲裁号逐位竞争</small></span></button>
+</nav>
+<main>
+<div class="workspace">
+  <section class="sim-panel">
+    <div class="section-title"><span id="simTitle">链式查询动态演示</span><small id="simSubtitle">从链首开始传递总线授权 BG</small></div>
+    <div class="sim-body">
+      <div class="device-grid" id="deviceGrid"></div>
+      <div class="arbiter-area">
+        <div class="arbiter" id="arbiter"><strong id="arbiterName">中央总线仲裁器</strong><span id="arbiterDesc">检测公共请求线 /BR，在总线空闲时发出授权 BG。</span></div>
+        <div class="chain-track show" id="chainTrack"><div class="chain-row" id="chainRow"></div></div>
+        <div class="counter-track" id="counterTrack"><div class="counter-box"><div class="counter-display"><span>当前查询地址</span><strong id="counterValue">0</strong></div><div class="address-track" id="addressTrack"></div></div></div>
+        <div class="parallel-track" id="parallelTrack"><div class="parallel-lines" id="parallelLines"></div></div>
+        <div class="distributed-track" id="distributedTrack"><div class="bit-table" id="bitTable"></div></div>
+        <div class="bus-box"><strong>共享系统总线</strong><span id="busOwner">当前空闲</span><div class="bus-progress"><div class="bus-progress-fill" id="busFill"></div></div></div>
+      </div>
+    </div>
+  </section>
+  <section class="side-panel">
+    <div class="section-title"><span>仲裁控制台</span><small>先选择请求设备，再逐步观察</small></div>
+    <div class="side-body">
+      <div class="selector-row">
+        <label>计数器起点<select id="counterStart"><option value="0">每次从 0 开始</option><option value="resume">从上次获胜后继续</option></select></label>
+        <label>独立请求优先规则<select id="priorityRule"><option value="fixed">固定：CPU &gt; DMA &gt; 网卡 &gt; 硬盘</option><option value="round">循环优先</option></select></label>
+      </div>
+      <div class="controls" style="justify-content:flex-start"><button class="btn primary" id="demoBtn">载入典型请求</button><button class="btn" id="clearBtn">清空请求</button></div>
+      <div class="timeline" id="timeline"></div>
+      <div class="status-box" id="statusBox">已进入链式查询模式。请选择两个或多个设备发起请求。</div>
+      <div class="concept-tip" id="conceptTip"><b>观察重点：</b>链式查询中，授权到达第一个请求者后就被截断，后面的设备即使也在请求，也无法获得本轮总线。</div>
+    </div>
+  </section>
+</div>
+<section class="compare">
+  <div class="section-title"><span>四种方式的工程权衡</span><small>绿色表示相对优势，橙色表示主要代价</small></div>
+  <div class="compare-body"><div class="compare-grid" id="compareGrid"></div></div>
+</section>
+</main>
+<div class="footer-note">建议课堂操作顺序：链式查询 → 计数器定时查询 → 独立请求 → 分布式仲裁，最后用比较表归纳“速度—公平性—硬件成本”的权衡。</div>
+</div>
+<script>
+(function(){
+"use strict";
+const $=(s,r=document)=>r.querySelector(s);const $$=(s,r=document)=>Array.from(r.querySelectorAll(s));
+const devices=[
+  {id:"CPU",name:"CPU",desc:"高频访存",code:"1010"},
+  {id:"DMA",name:"DMA 控制器",desc:"大块搬运",code:"1100"},
+  {id:"NIC",name:"网卡",desc:"网络数据",code:"0111"},
+  {id:"DISK",name:"硬盘控制器",desc:"磁盘传输",code:"1001"}
+];
+const modes={
+  chain:{title:"链式查询动态演示",subtitle:"从链首开始传递总线授权 BG",guide:"链式查询：授权沿链逐级传递",text:"总线授权信号从链首向后传播，遇到第一个正在请求的设备便停止，因此物理位置直接决定固定优先级。",tip:"链式查询中，授权到达第一个请求者后就被截断，后面的设备即使也在请求，也无法获得本轮总线。"},
+  counter:{title:"计数器定时查询动态演示",subtitle:"计数地址逐个广播，匹配请求者即停止",guide:"计数器定时查询：查询起点决定优先级",text:"中央仲裁器依次广播设备地址。每次从 0 开始会形成固定优先级，从上次位置继续则可实现循环公平。",tip:"计数器方式用额外地址线换取优先级灵活性；设备越多，最坏情况下需要扫描的地址越多。"},
+  parallel:{title:"独立请求动态演示",subtitle:"所有请求并行送入优先级编码器",guide:"独立请求：并行判优，响应最快",text:"每个设备拥有独立请求线和授权线，中央仲裁器一次性看到全部请求并直接判优，速度快但线路数量最多。",tip:"独立请求不需要逐级传递或逐个扫描，判优速度快；代价是每个设备都要单独连接请求线和授权线。"},
+  distributed:{title:"分布式仲裁动态演示",subtitle:"各设备按仲裁号从高位到低位竞争",guide:"分布式仲裁：设备共同完成判优",text:"系统不设置中央仲裁器。所有请求者把仲裁号送上仲裁总线，从最高位开始比较，仲裁号最大的设备最终保留竞争资格。",tip:"分布式仲裁没有中央单点故障，扩展性较好；但每个设备都必须配置仲裁逻辑，控制电路更复杂。"}
+};
+let mode="chain",requests=new Set(),step=0,playing=false,timer=null,lastCounterWinner=0,roundPointer=0,winner=null;
+function buildDevices(){
+  $("#deviceGrid").innerHTML=devices.map(d=>`<div class="device" data-device="${d.id}"><div class="device-icon">${d.id==="DISK"?"HD":d.id}</div><h4>${d.name}</h4><p>${d.desc}</p><span class="code">仲裁号 ${d.code}</span><br><button class="request-btn" data-request="${d.id}">发起请求</button></div>`).join("");
+  $$("[data-request]").forEach(b=>b.addEventListener("click",()=>{stopPlay(false);const id=b.dataset.request;if(requests.has(id))requests.delete(id);else requests.add(id);step=0;winner=null;render();}));
+}
+function buildStatic(){
+  $("#chainRow").innerHTML=devices.map((d,i)=>`<div class="chain-node" data-chain="${i}">BG → ${d.name}</div>`).join("");
+  $("#addressTrack").innerHTML=devices.map((d,i)=>`<div class="address-cell" data-address="${i}">${i} → ${d.name}</div>`).join("");
+  $("#parallelLines").innerHTML=devices.map(d=>`<div class="parallel-line" data-parallel="${d.id}">REQ / GNT · ${d.name}</div>`).join("");
+  renderBitTable(-1,new Set());
+  const rows=[
+    ["评价维度","链式查询","计数器定时查询","独立请求","分布式仲裁"],
+    ["判优速度","较慢，随链长增加","中等，需逐个扫描","最快，并行判优","较快，逐位比较"],
+    ["优先级灵活性","低，位置固定","高，可改变起点","高，可设编码规则","通常由仲裁号决定"],
+    ["公平性","较差，可能饥饿","循环起点时较好","取决于仲裁算法","取决于仲裁号策略"],
+    ["硬件与线路","最少","需要计数器和地址线","请求/授权线最多","每个设备都需仲裁逻辑"],
+    ["故障影响","链路故障会影响后续设备","中央仲裁器仍是单点","单设备故障影响较小","无中央单点故障"]
+  ];
+  $("#compareGrid").innerHTML=rows.flatMap((row,r)=>row.map((c,i)=>{let cls="compare-cell";if(r===0)cls+=" head";else if(i===0)cls+=" rowhead";if(r===1&&i===3)cls+=" best";if(r===4&&i===3)cls+=" warn";if(r===2&&i===1)cls+=" warn";return `<div class="${cls}" data-col="${i-1}">${c}</div>`;})).join("");
+}
+function typicalRequests(){requests=new Set(mode==="distributed"?["CPU","DMA","DISK"]:["DMA","NIC","DISK"]);step=0;winner=null;render();}
+function maxSteps(){
+  if(mode==="chain"){const idx=devices.findIndex(d=>requests.has(d.id));return Math.max(2,(idx<0?devices.length:idx+1)+2);}
+  if(mode==="counter"){const start=getCounterStart();if(!requests.size)return 2;let scans=0;for(let k=0;k<devices.length;k++){scans++;const idx=(start+k)%devices.length;if(requests.has(devices[idx].id))break;}return scans+2;}
+  if(mode==="parallel")return 4;return 6;
+}
+function getCounterStart(){return $("#counterStart").value==="resume"?(lastCounterWinner+1)%devices.length:0;}
+function getParallelWinner(){if(!requests.size)return null;if($("#priorityRule").value==="fixed")return devices.find(d=>requests.has(d.id))?.id||null;for(let k=0;k<devices.length;k++){const idx=(roundPointer+k)%devices.length;if(requests.has(devices[idx].id))return devices[idx].id;}return null;}
+function getDistributedAlive(bitIndex){let alive=devices.filter(d=>requests.has(d.id));for(let b=0;b<=bitIndex;b++){if(!alive.length)break;const hasOne=alive.some(d=>d.code[b]==="1");if(hasOne)alive=alive.filter(d=>d.code[b]==="1");}return new Set(alive.map(d=>d.id));}
+function computeWinner(){if(!requests.size)return null;if(mode==="chain")return devices.find(d=>requests.has(d.id))?.id||null;if(mode==="counter"){const start=getCounterStart();for(let k=0;k<devices.length;k++){const idx=(start+k)%devices.length;if(requests.has(devices[idx].id))return devices[idx].id;}}if(mode==="parallel")return getParallelWinner();return devices.filter(d=>requests.has(d.id)).sort((a,b)=>parseInt(b.code,2)-parseInt(a.code,2))[0]?.id||null;}
+function timelineData(){
+  if(mode==="chain")return [["设备提出请求","所有请求者共同拉起总线请求信号 /BR。"],["仲裁器发出 BG","确认总线空闲后，授权从链首进入。"],["授权逐级传递","未请求设备继续传递 BG；请求设备截断授权。"],["唯一设备获胜","最靠近链首的请求者获得总线。"]];
+  if(mode==="counter")return [["设备提出请求","请求者通过公共请求线通知仲裁器。"],["启动计数器","仲裁器从设定起点开始广播设备地址。"],["逐个地址匹配","地址与请求设备编号相同时停止计数。"],["唯一设备获胜","匹配设备置总线忙并开始传输。"]];
+  if(mode==="parallel")return [["独立请求并行到达","每个设备通过自己的 REQ 线申请。"],["优先级编码器判优","仲裁器同时观察全部请求并计算赢家。"],["独立授权返回","仅获胜设备的 GNT 线有效。"],["唯一设备获胜","获胜设备占用总线，其余设备继续等待。"]];
+  return [["请求者送出仲裁号","每个设备把自身 CN 放到仲裁总线上。"],["比较最高位 b3","当前位为 0 且总线上存在 1 的设备退出。"],["比较 b2","仍存活的设备继续逐位竞争。"],["比较 b1","更高位失败者不能再送出低位。"],["比较最低位 b0","最终只保留仲裁号最大的设备。"],["唯一设备获胜","W0=1 的设备获得总线使用权。"]];
+}
+function renderTimeline(){const data=timelineData();$("#timeline").innerHTML=data.map((x,i)=>`<div class="timeline-step ${i<step?"done":i===step?"active":""}"><div class="timeline-index">${i+1}</div><div><strong>${x[0]}</strong><p>${x[1]}</p></div></div>`).join("");}
+function renderBitTable(bitIndex,alive){let html=`<div class="bit-cell head">设备</div>${["b3","b2","b1","b0"].map(x=>`<div class="bit-cell head">${x}</div>`).join("")}`;devices.forEach(d=>{html+=`<div class="bit-cell label">${d.name}</div>`;[...d.code].forEach((bit,b)=>{let cls="bit-cell";if(bitIndex===b)cls+=" bit-active";if(alive.has(d.id)&&bitIndex>=b)cls+=" bit-win";if(requests.size&&!alive.has(d.id)&&bitIndex>=0)cls+=" bit-out";html+=`<div class="${cls}">${bit}</div>`;});});$("#bitTable").innerHTML=html;}
+function clearVisual(){$$(".device").forEach(x=>x.classList.remove("requesting","probing","winner","eliminated"));$$(".chain-node").forEach(x=>x.classList.remove("active","stop"));$$(".address-cell").forEach(x=>x.classList.remove("active","hit"));$$(".parallel-line").forEach(x=>x.classList.remove("active","grant"));$("#busFill").style.width="0%";$("#busOwner").textContent="当前空闲";}
+function renderModeVisual(){
+  clearVisual();devices.forEach(d=>{const card=$(`[data-device="${d.id}"]`),btn=$(`[data-request="${d.id}"]`);card.classList.toggle("requesting",requests.has(d.id));btn.classList.toggle("active",requests.has(d.id));btn.textContent=requests.has(d.id)?"撤回请求":"发起请求";});
+  $("#chainTrack").classList.toggle("show",mode==="chain");$("#counterTrack").classList.toggle("show",mode==="counter");$("#parallelTrack").classList.toggle("show",mode==="parallel");$("#distributedTrack").classList.toggle("show",mode==="distributed");$("#arbiter").style.display=mode==="distributed"?"none":"block";
+  $("#arbiterName").textContent=mode==="parallel"?"中央仲裁器 + 优先级编码器":"中央总线仲裁器";$("#arbiterDesc").textContent=mode==="chain"?"检测公共请求线 /BR，在总线空闲时发出授权 BG。":mode==="counter"?"启动计数器，把查询地址广播给所有设备。":"同时采样所有独立请求线，并直接产生唯一授权。";
+  if(mode==="chain"){
+    const winIndex=devices.findIndex(d=>d.id===computeWinner());
+    if(step>=2){const visited=Math.min(step-1,devices.length);for(let i=0;i<visited;i++){const node=$(`[data-chain="${i}"]`);node.classList.add("active");$(`[data-device="${devices[i].id}"]`).classList.add("probing");if(i===winIndex){node.classList.add("stop");$(`[data-device="${devices[i].id}"]`).classList.add("winner");winner=devices[i].id;break;}}}
+  }
+  if(mode==="counter"){
+    const start=getCounterStart(),scans=Math.max(0,step-1);let current=start;
+    for(let k=0;k<scans;k++){current=(start+k)%devices.length;$(`[data-address="${current}"]`).classList.add("active");$(`[data-device="${devices[current].id}"]`).classList.add("probing");if(requests.has(devices[current].id)){$(`[data-address="${current}"]`).classList.add("hit");$(`[data-device="${devices[current].id}"]`).classList.add("winner");winner=devices[current].id;break;}}
+    $("#counterValue").textContent=scans?current:start;
+  }
+  if(mode==="parallel"){if(step>=1)requests.forEach(id=>$(`[data-parallel="${id}"]`).classList.add("active"));if(step>=2){const w=getParallelWinner();if(w){$(`[data-parallel="${w}"]`).classList.add("grant");$(`[data-device="${w}"]`).classList.add("winner");winner=w;}}}
+  if(mode==="distributed"){
+    const bitIndex=Math.min(3,Math.max(-1,step-1)),alive=bitIndex>=0?getDistributedAlive(bitIndex):new Set(requests);renderBitTable(bitIndex,alive);devices.forEach(d=>{const c=$(`[data-device="${d.id}"]`);if(requests.has(d.id)&&alive.has(d.id))c.classList.add("probing");if(requests.has(d.id)&&!alive.has(d.id))c.classList.add("eliminated");});if(step>=5){const w=computeWinner();if(w){$(`[data-device="${w}"]`).classList.add("winner");winner=w;}}}
+  if(winner){const d=devices.find(x=>x.id===winner);$("#busOwner").textContent=`已授权：${d.name}`;$("#busFill").style.width="100%";}
+}
+function renderStatus(){let text="";if(!requests.size)text="当前没有设备请求总线。请选择设备，或点击“载入典型请求”。";else if(step===0)text=`已有 ${[...requests].map(id=>devices.find(d=>d.id===id).name).join("、")} 发起请求。点击“下一步”开始仲裁。`;else if(winner){const d=devices.find(x=>x.id===winner);text=`仲裁完成：${d.name} 获得总线使用权。其他请求者必须等待本次传输结束。`;}else text=timelineData()[Math.min(step,timelineData().length-1)]?.[1]||"仲裁正在进行。";$("#statusBox").textContent=text;$("#prevBtn").disabled=step===0;$("#nextBtn").disabled=step>=maxSteps()-1;}
+function highlightCompare(){$$(".compare-cell[data-col]").forEach(c=>c.classList.remove("active-col"));const idx={chain:0,counter:1,parallel:2,distributed:3}[mode];$$(`.compare-cell[data-col="${idx}"]`).forEach(c=>c.classList.add("active-col"));}
+function render(){const m=modes[mode];$("#simTitle").textContent=m.title;$("#simSubtitle").textContent=m.subtitle;$("#guideTitle").textContent=m.guide;$("#guideText").textContent=m.text;$("#guideNo").textContent={chain:1,counter:2,parallel:3,distributed:4}[mode];$("#conceptTip").innerHTML=`<b>观察重点：</b>${m.tip}`;$$(".mode-btn").forEach(b=>b.classList.toggle("active",b.dataset.mode===mode));renderTimeline();renderModeVisual();renderStatus();highlightCompare();$("#playBtn").textContent=playing?"暂停演示":"自动演示";}
+function setMode(nextMode){stopPlay(false);mode=nextMode;step=0;winner=null;if(mode==="distributed"&&!requests.size)requests=new Set(["CPU","DMA","DISK"]);render();window.scrollTo({top:0,behavior:"smooth"});}
+function next(){if(!requests.size){typicalRequests();return}const max=maxSteps();if(step<max-1){step++;winner=null;render();if(step>=max-1)finalizeWinnerState();}else stopPlay();}
+function prev(){if(step>0){step--;winner=null;render();}}
+function stopPlay(doRender=true){playing=false;clearInterval(timer);timer=null;if(doRender)render();}
+function togglePlay(){if(playing){stopPlay();return}if(!requests.size)typicalRequests();if(step>=maxSteps()-1)step=0;playing=true;render();timer=setInterval(()=>{if(step>=maxSteps()-1){stopPlay();return}next();},Number($("#speed").value));}
+function reset(){stopPlay(false);requests.clear();step=0;winner=null;lastCounterWinner=0;roundPointer=0;render();}
+function finalizeWinnerState(){const w=computeWinner();if(!w)return;const idx=devices.findIndex(d=>d.id===w);if(mode==="counter")lastCounterWinner=idx;if(mode==="parallel"&&$("#priorityRule").value==="round")roundPointer=(idx+1)%devices.length;}
+$$(".mode-btn").forEach(b=>b.addEventListener("click",()=>setMode(b.dataset.mode)));$("#nextBtn").addEventListener("click",next);$("#prevBtn").addEventListener("click",prev);$("#playBtn").addEventListener("click",togglePlay);$("#resetBtn").addEventListener("click",reset);$("#demoBtn").addEventListener("click",typicalRequests);$("#clearBtn").addEventListener("click",()=>{stopPlay(false);requests.clear();step=0;winner=null;render();});$("#counterStart").addEventListener("change",()=>{stopPlay(false);step=0;winner=null;render();});$("#priorityRule").addEventListener("change",()=>{stopPlay(false);step=0;winner=null;render();});$("#speed").addEventListener("input",()=>{if(playing){stopPlay(false);togglePlay();}});
+document.addEventListener("keydown",e=>{const tag=e.target?.tagName?.toLowerCase();if(["input","select","button","textarea"].includes(tag)||e.target?.isContentEditable)return;if(e.code==="Space"||e.key==="ArrowRight"){e.preventDefault();next();}if(e.key==="ArrowLeft"){e.preventDefault();prev();}});
+buildDevices();buildStatic();render();
+})();
+</script>
+</body>
+</html>

@@ -13,6 +13,12 @@ from typing import Any
 
 
 PIPELINE_STAGES = ["IF", "ID", "EX", "MEM", "WB"]
+DEFAULT_CACHE_CONFIG = {
+    "addressBits": 6,
+    "lines": 4,
+    "blockSize": 4,
+    "associativity": 2,
+}
 DATAPATH_STAGES = [
     {"id": "IF", "name": "取指"},
     {"id": "ID", "name": "译码"},
@@ -550,9 +556,9 @@ def simulate_ieee754_operation(a_value: Any, b_value: Any, operation_value: str 
 
 def simulate_cache_address(params: dict[str, Any]) -> dict[str, Any]:
     address = parse_integer(params.get("address"))
-    address_bits = parse_integer(params.get("addressBits", params.get("address_bits", 12)))
-    lines = parse_integer(params.get("lines"))
-    block_size = parse_integer(params.get("blockSize", params.get("block_size")))
+    address_bits = parse_integer(params.get("addressBits", params.get("address_bits", DEFAULT_CACHE_CONFIG["addressBits"])))
+    lines = parse_integer(params.get("lines", DEFAULT_CACHE_CONFIG["lines"]))
+    block_size = parse_integer(params.get("blockSize", params.get("block_size", DEFAULT_CACHE_CONFIG["blockSize"])))
 
     assert_integer(address, "地址")
     assert_integer(address_bits, "地址位数")
@@ -643,12 +649,12 @@ def choose_cache_victim(lines: list[dict[str, Any]], policy: str, clock: int) ->
 
 def simulate_cache_system(params: dict[str, Any]) -> dict[str, Any]:
     accesses = parse_address_list(params.get("accesses", params.get("address")))
-    address_bits = parse_integer(params.get("addressBits", params.get("address_bits", 12)))
-    lines = parse_integer(params.get("lines", 16))
-    block_size = parse_integer(params.get("blockSize", params.get("block_size", 4)))
+    address_bits = parse_integer(params.get("addressBits", params.get("address_bits", DEFAULT_CACHE_CONFIG["addressBits"])))
+    lines = parse_integer(params.get("lines", DEFAULT_CACHE_CONFIG["lines"]))
+    block_size = parse_integer(params.get("blockSize", params.get("block_size", DEFAULT_CACHE_CONFIG["blockSize"])))
     mapping = params.get("mapping", "direct")
     replacement = params.get("replacement", "lru")
-    associativity_input = parse_integer(params.get("associativity", 2))
+    associativity_input = parse_integer(params.get("associativity", DEFAULT_CACHE_CONFIG["associativity"]))
 
     if not accesses:
         raise ValueError("请输入至少一个访问地址")

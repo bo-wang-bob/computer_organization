@@ -136,6 +136,19 @@ class AgentTest(unittest.TestCase):
         self.assertEqual(result["simulationPreview"]["tool"], "simulate_virtual_memory")
         self.assertIn("references", result["inputs"])
 
+    def test_demo_plan_uses_default_memory_access_widths(self):
+        result = agents.plan_demo({"message": "demo memory access write 0x2A 0x5C", "useLLM": False})
+
+        self.assertTrue(result["supported"])
+        self.assertEqual(result["targetPanel"], "memory-access-sim")
+        self.assertEqual(result["inputs"]["operation"], "write")
+        self.assertEqual(result["inputs"]["addressBits"], 8)
+        self.assertEqual(result["inputs"]["columnBits"], 4)
+        self.assertEqual(result["inputs"]["dataBits"], 8)
+        self.assertEqual(result["inputs"]["address"], "0x2A")
+        self.assertEqual(result["inputs"]["data"], "0x5C")
+        self.assertEqual(result["simulationPreview"]["tool"], "frontend_memory_access")
+
     def test_demo_plan_parses_memory_expansion_specs(self):
         result = agents.plan_demo({"message": "demo memory expansion 1Kx4 to 4Kx8", "useLLM": False})
 
@@ -146,6 +159,21 @@ class AgentTest(unittest.TestCase):
         self.assertEqual(result["inputs"]["targetWords"], 4096)
         self.assertEqual(result["inputs"]["targetBits"], 8)
         self.assertEqual(result["simulationPreview"]["tool"], "frontend_memory_expansion")
+
+
+    def test_demo_plan_supports_new_bus_arbitration_panel(self):
+        result = agents.plan_demo({"message": "演示总线仲裁链式查询", "useLLM": False})
+
+        self.assertTrue(result["supported"])
+        self.assertEqual(result["targetPanel"], "bus-arbitration-sim")
+        self.assertEqual(result["simulationPreview"]["tool"], "frontend_bus_arbitration")
+
+    def test_demo_plan_supports_keyboard_matrix_panel(self):
+        result = agents.plan_demo({"message": "演示矩阵键盘扫描和防抖", "useLLM": False})
+
+        self.assertTrue(result["supported"])
+        self.assertEqual(result["targetPanel"], "keyboard-sim")
+        self.assertEqual(result["simulationPreview"]["tool"], "frontend_keyboard_matrix")
 
 
 if __name__ == "__main__":

@@ -8,6 +8,12 @@
   "use strict";
 
   const PIPELINE_STAGES = ["IF", "ID", "EX", "MEM", "WB"];
+  const DEFAULT_CACHE_CONFIG = Object.freeze({
+    addressBits: 6,
+    lines: 4,
+    blockSize: 4,
+    associativity: 2,
+  });
   const DATAPATH_STAGES = [
     { id: "IF", name: "取指" },
     { id: "ID", name: "译码" },
@@ -518,9 +524,9 @@
 
   function simulateCacheAddress(params) {
     const address = parseInteger(params.address);
-    const addressBits = parseInteger(params.addressBits);
-    const lines = parseInteger(params.lines);
-    const blockSize = parseInteger(params.blockSize);
+    const addressBits = parseInteger(params.addressBits ?? DEFAULT_CACHE_CONFIG.addressBits);
+    const lines = parseInteger(params.lines ?? DEFAULT_CACHE_CONFIG.lines);
+    const blockSize = parseInteger(params.blockSize ?? DEFAULT_CACHE_CONFIG.blockSize);
 
     assertInteger(address, "地址");
     assertInteger(addressBits, "地址位数");
@@ -627,12 +633,12 @@
 
   function simulateCacheSystem(params) {
     const accesses = parseAddressList(params.accesses || params.address);
-    const addressBits = parseInteger(params.addressBits);
-    const lines = parseInteger(params.lines);
-    const blockSize = parseInteger(params.blockSize);
+    const addressBits = parseInteger(params.addressBits ?? DEFAULT_CACHE_CONFIG.addressBits);
+    const lines = parseInteger(params.lines ?? DEFAULT_CACHE_CONFIG.lines);
+    const blockSize = parseInteger(params.blockSize ?? DEFAULT_CACHE_CONFIG.blockSize);
     const mapping = params.mapping || "direct";
     const replacement = params.replacement || "lru";
-    const associativityInput = parseInteger(params.associativity || 2);
+    const associativityInput = parseInteger(params.associativity ?? DEFAULT_CACHE_CONFIG.associativity);
 
     if (!accesses.length) throw new Error("请输入至少一个访问地址");
     if (!isPowerOfTwo(lines)) throw new Error("缓存行数必须是 2 的幂");

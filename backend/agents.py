@@ -35,10 +35,16 @@ SUPPORTED_DEMO_PANELS = {
     "pipeline-sim",
     "datapath-sim",
     "assembly-sim",
+    "hardwire-sim",
+    "control-expression-sim",
+    "bus-transaction-sim",
+    "bus-arbitration-sim",
+    "keyboard-sim",
 }
 UNSUPPORTED_DEMO_MESSAGE = (
     "暂不支持该功能仿真。当前可演示：补码/定点、IEEE 754、Cache、虚拟存储、"
-    "存储读写、存储扩展、流水线、CPU 数据通路、汇编解释。"
+    "存储读写、存储扩展、流水线、CPU 数据通路、汇编解释、硬布线控制、"
+    "时序表达式、总线事务、总线仲裁、键盘扫描。"
 )
 
 
@@ -193,17 +199,15 @@ def cache_inputs(message: str) -> dict[str, Any]:
         mapping = "set"
     elif "全相联" in message or "fully" in lowered:
         mapping = "fully"
-    lines = random.choice([4, 8, 16])
-    block_size = random.choice([4, 8, 16])
-    address_bits = random.choice([10, 12, 16])
+    lines = 4
+    block_size = 4
+    address_bits = 6
     associativity = 2 if mapping == "set" else 1
     hex_tokens = extract_hex_tokens(message)
     if hex_tokens:
         accesses = " ".join(hex_tokens)
     else:
-        base = random.randrange(0, block_size * lines, block_size)
-        stride = block_size * lines
-        accesses = " ".join(f"0x{value:X}" for value in [base, base + stride, base, base + 2 * stride, base + stride, base])
+        accesses = "0x00 0x04 0x08 0x00 0x10 0x00 0x14 0x04"
     return {
         "accesses": accesses,
         "addressBits": address_bits,
@@ -213,6 +217,14 @@ def cache_inputs(message: str) -> dict[str, Any]:
         "associativity": associativity,
         "replacement": choose_replacement(message, "lru"),
     }
+
+
+def cache_accesses_fit_default_range(accesses: Any, address_bits: int) -> bool:
+    try:
+        parsed = core.parse_address_list(accesses)
+    except (TypeError, ValueError):
+        return False
+    return bool(parsed) and all(0 <= address < 2**address_bits for address in parsed)
 
 
 def virtual_memory_inputs(message: str) -> dict[str, Any]:
@@ -250,9 +262,9 @@ def virtual_memory_inputs(message: str) -> dict[str, Any]:
 
 def memory_access_inputs(message: str) -> dict[str, Any]:
     lowered = core.normalize(message)
-    address_bits = random.choice([8, 10, 12])
-    column_bits = random.randint(1, max(1, address_bits - 1))
-    data_bits = random.choice([8, 16])
+    address_bits = 8
+    column_bits = 4
+    data_bits = 8
     hex_tokens = extract_hex_tokens(message)
     operation = "read" if any(keyword in lowered for keyword in ["read", "读取", "读"]) else "write"
     address = hex_tokens[0] if hex_tokens else f"0x{random.randint(0, 2**address_bits - 1):X}"
@@ -353,6 +365,65 @@ def default_demo_plan(kind: str, message: str = "", *, reason: str | None = None
             "title": "存储器容量扩展演示",
             "inputs": memory_expansion_inputs(message),
             "reason": reason or "检测到存储器扩展、位扩展、字扩展或片选相关表达。",
+        }
+    if kind == "hardwire":
+        return {
+            "supported": True,
+            "targetPanel": "hardwire-sim",
+            "title": "硬布线控制器演示",
+            "inputs": {
+                "op": "ADD",
+                "pc": 100,
+                "dest": "R1",
+                "source": "R2",
+                "destValue": 5,
+                "sourceValue": 3,
+                "address": "0x40",
+                "bits": 8,
+            },
+            "reason": reason or "检测到硬布线控制器、指令译码或控制信号形成相关表达。",
+        }
+    if kind == "control_expression":
+        return {
+            "supported": True,
+            "targetPanel": "control-expression-sim",
+            "title": "控制信号表达式推导演示",
+            "inputs": {"signal": "LDPC"},
+            "reason": reason or "检测到时序、节拍或控制信号逻辑表达式相关表达。",
+        }
+    if kind == "bus_transaction":
+        return {
+            "supported": True,
+            "targetPanel": "bus-transaction-sim",
+            "title": "总线事务演示",
+            "inputs": {"operation": "read-memory", "address": "0x2A", "data": "10110110", "deviceName": "键盘接口"},
+            "reason": reason or "检测到地址总线、数据总线、控制总线或总线事务相关表达。",
+        }
+    if kind == "bus_arbitration":
+        return {
+            "supported": True,
+            "targetPanel": "bus-arbitration-sim",
+            "title": "总线仲裁演示",
+            "inputs": {
+                "mode": "chain",
+                "devices": "CPU,4,1010\nDMA,3,1100\n网卡,2,0111\n硬盘,1,1001",
+                "requests": "DMA,网卡,硬盘",
+                "counterStart": 0,
+                "priorityRule": "priority",
+            },
+            "reason": reason or "检测到总线仲裁、链式查询、计数器查询、独立请求或分布式仲裁相关表达。",
+        }
+    if kind == "keyboard":
+        return {
+            "supported": True,
+            "targetPanel": "keyboard-sim",
+            "title": "矩阵键盘扫描演示",
+            "inputs": {
+                "layout": "1 2 3 4 5 6\n7 8 9 0 A B\nC D E F G H\nI J K L M N\nO P Q R S T\nU V W X Y Z",
+                "key": "6",
+                "debounce": 10,
+            },
+            "reason": reason or "检测到矩阵键盘、按键扫描或防抖相关表达。",
         }
     if kind == "pipeline":
         forwarding = not any(keyword in lowered for keyword in ["关闭转发", "不开转发", "无转发", "no forwarding"])
@@ -576,10 +647,20 @@ def fallback_demo_plan(message: str) -> dict[str, Any]:
         return default_demo_plan("cache", message)
     if any(keyword in lowered for keyword in ["虚存", "虚拟存储", "页表", "段表", "段页", "缺页", "页面置换", "paging", "page replacement", "virtual memory"]):
         return default_demo_plan("virtual", message)
-    if any(keyword in lowered for keyword in ["存储读写", "读写过程", "mar", "mdr", "地址译码", "总线", "memory access"]):
+    if any(keyword in lowered for keyword in ["存储读写", "读写过程", "mar", "mdr", "地址译码", "memory access"]):
         return default_demo_plan("memory_access", message)
     if any(keyword in lowered for keyword in ["存储扩展", "容量扩展", "位扩展", "字扩展", "片选", "memory expansion"]):
         return default_demo_plan("memory_expansion", message)
+    if any(keyword in lowered for keyword in ["硬布线", "硬连线", "控制器", "指令译码", "微命令", "hardwired"]):
+        return default_demo_plan("hardwire", message)
+    if any(keyword in lowered for keyword in ["时序", "节拍", "控制信号表达式", "逻辑表达式", "ldpc", "ldir", "ldar", "lddr"]):
+        return default_demo_plan("control_expression", message)
+    if any(keyword in lowered for keyword in ["总线仲裁", "仲裁", "链式查询", "计数器定时", "独立请求", "分布式仲裁", "bus arbitration"]):
+        return default_demo_plan("bus_arbitration", message)
+    if any(keyword in lowered for keyword in ["总线事务", "地址总线", "数据总线", "控制总线", "总线基本", "bus transaction"]):
+        return default_demo_plan("bus_transaction", message)
+    if any(keyword in lowered for keyword in ["键盘", "矩阵键盘", "按键扫描", "防抖", "keyboard"]):
+        return default_demo_plan("keyboard", message)
     if any(keyword in lowered for keyword in ["数据通路", "控制信号", "单周期", "datapath"]):
         return default_demo_plan("datapath", message)
     if any(keyword in lowered for keyword in ["流水线", "pipeline", "raw", "load-use", "load use", "冒险", "转发", "停顿", "stall"]):
@@ -595,18 +676,23 @@ def build_demo_plan_messages(message: str) -> list[dict[str, str]]:
     system_prompt = (
         "你是计算机组成原理教师课堂演示平台的意图规划器。"
         "你的任务是把教师的自然语言输入映射到已有仿真模块，并生成可直接运行的课堂演示参数。"
-        "只能使用以下 targetPanel：twos-sim、cache-sim、virtual-sim、memory-access-sim、memory-expansion-sim、pipeline-sim、datapath-sim、assembly-sim。"
+        "只能使用以下 targetPanel：twos-sim、cache-sim、virtual-sim、memory-access-sim、memory-expansion-sim、pipeline-sim、datapath-sim、assembly-sim、hardwire-sim、control-expression-sim、bus-transaction-sim、bus-arbitration-sim、keyboard-sim。"
         "如果教师想演示的内容不属于这些仿真模块，必须返回 supported=false。"
         "只输出一个 JSON 对象，不要输出 Markdown、解释文字或代码块。"
         "JSON 字段必须包含 supported、targetPanel、title、inputs、reason。"
         "twos-sim 有两种：补码/定点演示 inputs 使用 demoType=fixed、fixedOperation、x、y、bits；IEEE 754 演示 inputs 使用 demoType=ieee754、a、b、operation。"
-        "cache-sim 的 inputs 使用 accesses、addressBits、lines、blockSize、mapping、associativity、replacement。"
+        "cache-sim 的 inputs 使用 accesses、mapping、replacement；地址位数、缓存行数、块大小和相联度固定为默认值。"
         "virtual-sim 的 inputs 使用 mode、logicalAddress、pageSize、frames、replacement、references、segmentTable、segmentPageTable。"
-        "memory-access-sim 的 inputs 使用 operation、addressBits、columnBits、dataBits、address、data。"
+        "memory-access-sim 的 inputs 使用 operation、address、data；地址位数、列地址位数、数据位数固定为默认值。"
         "memory-expansion-sim 的 inputs 使用 mode、chipWords、chipBits、targetWords、targetBits。"
         "pipeline-sim 的 inputs 使用 program 和 forwarding。"
         "datapath-sim 的 inputs 使用 program。"
         "assembly-sim 的 inputs 使用 program。"
+        "hardwire-sim 的 inputs 使用 op、pc、dest、source、destValue、sourceValue、address、bits。"
+        "control-expression-sim 的 inputs 可使用 signal。"
+        "bus-transaction-sim 的 inputs 使用 operation、address、data、deviceName。"
+        "bus-arbitration-sim 的 inputs 使用 mode、devices、requests、counterStart、priorityRule。"
+        "keyboard-sim 的 inputs 使用 layout、key、debounce。"
         "如果用户给出具体数值、地址、位数、算法或程序，尽量使用用户给出的值；缺少的值补充一个合理随机例子。"
     )
     user_prompt = (
@@ -664,13 +750,17 @@ def normalize_demo_plan(plan: dict[str, Any], message: str) -> dict[str, Any]:
             }
     elif target_panel == "cache-sim":
         defaults = default_demo_plan("cache", message)["inputs"]
+        address_bits = defaults["addressBits"]
+        accesses = inputs.get("accesses") or defaults["accesses"]
+        if not cache_accesses_fit_default_range(accesses, address_bits):
+            accesses = defaults["accesses"]
         normalized_inputs = {
-            "accesses": inputs.get("accesses") or defaults["accesses"],
-            "addressBits": inputs.get("addressBits", defaults["addressBits"]),
-            "lines": inputs.get("lines", defaults["lines"]),
-            "blockSize": inputs.get("blockSize", defaults["blockSize"]),
+            "accesses": accesses,
+            "addressBits": address_bits,
+            "lines": defaults["lines"],
+            "blockSize": defaults["blockSize"],
             "mapping": inputs.get("mapping") or defaults["mapping"],
-            "associativity": inputs.get("associativity", defaults["associativity"]),
+            "associativity": defaults["associativity"],
             "replacement": inputs.get("replacement") or defaults["replacement"],
         }
     elif target_panel == "virtual-sim":
@@ -689,9 +779,9 @@ def normalize_demo_plan(plan: dict[str, Any], message: str) -> dict[str, Any]:
         defaults = default_demo_plan("memory_access", message)["inputs"]
         normalized_inputs = {
             "operation": inputs.get("operation") or defaults["operation"],
-            "addressBits": inputs.get("addressBits", defaults["addressBits"]),
-            "columnBits": inputs.get("columnBits", defaults["columnBits"]),
-            "dataBits": inputs.get("dataBits", defaults["dataBits"]),
+            "addressBits": defaults["addressBits"],
+            "columnBits": defaults["columnBits"],
+            "dataBits": defaults["dataBits"],
             "address": inputs.get("address", defaults["address"]),
             "data": inputs.get("data", defaults["data"]),
         }
@@ -703,6 +793,45 @@ def normalize_demo_plan(plan: dict[str, Any], message: str) -> dict[str, Any]:
             "chipBits": inputs.get("chipBits", defaults["chipBits"]),
             "targetWords": inputs.get("targetWords", defaults["targetWords"]),
             "targetBits": inputs.get("targetBits", defaults["targetBits"]),
+        }
+    elif target_panel == "hardwire-sim":
+        defaults = default_demo_plan("hardwire", message)["inputs"]
+        normalized_inputs = {
+            "op": inputs.get("op") or defaults["op"],
+            "pc": inputs.get("pc", defaults["pc"]),
+            "dest": inputs.get("dest") or defaults["dest"],
+            "source": inputs.get("source") or defaults["source"],
+            "destValue": inputs.get("destValue", defaults["destValue"]),
+            "sourceValue": inputs.get("sourceValue", defaults["sourceValue"]),
+            "address": inputs.get("address", defaults["address"]),
+            "bits": inputs.get("bits", defaults["bits"]),
+        }
+    elif target_panel == "control-expression-sim":
+        defaults = default_demo_plan("control_expression", message)["inputs"]
+        normalized_inputs = {"signal": inputs.get("signal") or defaults["signal"]}
+    elif target_panel == "bus-transaction-sim":
+        defaults = default_demo_plan("bus_transaction", message)["inputs"]
+        normalized_inputs = {
+            "operation": inputs.get("operation") or defaults["operation"],
+            "address": inputs.get("address", defaults["address"]),
+            "data": inputs.get("data", defaults["data"]),
+            "deviceName": inputs.get("deviceName") or defaults["deviceName"],
+        }
+    elif target_panel == "bus-arbitration-sim":
+        defaults = default_demo_plan("bus_arbitration", message)["inputs"]
+        normalized_inputs = {
+            "mode": inputs.get("mode") or defaults["mode"],
+            "devices": inputs.get("devices") or defaults["devices"],
+            "requests": inputs.get("requests") or defaults["requests"],
+            "counterStart": inputs.get("counterStart", defaults["counterStart"]),
+            "priorityRule": inputs.get("priorityRule") or defaults["priorityRule"],
+        }
+    elif target_panel == "keyboard-sim":
+        defaults = default_demo_plan("keyboard", message)["inputs"]
+        normalized_inputs = {
+            "layout": inputs.get("layout") or defaults["layout"],
+            "key": inputs.get("key") or defaults["key"],
+            "debounce": inputs.get("debounce", defaults["debounce"]),
         }
     elif target_panel == "pipeline-sim":
         defaults = default_demo_plan("pipeline", message)["inputs"]
@@ -788,6 +917,16 @@ def validate_demo_plan(plan: dict[str, Any]) -> dict[str, Any]:
             if core.parse_integer(inputs[key]) <= 0:
                 raise ValueError(f"{key} 必须为正整数")
         plan["simulationPreview"] = {"tool": "frontend_memory_expansion", "mode": inputs["mode"]}
+    elif target_panel == "hardwire-sim":
+        plan["simulationPreview"] = {"tool": "frontend_hardwire", "op": inputs["op"]}
+    elif target_panel == "control-expression-sim":
+        plan["simulationPreview"] = {"tool": "frontend_control_expression", "signal": inputs["signal"]}
+    elif target_panel == "bus-transaction-sim":
+        plan["simulationPreview"] = {"tool": "frontend_bus_transaction", "operation": inputs["operation"]}
+    elif target_panel == "bus-arbitration-sim":
+        plan["simulationPreview"] = {"tool": "frontend_bus_arbitration", "mode": inputs["mode"]}
+    elif target_panel == "keyboard-sim":
+        plan["simulationPreview"] = {"tool": "frontend_keyboard_matrix", "key": inputs["key"]}
     elif target_panel == "pipeline-sim":
         preview = core.simulate_pipeline(inputs["program"], {"forwarding": inputs.get("forwarding", True)})
         plan["simulationPreview"] = {

@@ -17,10 +17,12 @@
     cache: {
       result: null,
       cursor: 0,
+      timer: null,
     },
     vm: {
       result: null,
       cursor: 0,
+      timer: null,
     },
     memory: {
       cells: {},
@@ -33,7 +35,68 @@
       result: null,
       cursor: 0,
     },
+    hardwire: {
+      result: null,
+      cursor: 0,
+      timer: null,
+    },
+    control: {
+      result: null,
+      cursor: 0,
+    },
+    bus: {
+      result: null,
+      cursor: 0,
+      timer: null,
+    },
+    arbitration: {
+      result: null,
+      cursor: 0,
+      timer: null,
+      roundPointer: 0,
+    },
+    keyboard: {
+      result: null,
+      cursor: 0,
+      timer: null,
+      capture: false,
+      running: false,
+      selected: null,
+      pending: null,
+      lastSource: "尚未按键",
+      layout: null,
+    },
   };
+
+  const DEFAULT_KEYBOARD_LAYOUT_TEXT = `1 2 3 4 5 6
+7 8 9 0 A B
+C D E F G H
+I J K L M N
+O P Q R S T
+U V W X Y Z`;
+  const DEFAULT_KEYBOARD_DEBOUNCE_MS = 10;
+  const KEYBOARD_SCAN_INTERVAL_MS = 420;
+  const DEFAULT_CACHE_CONFIG = Object.freeze({
+    accesses: "0x00 0x04 0x08 0x00 0x10 0x00 0x14 0x04",
+    addressBits: 6,
+    lines: 4,
+    blockSize: 4,
+    associativity: 2,
+  });
+  const DEFAULT_VM_CONFIG = Object.freeze({
+    pageSize: 1024,
+    frames: 3,
+    pagingFallbackPage: 2,
+    segmentLogicalAddress: "0:512",
+    segmentedPagingLogicalAddress: "0:1:128",
+    segmentTable: "0 4096 1024\n1 8192 2048",
+    segmentPageTable: "0 0 2\n0 1 5\n1 0 7",
+  });
+  const DEFAULT_MEMORY_CONFIG = Object.freeze({
+    addressBits: 8,
+    columnBits: 4,
+    dataBits: 8,
+  });
 
   const RECOMMENDED_FEATURES = [
     {
@@ -88,6 +151,105 @@
       desc: "按步骤执行指令并高亮寄存器变化",
       section: "simulation",
       simPanel: "assembly-sim",
+    },
+    {
+      title: "硬布线控制器",
+      desc: "自定义指令并逐拍观察控制信号形成",
+      section: "simulation",
+      simPanel: "hardwire-sim",
+    },
+    {
+      title: "总线事务仿真",
+      desc: "配置读写或中断过程，观察三类总线协作",
+      section: "simulation",
+      simPanel: "bus-transaction-sim",
+    },
+    {
+      title: "键盘矩阵扫描",
+      desc: "读取真实键盘按键并演示扫描、防抖流程",
+      section: "simulation",
+      simPanel: "keyboard-sim",
+    },
+  ];
+
+  const SIMULATION_FEATURES = [
+    {
+      id: "twos-sim",
+      title: "补码与浮点推演",
+      desc: "自定义定点数、位数与 IEEE 754 运算，查看每一步二进制变化。",
+      category: "数值表示",
+    },
+    {
+      id: "cache-sim",
+      title: "缓存仿真",
+      desc: "输入地址序列，逐步观察直接映射中的定位、命中和装入。",
+      category: "存储系统",
+    },
+    {
+      id: "virtual-sim",
+      title: "虚存仿真",
+      desc: "选择映射方式、页面置换算法和访问序列，演示地址转换与页面置换。",
+      category: "存储系统",
+    },
+    {
+      id: "memory-access-sim",
+      title: "存储读写",
+      desc: "设置地址、数据和读写方向，控制每一步总线与存储单元状态。",
+      category: "存储系统",
+    },
+    {
+      id: "memory-expansion-sim",
+      title: "存储扩展",
+      desc: "输入芯片规格和目标容量，生成位扩展、字扩展和片选关系。",
+      category: "存储系统",
+    },
+    {
+      id: "pipeline-sim",
+      title: "五级流水线",
+      desc: "自定义指令序列，查看 IF / ID / EX / MEM / WB 周期推进。",
+      category: "CPU",
+    },
+    {
+      id: "datapath-sim",
+      title: "CPU 数据通路",
+      desc: "运行指令并逐步观察数据通路、控制信号、寄存器和内存变化。",
+      category: "CPU",
+    },
+    {
+      id: "assembly-sim",
+      title: "汇编解释",
+      desc: "输入汇编片段，按步骤执行并高亮寄存器、内存和日志。",
+      category: "CPU",
+    },
+    {
+      id: "hardwire-sim",
+      title: "硬布线控制",
+      desc: "自定义指令场景，逐拍观察硬布线控制信号的形成过程。",
+      category: "控制器",
+    },
+    {
+      id: "control-expression-sim",
+      title: "时序表达式",
+      desc: "输入控制信号触发表，推导机器周期、节拍和指令条件表达式。",
+      category: "控制器",
+    },
+    {
+      id: "bus-transaction-sim",
+      title: "总线事务",
+      desc: "配置读写或中断事务，观察地址总线、数据总线和控制总线协作。",
+      category: "总线",
+    },
+    {
+      id: "bus-arbitration-sim",
+      title: "总线仲裁",
+      desc: "设置主设备、请求和仲裁方式，比较链式、计数器和独立请求过程。",
+      category: "总线",
+    },
+    {
+      id: "keyboard-sim",
+      title: "键盘矩阵扫描",
+      desc: "使用数字加字母键盘图，支持读取真实键盘按键并演示防抖。",
+      category: "接口",
     },
   ];
 
@@ -277,20 +439,62 @@
   }
 
   function setSection(sectionId) {
+    if (sectionId !== "simulation") {
+      stopCacheAuto();
+      stopVirtualMemoryAuto();
+      stopKeyboardSimulation({ clearSelection: false });
+    }
     $all(".page-section").forEach((section) => {
       section.classList.toggle("active", section.id === sectionId);
     });
     $all(".nav-item").forEach((button) => {
       button.classList.toggle("active", button.dataset.section === sectionId);
     });
+    if (sectionId === "simulation") {
+      showSimulationCatalog();
+    }
   }
 
   function setSimulationPanel(panelId) {
+    if (panelId !== "cache-sim") {
+      stopCacheAuto();
+    }
+    if (panelId !== "virtual-sim") {
+      stopVirtualMemoryAuto();
+    }
+    if (panelId !== "keyboard-sim") {
+      stopKeyboardSimulation({ clearSelection: false });
+    }
+    const target = panelId ? document.getElementById(panelId) : null;
+    if (!target || !target.classList.contains("sim-panel")) {
+      showSimulationCatalog();
+      return;
+    }
+    const catalog = $("#simulationCatalog");
+    if (catalog) catalog.classList.remove("active");
     $all(".sim-panel").forEach((panel) => {
       panel.classList.toggle("active", panel.id === panelId);
     });
     $all(".sim-tab").forEach((button) => {
       button.classList.toggle("active", button.dataset.simPanel === panelId);
+    });
+    if (panelId === "keyboard-sim") {
+      updateKeyboardRunButton();
+      renderKeyboardSimulation();
+    }
+  }
+
+  function showSimulationCatalog() {
+    stopCacheAuto();
+    stopVirtualMemoryAuto();
+    stopKeyboardSimulation({ clearSelection: false });
+    const catalog = $("#simulationCatalog");
+    if (catalog) catalog.classList.add("active");
+    $all(".sim-panel").forEach((panel) => {
+      panel.classList.remove("active");
+    });
+    $all(".sim-tab").forEach((button) => {
+      button.classList.remove("active");
     });
   }
 
@@ -315,6 +519,328 @@
         </button>
       `)
       .join("");
+  }
+
+  function renderSimulationCatalog() {
+    const simulation = $("#simulation");
+    const tabBar = $(".sim-tabs");
+    if (!simulation || !tabBar) return;
+    let catalog = $("#simulationCatalog");
+    if (!catalog) {
+      tabBar.insertAdjacentHTML("afterend", `<div id="simulationCatalog" class="simulation-catalog" aria-label="仿真功能总览"></div>`);
+      catalog = $("#simulationCatalog");
+    }
+    catalog.innerHTML = SIMULATION_FEATURES.map(
+      (feature) => `
+        <button class="simulation-card" data-sim-card="${escapeHtml(feature.id)}">
+          <span>${escapeHtml(feature.category)}</span>
+          <strong>${escapeHtml(feature.title)}</strong>
+          <em>${escapeHtml(feature.desc)}</em>
+        </button>
+      `
+    ).join("");
+  }
+
+  function installImportedSimulationPanels() {
+    const tabBar = $(".sim-tabs");
+    const simulation = $("#simulation");
+    if (!tabBar || !simulation) return;
+    if ($("#hardwire-sim")) {
+      renderSimulationCatalog();
+      return;
+    }
+
+    const newTabs = [
+      ["hardwire-sim", "硬布线控制"],
+      ["control-expression-sim", "时序表达式"],
+      ["bus-transaction-sim", "总线事务"],
+      ["bus-arbitration-sim", "总线仲裁"],
+      ["keyboard-sim", "键盘扫描"],
+    ];
+    tabBar.insertAdjacentHTML(
+      "beforeend",
+      newTabs
+        .map(([panel, label]) => `<button class="sim-tab" data-sim-panel="${panel}">${label}</button>`)
+        .join("")
+    );
+
+    simulation.insertAdjacentHTML(
+      "beforeend",
+      `
+        <div id="hardwire-sim" class="sim-panel">
+          <div class="section-subheading">
+            <p class="eyebrow">Hardwired Controller</p>
+            <h3>硬布线控制器控制信号形成仿真</h3>
+            <div class="concept-note">
+              <strong>先看懂这几个词：</strong>
+              <span>硬布线控制器用固定逻辑电路产生控制信号，不靠微程序存储器；Im 表示指令译码结果，Bj 表示节拍/状态条件，Tk 表示时钟节拍；微命令就是“让某个寄存器装入、让 ALU 运算、让内存读写”这类具体控制动作。</span>
+            </div>
+          </div>
+          <div class="two-column">
+            <div class="panel">
+              <div class="panel-title compact">
+                <h3>自定义指令场景</h3>
+                <span>按节拍观察 Im、Bj、Tk 如何生成微命令</span>
+              </div>
+              <div class="form-grid">
+                <label>
+                  <span class="field-label">指令</span>
+                  <select id="hardwireOp">
+                    <option value="ADD" selected>ADD：Rdest ← Rdest + Rsrc</option>
+                    <option value="SUB">SUB：Rdest ← Rdest - Rsrc</option>
+                    <option value="MOV">MOV：Rdest ← Rsrc</option>
+                    <option value="LOAD">LOAD：Rdest ← M[address]</option>
+                  </select>
+                </label>
+                <label>
+                  <span class="field-label">PC 初值</span>
+                  <input id="hardwirePC" value="100" />
+                </label>
+                <label>
+                  <span class="field-label">目的寄存器</span>
+                  <input id="hardwireDest" value="R1" />
+                </label>
+                <label>
+                  <span class="field-label">源寄存器</span>
+                  <input id="hardwireSource" value="R2" />
+                </label>
+                <label>
+                  <span class="field-label">目的寄存器初值</span>
+                  <input id="hardwireDestValue" value="5" />
+                </label>
+                <label>
+                  <span class="field-label">源寄存器 / 主存值</span>
+                  <input id="hardwireSourceValue" value="3" />
+                </label>
+                <label>
+                  <span class="field-label">访存地址</span>
+                  <input id="hardwireAddress" value="0x40" />
+                </label>
+                <label>
+                  <span class="field-label">标志位位宽</span>
+                  <input id="hardwireBits" type="number" min="2" max="16" value="8" />
+                </label>
+              </div>
+              <button id="hardwireRun" class="primary-button">生成控制流程</button>
+              <div class="button-row">
+                <button id="hardwirePrev" class="secondary-button">上一步</button>
+                <button id="hardwireNext" class="secondary-button">下一步</button>
+                <button id="hardwireAuto" class="secondary-button">自动演示</button>
+                <button id="hardwireReset" class="secondary-button">重置</button>
+              </div>
+            </div>
+            <div class="panel result-panel">
+              <div class="panel-title">
+                <h3>节拍、状态与控制信号</h3>
+                <span id="hardwireStepCounter">等待生成</span>
+              </div>
+              <div id="hardwireResult"></div>
+            </div>
+          </div>
+        </div>
+
+        <div id="control-expression-sim" class="sim-panel">
+          <div class="section-subheading">
+            <p class="eyebrow">Timing & Control</p>
+            <h3>控制信号逻辑表达式推导仿真</h3>
+          </div>
+          <div class="two-column">
+            <div class="panel">
+              <div class="panel-title compact">
+                <h3>自定义触发条件</h3>
+                <span>每行：信号 | 机器周期 | 节拍 | 指令 | 说明</span>
+              </div>
+              <label class="field-label" for="controlTerms">触发表</label>
+              <textarea id="controlTerms" rows="12">RD(I) | M1 | - | ALL | 指令存储器在取指周期持续读
+RD(D) | M3 | - | LAD | LAD 在 M3 读取数据存储器
+WE(D) | M3 | T3 | STO | STO 在 M3T3 写数据存储器
+LDPC | M1 | T4 | ALL | 顺序取指后把 PC+1 写回 PC
+LDPC | M2 | T4 | JMP | JMP 在 M2T4 把目标地址写入 PC
+LDIR | M1 | T3 | ALL | 指令总线内容打入 IR
+LDAR | M2 | T4 | LAD | LAD 把形式地址送入 AR
+LDAR | M2 | T4 | STO | STO 把目的地址送入 AR
+LDDR | M2 | T3 | MOV+ADD | MOV 或 ADD 的执行结果进入 DR
+LDDR | M3 | T3 | LAD | LAD 读出的数据进入 DR
+PC+1 | M1 | T3 | ALL | 取指阶段 PC 加 1
+LDRy | M2 | T4 | ADD | ADD 结果写回 Ry</textarea>
+              <div class="form-grid">
+                <label>
+                  <span class="field-label">查看信号</span>
+                  <select id="controlSignalSelect"></select>
+                </label>
+                <label>
+                  <span class="field-label">默认节拍数</span>
+                  <input id="controlTicks" type="number" min="2" max="8" value="4" />
+                </label>
+              </div>
+              <button id="controlRun" class="primary-button">推导表达式</button>
+              <div class="button-row">
+                <button id="controlPrev" class="secondary-button">上一步</button>
+                <button id="controlNext" class="secondary-button">下一步</button>
+                <button id="controlAll" class="secondary-button">显示完整式</button>
+                <button id="controlReset" class="secondary-button">重置</button>
+              </div>
+            </div>
+            <div class="panel result-panel">
+              <div class="panel-title">
+                <h3>表达式推导过程</h3>
+                <span id="controlStepCounter">等待推导</span>
+              </div>
+              <div id="controlExpressionResult"></div>
+            </div>
+          </div>
+        </div>
+
+        <div id="bus-transaction-sim" class="sim-panel">
+          <div class="section-subheading">
+            <p class="eyebrow">Bus Transaction</p>
+            <h3>总线基本事务交互仿真</h3>
+            <div class="concept-note">
+              <strong>先看懂这几个词：</strong>
+              <span>一次总线事务就是主设备借用总线完成一次读、写或中断响应；地址总线说明访问哪里，数据总线搬运数据，控制总线说明读/写/中断等动作。MREQ 常表示存储器请求，IORQ 常表示 I/O 请求，RD/WR 分别是读/写控制。</span>
+            </div>
+          </div>
+          <div class="two-column">
+            <div class="panel">
+              <div class="panel-title compact">
+                <h3>自定义总线事务</h3>
+                <span>配置目标、地址、数据与控制命令</span>
+              </div>
+              <div class="form-grid">
+                <label>
+                  <span class="field-label">事务类型</span>
+                  <select id="busOperation">
+                    <option value="read-memory" selected>CPU 读取主存</option>
+                    <option value="write-memory">CPU 写入主存</option>
+                    <option value="read-io">CPU 读取 I/O 端口</option>
+                    <option value="interrupt">I/O 发出中断</option>
+                  </select>
+                </label>
+                <label>
+                  <span class="field-label">地址 / 端口</span>
+                  <input id="busAddress" value="0x2A" />
+                </label>
+                <label>
+                  <span class="field-label">数据</span>
+                  <input id="busData" value="10110110" />
+                </label>
+                <label>
+                  <span class="field-label">I/O 设备名</span>
+                  <input id="busDeviceName" value="键盘接口" />
+                </label>
+              </div>
+              <button id="busRun" class="primary-button">生成事务</button>
+              <div class="button-row">
+                <button id="busPrev" class="secondary-button">上一步</button>
+                <button id="busNext" class="secondary-button">下一步</button>
+                <button id="busAuto" class="secondary-button">自动演示</button>
+                <button id="busReset" class="secondary-button">重置</button>
+              </div>
+            </div>
+            <div class="panel result-panel">
+              <div class="panel-title">
+                <h3>地址 / 数据 / 控制总线</h3>
+                <span id="busStepCounter">等待生成</span>
+              </div>
+              <div id="busTransactionResult"></div>
+            </div>
+          </div>
+        </div>
+
+        <div id="bus-arbitration-sim" class="sim-panel">
+          <div class="section-subheading">
+            <p class="eyebrow">Bus Arbitration</p>
+            <h3>总线仲裁方式交互仿真</h3>
+            <div class="concept-note">
+              <strong>先看懂这几个词：</strong>
+              <span>总线仲裁负责在多个主设备同时请求时选出唯一总线主人。BR 是 Bus Request，表示设备请求总线；BG 是 Bus Grant，表示仲裁器授权使用总线；链式查询按物理顺序传递 BG，独立请求会分别比较各设备请求，分布式仲裁则由设备之间共同竞争。</span>
+            </div>
+          </div>
+          <div class="two-column">
+            <div class="panel">
+              <div class="panel-title compact">
+                <h3>自定义主设备与请求</h3>
+                <span>每行设备：名称,优先级,仲裁号</span>
+              </div>
+              <label class="field-label" for="arbDevices">主设备列表</label>
+              <textarea id="arbDevices" rows="5">CPU,4,1010
+DMA,3,1100
+网卡,2,0111
+硬盘,1,1001</textarea>
+              <div class="form-grid">
+                <label>
+                  <span class="field-label">仲裁方式</span>
+                  <select id="arbMode">
+                    <option value="chain" selected>链式查询</option>
+                    <option value="counter">计数器定时查询</option>
+                    <option value="parallel">独立请求</option>
+                    <option value="distributed">分布式仲裁</option>
+                  </select>
+                </label>
+                <label>
+                  <span class="field-label">当前请求设备</span>
+                  <input id="arbRequests" value="DMA,网卡,硬盘" />
+                </label>
+                <label>
+                  <span class="field-label">计数器起点</span>
+                  <input id="arbCounterStart" type="number" min="0" value="0" />
+                </label>
+                <label>
+                  <span class="field-label">独立请求规则</span>
+                  <select id="arbPriorityRule">
+                    <option value="priority" selected>按优先级</option>
+                    <option value="round">循环优先</option>
+                  </select>
+                </label>
+              </div>
+              <button id="arbRun" class="primary-button">开始仲裁</button>
+              <div class="button-row">
+                <button id="arbPrev" class="secondary-button">上一步</button>
+                <button id="arbNext" class="secondary-button">下一步</button>
+                <button id="arbAuto" class="secondary-button">自动演示</button>
+                <button id="arbReset" class="secondary-button">重置</button>
+              </div>
+            </div>
+            <div class="panel result-panel">
+              <div class="panel-title">
+                <h3>请求、授权与总线占用</h3>
+                <span id="arbStepCounter">等待仲裁</span>
+              </div>
+              <div id="busArbitrationResult"></div>
+            </div>
+          </div>
+        </div>
+
+        <div id="keyboard-sim" class="sim-panel">
+          <div class="section-subheading">
+            <p class="eyebrow">Keyboard Matrix</p>
+            <h3>矩阵键盘扫描、编码与防抖仿真</h3>
+          </div>
+          <div class="two-column">
+            <div class="panel">
+              <div class="panel-title compact">
+                <h3>键盘矩阵持续扫描</h3>
+                <span>启动后按实体键盘，只有扫描到按键所在行时才显示结果</span>
+              </div>
+              <button id="keyboardRun" class="primary-button">启动仿真</button>
+              <div id="keyboardCaptureStatus" class="empty-state">仿真未启动。</div>
+            </div>
+            <div class="panel result-panel">
+              <div class="panel-title">
+                <h3>扫描矩阵与控制器读数</h3>
+                <span id="keyboardStepCounter">等待扫描</span>
+              </div>
+              <div id="keyboardResult"></div>
+            </div>
+          </div>
+        </div>
+      `
+    );
+    const demoStatus = $("#demoStatus");
+    if (demoStatus && demoStatus.classList.contains("empty-state")) {
+      demoStatus.textContent = "当前支持：补码/定点、IEEE 754、Cache、虚拟存储、存储读写、存储扩展、流水线、CPU 数据通路、汇编解释、硬布线控制、时序表达式、总线事务、总线仲裁、键盘扫描。";
+    }
+    renderSimulationCatalog();
   }
 
   function renderKnowledgeAnswer(result) {
@@ -401,25 +927,28 @@
   }
 
   function getMemoryConfig() {
-    const addressBits = parsePositiveInteger($("#memoryAddressBits").value, "地址位数", 12);
-    const columnBits = parsePositiveInteger($("#memoryColumnBits").value, "列地址位数", 11);
+    const { addressBits, columnBits, dataBits } = DEFAULT_MEMORY_CONFIG;
     if (columnBits >= addressBits) {
       throw new Error("列地址位数必须小于地址位数，才能同时形成字线和列线");
     }
-    const dataBits = parsePositiveInteger($("#memoryDataBits").value, "数据位数", 16);
+    const operation = $("#memoryOperation").value;
     const address = parseMemoryInteger($("#memoryAddress").value, "地址");
     const maxAddress = 2 ** addressBits - 1;
     if (address < 0 || address > maxAddress) {
       throw new Error(`地址必须在 0 到 ${maxAddress} 之间`);
     }
     const mask = 2 ** dataBits - 1;
-    const data = parseMemoryInteger($("#memoryData").value, "写入数据") & mask;
+    const rawData = operation === "write" ? parseMemoryInteger($("#memoryData").value, "写入数据") : 0;
+    if (operation === "write" && (rawData < 0 || rawData > mask)) {
+      throw new Error(`写入数据必须在 0 到 ${mask} 之间`);
+    }
+    const data = rawData;
     const rowBits = addressBits - columnBits;
     const columnMask = 2 ** columnBits - 1;
     const wordLine = Math.floor(address / (2 ** columnBits));
     const columnLine = address & columnMask;
     return {
-      operation: $("#memoryOperation").value,
+      operation,
       addressBits,
       columnBits,
       rowBits,
@@ -670,8 +1199,27 @@
     `;
   }
 
+  function updateMemoryInputHints() {
+    const operation = $("#memoryOperation")?.value || "write";
+    const dataInput = $("#memoryData");
+    const dataHint = $("#memoryDataHint");
+    if (!dataInput) return;
+    const isRead = operation === "read";
+    dataInput.disabled = isRead;
+    dataInput.placeholder = isRead ? "读取时不需要填写" : "0~255，例如 0x5C";
+    dataInput.title = isRead
+      ? "读取操作不使用写入数据"
+      : "写入数据范围 0 到 255，支持十进制、0x 十六进制或 0b 二进制";
+    if (dataHint) {
+      dataHint.textContent = isRead
+        ? "读取操作不使用写入数据，只显示该地址当前保存的值。"
+        : "范围：0~255，支持十进制、0x 十六进制或 0b 二进制。";
+    }
+  }
+
   function runMemoryAccess() {
     try {
+      updateMemoryInputHints();
       stopMemoryAuto();
       const config = getMemoryConfig();
       const oldValue = state.memory.cells[config.address] ?? 0;
@@ -1172,33 +1720,33 @@
 
   function renderCacheStructureDiagram(result, selectedEvent = null) {
     const fields = [
-      { label: "Tag", bits: result.tagBits, hint: "与缓存行中保存的标记比较" },
-      { label: result.mapping === "direct" ? "Line Index" : "Set Index", bits: result.indexBits, hint: result.mapping === "fully" ? "全相联无索引" : "定位候选行/组" },
-      { label: "Block Offset", bits: result.offsetBits, hint: "定位块内字节" },
+      { label: "Tag", bits: result.tagBits, hint: selectedEvent ? `Tag=${selectedEvent.tag}` : "与缓存行中保存的标记比较" },
+      { label: "Line Index", bits: result.indexBits, hint: selectedEvent ? `行号=${selectedEvent.setIndex}` : "定位唯一缓存行" },
+      { label: "Block Offset", bits: result.offsetBits, hint: selectedEvent ? `偏移=${selectedEvent.offset}` : "定位块内字节" },
     ];
-    const placement = result.mapping === "direct"
-      ? "Index 只指向唯一 Cache 行，主存块只能放在这一行。"
-      : result.mapping === "fully"
-        ? "地址中没有 Index，主存块可放入任意 Cache 行，需要所有有效行并行比较 Tag。"
-        : "Index 先定位 Cache 组，主存块可放入该组内任意一路。";
-    const compare = result.mapping === "direct"
-      ? "只比较被选中行的 Tag。"
-      : result.mapping === "fully"
-        ? "并行比较所有有效行的 Tag。"
-        : "并行比较目标组内各路的 Tag。";
+    const placement = selectedEvent
+      ? `主存块 ${selectedEvent.blockNumber} mod ${result.lines} = Cache 行 ${selectedEvent.setIndex}。`
+      : "Index 只指向唯一 Cache 行，主存块只能放在这一行。";
+    const compare = selectedEvent
+      ? selectedEvent.hit
+        ? `行 ${selectedEvent.setIndex} 的 Tag 相同，访问命中。`
+        : selectedEvent.evicted
+          ? `行 ${selectedEvent.setIndex} 的旧块被新块替换。`
+          : `行 ${selectedEvent.setIndex} 为空，直接装入。`
+      : "只比较被选中行的 Tag。";
     const accessSummary = selectedEvent
-      ? `当前访问 ${selectedEvent.accessIndex + 1}：地址 ${formatAddress(selectedEvent.address)} → 主存块 ${selectedEvent.blockNumber}，Tag=${selectedEvent.tag}，${result.mapping === "fully" ? "全表比较" : `Index=${selectedEvent.setIndex}`}，Offset=${selectedEvent.offset}。`
-      : "运行后可逐次查看地址拆分、候选位置和 Tag 比较。";
+      ? `访问 ${selectedEvent.accessIndex + 1}：${formatAddress(selectedEvent.address)}，${selectedEvent.hit ? "命中" : "未命中"}。${selectedEvent.action}`
+      : "运行后可逐次查看每个地址如何定位到唯一 Cache 行。";
     return `
       <div class="mapping-diagram">
         <div class="diagram-title">
-          <strong>${getCacheMappingName(result)}结构图</strong>
-          <span>${escapeHtml(placement)}</span>
+          <strong>直接映射结构图</strong>
+          <span>主存块号 mod Cache 行数 = Cache 行号</span>
         </div>
         <div class="diagram-flow">
           <div class="diagram-node source-node">
             <strong>CPU 地址</strong>
-            <span>${result.addressBits} 位地址</span>
+            <span>${selectedEvent ? formatAddress(selectedEvent.address) : `${result.addressBits} 位地址`}</span>
           </div>
           <div class="diagram-arrow">→</div>
           <div class="diagram-node field-node">
@@ -1207,7 +1755,7 @@
           </div>
           <div class="diagram-arrow">→</div>
           <div class="diagram-node">
-            <strong>定位候选位置</strong>
+            <strong>${selectedEvent ? `Cache 行 ${selectedEvent.setIndex}` : "定位唯一 Cache 行"}</strong>
             <span>${escapeHtml(placement)}</span>
           </div>
           <div class="diagram-arrow">→</div>
@@ -1256,95 +1804,28 @@
   }
 
   function renderCache(result) {
-    const mappingName = getCacheMappingName(result);
     const selectedEvent = result.events[clamp(state.cache.cursor, 0, result.events.length - 1)];
     const counter = $("#cacheStepCounter");
     if (counter) counter.textContent = `访问 ${selectedEvent.accessIndex + 1} / ${result.events.length}`;
     $("#cacheResult").innerHTML = `
-      <div class="status-good">${escapeHtml(result.explanation)}</div>
-      <div class="cache-fields">
-        <div class="cache-field">
-          <strong>映射</strong>
-          <span>${mappingName}</span>
-        </div>
-        <div class="cache-field">
-          <strong>命中率</strong>
-          <span>${result.hits}/${result.accesses.length} = ${(result.hitRate * 100).toFixed(1)}%</span>
-        </div>
-        <div class="cache-field">
-          <strong>字段位数</strong>
-          <span>Tag ${result.tagBits} / Index ${result.indexBits} / Offset ${result.offsetBits}</span>
-        </div>
+      <div class="${selectedEvent.hit ? "status-good" : "status-warn"}">
+        当前地址 ${formatAddress(selectedEvent.address)}：${selectedEvent.hit ? "命中" : "未命中"}，主存块 ${selectedEvent.blockNumber} → Cache 行 ${selectedEvent.setIndex}。
       </div>
       ${renderCacheStructureDiagram(result, selectedEvent)}
-      <div class="answer-section">
-        <h4>逐步访问过程</h4>
-        ${renderCacheProcessSteps(result, selectedEvent)}
-      </div>
-      <div class="table-wrap" style="margin-top: 12px;">
-        <table>
-          <thead>
-            <tr>
-              <th>#</th><th>地址</th><th>主存块</th><th>组号</th><th>Tag</th><th>Offset</th><th>结果</th><th>动作</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${result.events
-              .map(
-                (event) => `
-                  <tr class="${event.accessIndex === selectedEvent.accessIndex ? "current-row" : event.hit ? "active-row" : ""}">
-                    <td>${event.accessIndex + 1}</td>
-                    <td><code>${formatAddress(event.address)}</code></td>
-                    <td>${event.blockNumber}</td>
-                    <td>${event.setIndex}</td>
-                    <td>${event.tag}</td>
-                    <td>${event.offset}</td>
-                    <td>${event.hit ? "命中" : "未命中"}</td>
-                    <td>${escapeHtml(event.action)}</td>
-                  </tr>
-                `
-              )
-              .join("")}
-          </tbody>
-        </table>
-      </div>
-      <div class="table-wrap" style="margin-top: 12px;">
-        <table>
-          <thead>
-            <tr><th>组</th><th>路</th><th>有效位</th><th>Tag</th><th>主存块</th><th>访问次数</th><th>最近访问</th></tr>
-          </thead>
-          <tbody>
-            ${result.rows
-              .map(
-                (row) => `
-                  <tr>
-                    <td>${row.set}</td>
-                    <td>${row.way}</td>
-                    <td>${row.valid ? 1 : 0}</td>
-                    <td>${escapeHtml(row.tag)}</td>
-                    <td>${escapeHtml(row.block)}</td>
-                    <td>${row.frequency}</td>
-                    <td>${row.lastUsed || "-"}</td>
-                  </tr>
-                `
-              )
-              .join("")}
-          </tbody>
-        </table>
-      </div>
     `;
   }
 
   function runCache() {
+    stopCacheAuto();
     try {
       const result = core.simulateCacheSystem({
-        accesses: $("#cacheAccesses").value,
-        addressBits: $("#cacheAddressBits").value,
-        lines: $("#cacheLines").value,
-        blockSize: $("#cacheBlockSize").value,
-        mapping: $("#cacheMapping").value,
-        associativity: $("#cacheAssociativity").value,
-        replacement: $("#cacheReplacement").value,
+        accesses: $("#cacheAccesses").value || DEFAULT_CACHE_CONFIG.accesses,
+        addressBits: DEFAULT_CACHE_CONFIG.addressBits,
+        lines: DEFAULT_CACHE_CONFIG.lines,
+        blockSize: DEFAULT_CACHE_CONFIG.blockSize,
+        mapping: "direct",
+        associativity: DEFAULT_CACHE_CONFIG.associativity,
+        replacement: "lru",
       });
       state.cache.result = result;
       state.cache.cursor = 0;
@@ -1364,6 +1845,41 @@
     }
     state.cache.cursor = clamp(state.cache.cursor + delta, 0, state.cache.result.events.length - 1);
     renderCache(state.cache.result);
+    if (state.cache.cursor >= state.cache.result.events.length - 1) stopCacheAuto();
+  }
+
+  function resetCache() {
+    stopCacheAuto();
+    if (!state.cache.result) {
+      runCache();
+      return;
+    }
+    state.cache.cursor = 0;
+    renderCache(state.cache.result);
+  }
+
+  function stopCacheAuto() {
+    stopStepTimer("cache", "#cacheAuto", "一键演示");
+  }
+
+  function toggleCacheAuto() {
+    if (state.cache.timer) {
+      stopCacheAuto();
+      return;
+    }
+    runCache();
+    if (!state.cache.result || state.cache.result.events.length <= 1) return;
+    toggleStepTimer(
+      "cache",
+      "#cacheAuto",
+      "一键演示",
+      "暂停演示",
+      () => stepCache(1),
+      () => !state.cache.result || state.cache.cursor >= state.cache.result.events.length - 1
+    );
+    window.setTimeout(() => {
+      if (state.cache.timer) stepCache(1);
+    }, 250);
   }
 
   function getVmModeName(mode) {
@@ -1436,24 +1952,24 @@
       <div class="mapping-diagram vm-diagram">
         <div class="diagram-title">
           <strong>页表映射结构图</strong>
-          <span>逻辑地址拆成页号和页内偏移，页表给出页框号，再与偏移拼接成物理地址。</span>
+          <span>页面访问先查页框；命中则直接访问，缺页则按置换算法装入页框。</span>
         </div>
         <div class="diagram-flow">
-          <div class="diagram-node source-node"><strong>逻辑地址</strong><span>${result.logicalAddress}</span></div>
+          <div class="diagram-node source-node"><strong>访问页</strong><span>页 ${selectedEvent ? selectedEvent.page : result.page}</span></div>
           <div class="diagram-arrow">→</div>
           <div class="diagram-node field-node">
             <strong>地址拆分</strong>
             ${renderBitFields([
-              { label: "Page Number", bits: Math.max(1, Math.ceil(Math.log2(result.page + 1 || 1))), hint: `页号 ${result.page}` },
-              { label: "Page Offset", bits: Math.log2(result.pageSize), hint: `页内偏移 ${result.offset}` },
+              { label: "Page Number", bits: Math.max(1, Math.ceil(Math.log2((selectedEvent ? selectedEvent.page : result.page) + 1 || 1))), hint: `页号 ${selectedEvent ? selectedEvent.page : result.page}` },
+              { label: "Page Offset", bits: Math.log2(result.pageSize), hint: `页大小 ${result.pageSize}B` },
             ])}
           </div>
           <div class="diagram-arrow">→</div>
-          <div class="diagram-node"><strong>页表 / TLB</strong><span>${result.residentFrame === null ? "页不在内存，触发缺页" : `页 ${result.page} → 页框 ${result.residentFrame}`}</span></div>
+          <div class="diagram-node"><strong>页表 / 页框</strong><span>${selectedEvent ? `页 ${selectedEvent.page} → 页框 ${selectedEvent.frame}` : result.residentFrame === null ? "页不在内存，触发缺页" : `页 ${result.page} → 页框 ${result.residentFrame}`}</span></div>
           <div class="diagram-arrow">→</div>
-          <div class="diagram-node ${result.physicalAddress === null ? "danger" : "success"}"><strong>${result.physicalAddress === null ? "缺页" : "物理地址"}</strong><span>${result.physicalAddress === null ? "需要页面置换" : result.physicalAddress}</span></div>
+          <div class="diagram-node ${selectedEvent ? selectedEvent.hit ? "success" : "danger" : result.physicalAddress === null ? "danger" : "success"}"><strong>${selectedEvent ? selectedEvent.hit ? "命中" : "缺页" : result.physicalAddress === null ? "缺页" : "物理地址"}</strong><span>${selectedEvent ? selectedEvent.hit ? "直接访问" : selectedEvent.evicted === null ? "装入空页框" : `替换页 ${selectedEvent.evicted}` : result.physicalAddress === null ? "需要页面置换" : result.physicalAddress}</span></div>
         </div>
-        <div class="diagram-callout">${selectedEvent ? `当前置换步骤：访问页 ${selectedEvent.page}，${selectedEvent.hit ? `页已在页框 ${selectedEvent.frame}` : `装入页框 ${selectedEvent.frame}${selectedEvent.evicted === null ? "" : `，替换页 ${selectedEvent.evicted}`}`}。` : "页面访问序列会逐步改变物理页框中的页面。"}</div>
+        <div class="diagram-callout">${selectedEvent ? `当前访问 ${selectedEvent.index + 1}：页 ${selectedEvent.page}，${selectedEvent.hit ? `命中页框 ${selectedEvent.frame}` : `缺页，装入页框 ${selectedEvent.frame}${selectedEvent.evicted === null ? "" : `，替换页 ${selectedEvent.evicted}`}`}。` : "页面访问序列会逐步改变物理页框中的页面。"}</div>
         ${renderFrameGrid(selectedEvent ? selectedEvent.snapshot : result.replacement.frames.map((frame) => frame.page), selectedEvent ? selectedEvent.frame : result.residentFrame)}
       </div>
     `;
@@ -1534,18 +2050,6 @@
       $("#vmResult").innerHTML = `
         <div class="${result.valid ? "status-good" : "status-error"}">${escapeHtml(result.explanation)}</div>
         ${renderVirtualStructureDiagram(result)}
-        <div class="answer-section">
-          <h4>逐步转换过程</h4>
-          ${renderVirtualProcessSteps(result)}
-        </div>
-        <div class="table-wrap" style="margin-top: 12px;">
-          <table>
-            <thead><tr><th>段号</th><th>基址</th><th>段长</th></tr></thead>
-            <tbody>
-              ${result.table.map((row) => `<tr><td>${row.segment}</td><td>${row.base}</td><td>${row.limit}</td></tr>`).join("")}
-            </tbody>
-          </table>
-        </div>
       `;
       return;
     }
@@ -1555,24 +2059,7 @@
       if (counter) counter.textContent = "1 / 1";
       $("#vmResult").innerHTML = `
         <div class="status-good">${escapeHtml(result.explanation)}</div>
-        <div class="cache-fields">
-          <div class="cache-field"><strong>逻辑地址</strong><span>${escapeHtml(result.logicalAddress)}</span></div>
-          <div class="cache-field"><strong>物理地址</strong><span>${result.physicalAddress}</span></div>
-          <div class="cache-field"><strong>映射方式</strong><span>段页式</span></div>
-        </div>
         ${renderVirtualStructureDiagram(result)}
-        <div class="answer-section">
-          <h4>逐步转换过程</h4>
-          ${renderVirtualProcessSteps(result)}
-        </div>
-        <div class="table-wrap" style="margin-top: 12px;">
-          <table>
-            <thead><tr><th>段号</th><th>页号</th><th>页框号</th></tr></thead>
-            <tbody>
-              ${result.table.map((row) => `<tr><td>${row.segment}</td><td>${row.page}</td><td>${row.frame}</td></tr>`).join("")}
-            </tbody>
-          </table>
-        </div>
       `;
       return;
     }
@@ -1582,52 +2069,55 @@
     const counter = $("#vmStepCounter");
     if (counter) counter.textContent = `页面访问 ${selectedEvent.index + 1} / ${replacement.events.length}`;
     $("#vmResult").innerHTML = `
-      <div class="${result.physicalAddress === null ? "status-warn" : "status-good"}">${escapeHtml(result.explanation)}</div>
-      <div class="cache-fields">
-        <div class="cache-field"><strong>逻辑地址拆分</strong><span>页号 ${result.page} / 页内偏移 ${result.offset}</span></div>
-        <div class="cache-field"><strong>缺页率</strong><span>${replacement.faults}/${replacement.references.length} = ${(replacement.faultRate * 100).toFixed(1)}%</span></div>
-        <div class="cache-field"><strong>页面置换</strong><span>${replacement.policy.toUpperCase()}</span></div>
+      <div class="${selectedEvent.hit ? "status-good" : "status-warn"}">
+        当前访问页 ${selectedEvent.page}：${selectedEvent.hit ? `命中页框 ${selectedEvent.frame}` : `缺页，装入页框 ${selectedEvent.frame}${selectedEvent.evicted === null ? "" : `，替换页 ${selectedEvent.evicted}`}`}。
       </div>
       ${renderVirtualStructureDiagram(result, selectedEvent)}
-      <div class="answer-section">
-        <h4>逐步转换与置换过程</h4>
-        ${renderVirtualProcessSteps(result, selectedEvent)}
-      </div>
-      <div class="table-wrap" style="margin-top: 12px;">
-        <table>
-          <thead><tr><th>#</th><th>访问页</th><th>结果</th><th>页框</th><th>页框快照</th><th>动作</th></tr></thead>
-          <tbody>
-            ${replacement.events
-              .map(
-                (event) => `
-                  <tr class="${event.index === selectedEvent.index ? "current-row" : event.hit ? "active-row" : ""}">
-                    <td>${event.index + 1}</td>
-                    <td>${event.page}</td>
-                    <td>${event.hit ? "命中" : "缺页"}</td>
-                    <td>${event.frame}</td>
-                    <td><code>${renderFrameSnapshot(event.snapshot)}</code></td>
-                    <td>${escapeHtml(event.action)}</td>
-                  </tr>
-                `
-              )
-              .join("")}
-          </tbody>
-        </table>
-      </div>
     `;
   }
 
+  function parseVmReferencePages(value) {
+    const tokens = String(value || "").match(/[-+]?0x[0-9a-f]+|[-+]?0b[01]+|[-+]?\d+/gi) || [];
+    return tokens
+      .map((token) => {
+        if (/^[-+]?0x/i.test(token)) {
+          return Number.parseInt(token, 16);
+        }
+        if (/^[-+]?0b/i.test(token)) {
+          const sign = token.startsWith("-") ? -1 : 1;
+          return sign * Number.parseInt(token.replace(/^[-+]?0b/i, ""), 2);
+        }
+        return Number.parseInt(token, 10);
+      })
+      .filter((page) => Number.isInteger(page) && page >= 0);
+  }
+
+  function getDefaultVmLogicalAddress(mode, references) {
+    if (mode === "segmentation") {
+      return DEFAULT_VM_CONFIG.segmentLogicalAddress;
+    }
+    if (mode === "segmented-paging") {
+      return DEFAULT_VM_CONFIG.segmentedPagingLogicalAddress;
+    }
+    const pages = parseVmReferencePages(references);
+    const page = pages.length ? pages[pages.length - 1] : DEFAULT_VM_CONFIG.pagingFallbackPage;
+    return page * DEFAULT_VM_CONFIG.pageSize;
+  }
+
   function runVirtualMemory() {
+    stopVirtualMemoryAuto();
     try {
+      const mode = $("#vmMode").value;
+      const references = $("#vmReferences").value;
       const result = core.simulateVirtualMemory({
-        mode: $("#vmMode").value,
-        logicalAddress: $("#vmLogicalAddress").value,
-        pageSize: $("#vmPageSize").value,
-        frames: $("#vmFrames").value,
+        mode,
+        logicalAddress: getDefaultVmLogicalAddress(mode, references),
+        pageSize: DEFAULT_VM_CONFIG.pageSize,
+        frames: DEFAULT_VM_CONFIG.frames,
         replacement: $("#vmReplacement").value,
-        references: $("#vmReferences").value,
-        segmentTable: $("#vmSegmentTable").value,
-        segmentPageTable: $("#vmSegmentPageTable").value,
+        references,
+        segmentTable: DEFAULT_VM_CONFIG.segmentTable,
+        segmentPageTable: DEFAULT_VM_CONFIG.segmentPageTable,
       });
       state.vm.result = result;
       state.vm.cursor = 0;
@@ -1651,6 +2141,41 @@
     }
     state.vm.cursor = clamp(state.vm.cursor + delta, 0, state.vm.result.replacement.events.length - 1);
     renderVirtualMemory(state.vm.result);
+    if (state.vm.cursor >= state.vm.result.replacement.events.length - 1) stopVirtualMemoryAuto();
+  }
+
+  function resetVirtualMemory() {
+    stopVirtualMemoryAuto();
+    if (!state.vm.result) {
+      runVirtualMemory();
+      return;
+    }
+    state.vm.cursor = 0;
+    renderVirtualMemory(state.vm.result);
+  }
+
+  function stopVirtualMemoryAuto() {
+    stopStepTimer("vm", "#vmAuto", "一键演示");
+  }
+
+  function toggleVirtualMemoryAuto() {
+    if (state.vm.timer) {
+      stopVirtualMemoryAuto();
+      return;
+    }
+    runVirtualMemory();
+    if (!state.vm.result || state.vm.result.mode !== "paging" || state.vm.result.replacement.events.length <= 1) return;
+    toggleStepTimer(
+      "vm",
+      "#vmAuto",
+      "一键演示",
+      "暂停演示",
+      () => stepVirtualMemory(1),
+      () => !state.vm.result || state.vm.result.mode !== "paging" || state.vm.cursor >= state.vm.result.replacement.events.length - 1
+    );
+    window.setTimeout(() => {
+      if (state.vm.timer) stepVirtualMemory(1);
+    }, 250);
   }
 
   function renderDatapathDiagram(frame) {
@@ -2171,6 +2696,1439 @@
     renderAssembly();
   }
 
+  function stopStepTimer(stateKey, buttonSelector, idleText) {
+    const item = state[stateKey];
+    if (item && item.timer) {
+      window.clearInterval(item.timer);
+      item.timer = null;
+    }
+    const button = $(buttonSelector);
+    if (button) button.textContent = idleText;
+  }
+
+  function toggleStepTimer(stateKey, buttonSelector, idleText, activeText, stepForward, isDone) {
+    const item = state[stateKey];
+    if (!item) return;
+    if (item.timer) {
+      stopStepTimer(stateKey, buttonSelector, idleText);
+      return;
+    }
+    const button = $(buttonSelector);
+    if (button) button.textContent = activeText;
+    item.timer = window.setInterval(() => {
+      if (isDone()) {
+        stopStepTimer(stateKey, buttonSelector, idleText);
+        return;
+      }
+      stepForward();
+    }, 900);
+  }
+
+  function normalizeRegisterLabel(value, fallback) {
+    const text = String(value || fallback).trim().toUpperCase();
+    if (!/^[RX][0-9A-Z]+$/.test(text)) {
+      throw new Error("寄存器名建议使用 R1、R2、X1 这类格式");
+    }
+    return text;
+  }
+
+  function readHardwireConfig() {
+    const op = $("#hardwireOp").value;
+    const pc = parseMemoryInteger($("#hardwirePC").value, "PC 初值");
+    const dest = normalizeRegisterLabel($("#hardwireDest").value, "R1");
+    const source = normalizeRegisterLabel($("#hardwireSource").value, "R2");
+    const destValue = parseMemoryInteger($("#hardwireDestValue").value, "目的寄存器初值");
+    const sourceValue = parseMemoryInteger($("#hardwireSourceValue").value, "源寄存器 / 主存值");
+    const address = parseMemoryInteger($("#hardwireAddress").value, "访存地址");
+    const bits = parsePositiveInteger($("#hardwireBits").value, "标志位位宽", 16);
+    if (bits < 2) throw new Error("标志位位宽至少为 2");
+
+    let rawResult = sourceValue;
+    if (op === "ADD") rawResult = destValue + sourceValue;
+    if (op === "SUB") rawResult = destValue - sourceValue;
+    if (op === "MOV") rawResult = sourceValue;
+    const unsignedMask = 2 ** bits - 1;
+    const unsignedResult = rawResult & unsignedMask;
+    const signLimit = 2 ** (bits - 1);
+    const signedResult = unsignedResult >= signLimit ? unsignedResult - 2 ** bits : unsignedResult;
+    const overflow = rawResult < -signLimit || rawResult > signLimit - 1;
+    const carry = op === "ADD" ? destValue + sourceValue > unsignedMask : op === "SUB" ? destValue < sourceValue : false;
+    const instruction = op === "LOAD" ? `${op} ${dest}, [${formatAddress(address)}]` : `${op} ${dest}, ${source}`;
+    return {
+      op,
+      pc,
+      dest,
+      source,
+      destValue,
+      sourceValue,
+      address,
+      bits,
+      instruction,
+      rawResult,
+      resultValue: signedResult,
+      resultBinary: formatBinary(unsignedResult, bits),
+      flags: {
+        Z: signedResult === 0 ? 1 : 0,
+        C: carry ? 1 : 0,
+        V: overflow ? 1 : 0,
+      },
+    };
+  }
+
+  function hardwireState(config, patch = {}) {
+    return {
+      PC: String(config.pc),
+      MAR: "—",
+      MDR: "—",
+      IR: "—",
+      [config.dest]: String(config.destValue),
+      [config.source]: config.op === "LOAD" ? String(config.sourceValue) : String(config.sourceValue),
+      ALU: "—",
+      Z: "—",
+      C: "—",
+      V: "—",
+      ...patch,
+    };
+  }
+
+  function createHardwireSteps(config) {
+    const isLoad = config.op === "LOAD";
+    const operationText = {
+      ADD: `${config.destValue} + ${config.sourceValue}`,
+      SUB: `${config.destValue} - ${config.sourceValue}`,
+      MOV: `${config.source} 的值 ${config.sourceValue}`,
+      LOAD: `M[${formatAddress(config.address)}] 的值 ${config.sourceValue}`,
+    }[config.op];
+    const imName = `Im_${config.op}`;
+    return [
+      {
+        title: "准备：装入初始状态",
+        detail: `主存 ${config.pc} 处存放指令 ${config.instruction}，目标是让 ${config.dest} 得到 ${operationText}。`,
+        active: ["clock"],
+        signals: ["ClockEnable"],
+        inputs: "尚未译码，等待 T0。",
+        formula: "C = f(Im, Bj, Mi, Tk)",
+        state: hardwireState(config),
+      },
+      {
+        title: "T0：PC 输出到 MAR",
+        detail: `时序 T0 有效，控制器产生 PCout 与 MARin，取指地址 ${config.pc} 被送入 MAR。`,
+        active: ["timing", "logic", "datapath", "memory"],
+        signals: ["PCout", "MARin"],
+        inputs: "Tk=T0，Im 尚未知，状态反馈暂不参与。",
+        formula: "PCout = T0；MARin = T0",
+        state: hardwireState(config, { MAR: String(config.pc) }),
+      },
+      {
+        title: "T1：读取指令",
+        detail: `控制信号 MemRead 与 MDRin 有效，主存把 ${config.instruction} 送入 MDR，PC 准备顺序加 1。`,
+        active: ["timing", "logic", "memory", "datapath"],
+        signals: ["MemRead", "MDRin", "PC+1"],
+        inputs: "Tk=T1，取指周期 M1 有效。",
+        formula: "MemRead = M1；MDRin = T1",
+        state: hardwireState(config, { MAR: String(config.pc), MDR: config.instruction, PC: String(config.pc + 1) }),
+      },
+      {
+        title: "T2：MDR 装入 IR",
+        detail: "MDRout 与 IRin 有效，当前指令被锁存在 IR 中，后续可由操作码译码器识别。",
+        active: ["timing", "logic", "ir", "datapath"],
+        signals: ["MDRout", "IRin"],
+        inputs: "Tk=T2，IR 准备接收指令字。",
+        formula: "IRin = T2",
+        state: hardwireState(config, { PC: String(config.pc + 1), MAR: String(config.pc), MDR: config.instruction, IR: config.instruction }),
+      },
+      {
+        title: `T3：译码得到 ${imName}=1`,
+        detail: `操作码译码器识别出 ${config.op} 指令，向控制信号形成部件输出 ${imName}=1。`,
+        active: ["timing", "ir", "decoder", "logic"],
+        signals: ["Decode", imName],
+        inputs: `Im=${imName}=1；Bj 暂不参与；Tk=T3。`,
+        formula: `${imName} = Decoder(IR.opcode)`,
+        state: hardwireState(config, { PC: String(config.pc + 1), MAR: String(config.pc), MDR: config.instruction, IR: config.instruction }),
+      },
+      {
+        title: isLoad ? "T4：形成有效地址" : "T4：选通操作数",
+        detail: isLoad
+          ? `控制器选通地址字段，把 ${formatAddress(config.address)} 送入地址通路，为读取数据做准备。`
+          : `${config.dest} 与 ${config.source} 被选通到内部总线，操作数 ${config.destValue} 和 ${config.sourceValue} 进入执行部件。`,
+        active: ["timing", "decoder", "logic", "datapath", isLoad ? "memory" : "alu"],
+        signals: isLoad ? ["AddressOut", "MARin", "RD(D)"] : [`${config.dest}out`, `${config.source}out`, "Ain", "Bin"],
+        inputs: `Im=${imName}=1；Tk=T4。`,
+        formula: isLoad ? `RD(D) = ${imName} · T4` : `OperandSelect = ${imName} · T4`,
+        state: hardwireState(config, {
+          PC: String(config.pc + 1),
+          MAR: isLoad ? formatAddress(config.address) : String(config.pc),
+          MDR: config.instruction,
+          IR: config.instruction,
+          ALU: isLoad ? "地址就绪" : `A=${config.destValue}, B=${config.sourceValue}`,
+        }),
+      },
+      {
+        title: isLoad ? "T5：数据存储器返回数据" : "T5：执行部件产生结果与标志",
+        detail: isLoad
+          ? `数据存储器把 ${formatAddress(config.address)} 中的数据 ${config.sourceValue} 返回到 MDR。`
+          : `执行 ${operationText}，得到 ${config.rawResult}；按 ${config.bits} 位机器结果为 ${config.resultValue}，标志 Z=${config.flags.Z}、C=${config.flags.C}、V=${config.flags.V}。`,
+        active: ["timing", "decoder", "logic", "alu", "flags", isLoad ? "memory" : "datapath"],
+        signals: isLoad ? ["MemRead", "MDRin"] : [`ALU_${config.op}`, "FlagWrite"],
+        inputs: `Im=${imName}=1；Tk=T5；Bj 将由执行部件反馈。`,
+        formula: isLoad ? `MDRin = ${imName} · T5` : `ALU_${config.op} = ${imName} · T5`,
+        state: hardwireState(config, {
+          PC: String(config.pc + 1),
+          MAR: isLoad ? formatAddress(config.address) : String(config.pc),
+          MDR: isLoad ? String(config.sourceValue) : config.instruction,
+          IR: config.instruction,
+          ALU: isLoad ? "—" : `${config.rawResult} → ${config.resultBinary}`,
+          Z: String(config.flags.Z),
+          C: String(config.flags.C),
+          V: String(config.flags.V),
+        }),
+      },
+      {
+        title: `T6：结果写回 ${config.dest}`,
+        detail: `${config.dest}in 有效，${config.op} 的结果 ${config.resultValue} 写回 ${config.dest}，本条指令执行完成。`,
+        active: ["timing", "decoder", "logic", "datapath", "flags"],
+        signals: [`${config.dest}in`, "CycleEnd"],
+        inputs: `Im=${imName}=1；Tk=T6；写回控制信号有效。`,
+        formula: `${config.dest}in = ${imName} · T6`,
+        state: hardwireState(config, {
+          PC: String(config.pc + 1),
+          MAR: isLoad ? formatAddress(config.address) : String(config.pc),
+          MDR: isLoad ? String(config.sourceValue) : config.instruction,
+          IR: config.instruction,
+          [config.dest]: String(config.resultValue),
+          ALU: isLoad ? "—" : `${config.rawResult} → ${config.resultBinary}`,
+          Z: String(config.flags.Z),
+          C: String(config.flags.C),
+          V: String(config.flags.V),
+        }),
+      },
+    ];
+  }
+
+  function runHardwireSimulation() {
+    stopStepTimer("hardwire", "#hardwireAuto", "自动演示");
+    try {
+      const config = readHardwireConfig();
+      state.hardwire.result = {
+        config,
+        steps: createHardwireSteps(config),
+      };
+      state.hardwire.cursor = 0;
+      renderHardwireSimulation();
+    } catch (error) {
+      state.hardwire.result = null;
+      $("#hardwireStepCounter").textContent = "输入有误";
+      $("#hardwireResult").innerHTML = `<div class="status-error">${escapeHtml(error.message)}</div>`;
+    }
+  }
+
+  function renderHardwireSimulation() {
+    const result = state.hardwire.result;
+    if (!result) {
+      $("#hardwireResult").innerHTML = `<div class="empty-state">点击“生成控制流程”后查看硬布线控制器逐拍过程。</div>`;
+      return;
+    }
+    const steps = result.steps;
+    const index = clamp(state.hardwire.cursor, 0, steps.length - 1);
+    const step = steps[index];
+    $("#hardwireStepCounter").textContent = `第 ${index + 1} / ${steps.length} 步`;
+    const modules = [
+      ["clock", "主振/启停", "提供基础时钟"],
+      ["timing", "时序发生器", "产生 T0、T1..."],
+      ["ir", "IR", "保存当前指令"],
+      ["decoder", "操作码译码器", "输出 Im"],
+      ["flags", "状态反馈", "Z / C / V"],
+      ["logic", "控制信号形成", "C=f(Im,Bj,Tk)"],
+      ["datapath", "寄存器/总线", "内部数据传送"],
+      ["alu", "ALU", "运算并产生标志"],
+      ["memory", "主存/接口", "指令或数据读写"],
+    ];
+    const signalList = Array.from(new Set(steps.flatMap((item) => item.signals))).sort();
+    $("#hardwireResult").innerHTML = `
+      <div class="memory-stage-card focus-card">
+        <span>当前看这里</span>
+        <h4>${escapeHtml(step.title)}</h4>
+        <p>${escapeHtml(step.detail)}</p>
+      </div>
+      <div class="hardware-sim-grid">
+        ${renderLearningStepper(steps.map((item) => ({ title: item.title, detail: item.formula })), index, "hardware-stepper")}
+        <div class="hardware-board">
+          <div class="hardware-module-grid">
+            ${modules
+              .map(([id, title, detail]) => `
+                <div class="hardware-module ${step.active.includes(id) ? "active" : ""} ${id === "logic" ? "core" : ""}">
+                  <strong>${escapeHtml(title)}</strong>
+                  <span>${escapeHtml(detail)}</span>
+                </div>
+              `)
+              .join("")}
+          </div>
+          <div class="control-equation">
+            <strong>输入条件</strong>
+            <span>${escapeHtml(step.inputs)}</span>
+            <code>${escapeHtml(step.formula)}</code>
+          </div>
+        </div>
+        <div class="hardware-side">
+          <div class="mini-state-grid">
+            ${Object.entries(step.state)
+              .map(([name, value]) => `<div><strong>${escapeHtml(name)}</strong><span>${escapeHtml(value)}</span></div>`)
+              .join("")}
+          </div>
+          <div class="signal-board compact">
+            ${signalList
+              .map((signal) => `
+                <div class="signal-chip ${step.signals.includes(signal) ? "active" : ""}">
+                  <strong>${escapeHtml(signal)}</strong>
+                  <span>${step.signals.includes(signal) ? "有效" : "无效"}</span>
+                </div>
+              `)
+              .join("")}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function stepHardwireSimulation(delta) {
+    if (!state.hardwire.result) {
+      runHardwireSimulation();
+      return;
+    }
+    const max = state.hardwire.result.steps.length - 1;
+    state.hardwire.cursor = clamp(state.hardwire.cursor + delta, 0, max);
+    renderHardwireSimulation();
+    if (state.hardwire.cursor === max) stopStepTimer("hardwire", "#hardwireAuto", "自动演示");
+  }
+
+  function resetHardwireSimulation() {
+    stopStepTimer("hardwire", "#hardwireAuto", "自动演示");
+    state.hardwire.cursor = 0;
+    renderHardwireSimulation();
+  }
+
+  function toggleHardwireAuto() {
+    if (!state.hardwire.result) runHardwireSimulation();
+    toggleStepTimer(
+      "hardwire",
+      "#hardwireAuto",
+      "自动演示",
+      "暂停演示",
+      () => stepHardwireSimulation(1),
+      () => !state.hardwire.result || state.hardwire.cursor >= state.hardwire.result.steps.length - 1
+    );
+  }
+
+  function parseControlTerms() {
+    const lines = String($("#controlTerms").value || "")
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line && !line.startsWith("#"));
+    if (!lines.length) throw new Error("触发表不能为空");
+    const bySignal = new Map();
+    lines.forEach((line, index) => {
+      const parts = line.split("|").map((part) => part.trim());
+      if (parts.length < 5) {
+        throw new Error(`第 ${index + 1} 行格式应为：信号 | 机器周期 | 节拍 | 指令 | 说明`);
+      }
+      const [name, machine, tick, op, reason] = parts;
+      if (!name || !machine || !op) throw new Error(`第 ${index + 1} 行缺少信号、机器周期或指令条件`);
+      const normalizedTick = tick === "-" ? "" : tick;
+      const opExpr = op === "ALL" ? "" : op.includes("+") ? `(${op})` : op;
+      const expr = [machine, normalizedTick, opExpr].filter(Boolean).join("·") || "1";
+      const term = {
+        name,
+        machine,
+        tick: normalizedTick,
+        op,
+        reason,
+        expr,
+        type: normalizedTick ? "脉冲/装载信号" : "电位信号",
+      };
+      if (!bySignal.has(name)) bySignal.set(name, []);
+      bySignal.get(name).push(term);
+    });
+    return bySignal;
+  }
+
+  function updateControlSignalOptions(bySignal, preferred) {
+    const select = $("#controlSignalSelect");
+    if (!select) return "";
+    const names = Array.from(bySignal.keys());
+    const current = preferred || select.value || names[0] || "";
+    select.innerHTML = names.map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("");
+    select.value = names.includes(current) ? current : names[0] || "";
+    return select.value;
+  }
+
+  function runControlExpressionSimulation(preferredSignal) {
+    try {
+      const bySignal = parseControlTerms();
+      const selected = updateControlSignalOptions(bySignal, preferredSignal);
+      const terms = bySignal.get(selected) || [];
+      const formula = terms.map((term) => term.expr).join(" + ");
+      const steps = [
+        {
+          title: "定位控制信号",
+          detail: `当前推导 ${selected}。先从触发表中找出它出现的所有微操作位置。`,
+          terms: [],
+        },
+        ...terms.map((term, index) => ({
+          title: `触发项 ${index + 1}：${term.expr}`,
+          detail: term.reason,
+          term,
+          terms: terms.slice(0, index + 1),
+        })),
+        {
+          title: `得到完整表达式：${selected} = ${formula || "0"}`,
+          detail: "同一触发场景内的机器周期、节拍和指令条件相与；同一信号的多个来源相或。",
+          terms,
+          final: true,
+        },
+      ];
+      state.control.result = {
+        selected,
+        bySignal,
+        terms,
+        formula,
+        steps,
+        tickCount: parsePositiveInteger($("#controlTicks").value, "默认节拍数", 8),
+      };
+      state.control.cursor = 0;
+      renderControlExpressionSimulation();
+    } catch (error) {
+      state.control.result = null;
+      $("#controlStepCounter").textContent = "输入有误";
+      $("#controlExpressionResult").innerHTML = `<div class="status-error">${escapeHtml(error.message)}</div>`;
+    }
+  }
+
+  function renderControlExpressionSimulation() {
+    const result = state.control.result;
+    if (!result) {
+      $("#controlExpressionResult").innerHTML = `<div class="empty-state">点击“推导表达式”后查看控制信号条件如何逐项合成。</div>`;
+      return;
+    }
+    const steps = result.steps;
+    const index = clamp(state.control.cursor, 0, steps.length - 1);
+    const step = steps[index];
+    $("#controlStepCounter").textContent = `第 ${index + 1} / ${steps.length} 步`;
+    const machines = Array.from(new Set(Array.from(result.bySignal.values()).flat().map((term) => term.machine))).sort();
+    const ticks = Array.from({ length: result.tickCount }, (_, itemIndex) => `T${itemIndex + 1}`);
+    const activeTerms = step.terms || [];
+    const activeCells = new Set(activeTerms.filter((term) => term.tick).map((term) => `${term.machine}-${term.tick}`));
+    const activeMachines = new Set(activeTerms.filter((term) => !term.tick).map((term) => term.machine));
+    const selectedTerm = step.term || activeTerms[activeTerms.length - 1];
+    const expression = activeTerms.length
+      ? activeTerms.map((term) => term.expr).join(" + ")
+      : "等待选择触发项";
+
+    $("#controlExpressionResult").innerHTML = `
+      <div class="memory-stage-card focus-card">
+        <span>当前看这里</span>
+        <h4>${escapeHtml(step.title)}</h4>
+        <p>${escapeHtml(step.detail)}</p>
+      </div>
+      <div class="control-expression-grid">
+        ${renderLearningStepper(steps.map((item) => ({ title: item.title, detail: item.final ? result.formula : item.detail })), index, "control-stepper")}
+        <div class="formula-workbench">
+          <div class="formula-display-line">
+            <span>${escapeHtml(result.selected)}</span>
+            <strong>=</strong>
+            <code>${escapeHtml(expression)}</code>
+          </div>
+          <div class="condition-matrix">
+            <div class="matrix-head">M/T</div>
+            ${ticks.map((tick) => `<div class="matrix-head">${escapeHtml(tick)}</div>`).join("")}
+            ${machines
+              .map((machine) => `
+                <div class="matrix-head machine">${escapeHtml(machine)}</div>
+                ${ticks
+                  .map((tick) => {
+                    const active = activeCells.has(`${machine}-${tick}`);
+                    const level = activeMachines.has(machine);
+                    return `<div class="matrix-cell ${active ? "active" : ""} ${level ? "level" : ""}">${level ? "全周期" : active ? "触发" : ""}</div>`;
+                  })
+                  .join("")}
+              `)
+              .join("")}
+          </div>
+          <div class="signal-board compact">
+            ${result.terms
+              .map((term) => `
+                <div class="signal-chip ${activeTerms.includes(term) ? "active" : ""}">
+                  <strong>${escapeHtml(term.expr)}</strong>
+                  <span>${escapeHtml(term.op)} · ${escapeHtml(term.type)}</span>
+                </div>
+              `)
+              .join("")}
+          </div>
+        </div>
+        <div class="control-side">
+          <div class="memory-stage-card">
+            <h4>信号类型</h4>
+            <p>${escapeHtml(selectedTerm ? selectedTerm.type : "尚未选择触发项")}</p>
+          </div>
+          <div class="memory-stage-card">
+            <h4>触发原因</h4>
+            <p>${escapeHtml(selectedTerm ? selectedTerm.reason : "先读取触发表，再逐项合成表达式。")}</p>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>信号</th><th>表达式</th></tr></thead>
+              <tbody>
+                ${Array.from(result.bySignal.entries())
+                  .map(([name, terms]) => `
+                    <tr class="${name === result.selected ? "current-row" : ""}">
+                      <td>${escapeHtml(name)}</td>
+                      <td><code>${escapeHtml(terms.map((term) => term.expr).join(" + "))}</code></td>
+                    </tr>
+                  `)
+                  .join("")}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function stepControlExpression(delta) {
+    if (!state.control.result) {
+      runControlExpressionSimulation();
+      return;
+    }
+    state.control.cursor = clamp(state.control.cursor + delta, 0, state.control.result.steps.length - 1);
+    renderControlExpressionSimulation();
+  }
+
+  function showFullControlExpression() {
+    if (!state.control.result) runControlExpressionSimulation();
+    if (!state.control.result) return;
+    state.control.cursor = state.control.result.steps.length - 1;
+    renderControlExpressionSimulation();
+  }
+
+  function readBusTransactionConfig() {
+    const operation = $("#busOperation").value;
+    const address = String($("#busAddress").value || "").trim() || "0x00";
+    const data = String($("#busData").value || "").trim() || "00000000";
+    const deviceName = String($("#busDeviceName").value || "").trim() || "I/O 设备";
+    return { operation, address, data, deviceName };
+  }
+
+  function createBusTransactionSteps(config) {
+    const targetName = config.operation.includes("io") || config.operation === "interrupt" ? config.deviceName : "主存";
+    const common = {
+      addressToTarget: {
+        lane: "address",
+        from: "CPU",
+        to: targetName,
+        title: `CPU 给出${config.operation.includes("io") ? "端口" : "主存"}地址`,
+        detail: `地址总线携带 ${config.address}，用于选择本次访问目标。`,
+        payload: config.address,
+      },
+      readControl: {
+        lane: "control",
+        from: "CPU",
+        to: targetName,
+        title: "CPU 发出读控制命令",
+        detail: "控制总线说明当前事务是读取，目标设备应驱动数据总线返回数据。",
+        payload: config.operation.includes("io") ? "I/O READ" : "READ",
+      },
+      writeControl: {
+        lane: "control",
+        from: "CPU",
+        to: targetName,
+        title: "CPU 发出写控制命令",
+        detail: "控制总线通知目标锁存数据总线上的值并完成写入。",
+        payload: "WRITE",
+      },
+    };
+    if (config.operation === "write-memory") {
+      return [
+        common.addressToTarget,
+        {
+          lane: "data",
+          from: "CPU",
+          to: "主存",
+          title: "CPU 放置待写数据",
+          detail: `数据总线携带 ${config.data}，方向为 CPU 到主存。`,
+          payload: config.data,
+        },
+        common.writeControl,
+        {
+          lane: "complete",
+          from: "主存",
+          to: "CPU",
+          title: "写入完成",
+          detail: `主存单元 ${config.address} 已保存 ${config.data}。`,
+          payload: "ACK",
+        },
+      ];
+    }
+    if (config.operation === "read-io") {
+      return [
+        common.addressToTarget,
+        common.readControl,
+        {
+          lane: "data",
+          from: config.deviceName,
+          to: "CPU",
+          title: "I/O 设备返回数据",
+          detail: `${config.deviceName} 把 ${config.data} 放到数据总线上送回 CPU。`,
+          payload: config.data,
+        },
+      ];
+    }
+    if (config.operation === "interrupt") {
+      return [
+        {
+          lane: "control",
+          from: config.deviceName,
+          to: "CPU",
+          title: "I/O 发出中断请求",
+          detail: `${config.deviceName} 通过控制线 IRQ 请求 CPU 服务。`,
+          payload: "IRQ",
+        },
+        {
+          lane: "control",
+          from: "CPU",
+          to: config.deviceName,
+          title: "CPU 返回中断响应",
+          detail: "CPU 确认中断并准备读取中断向量或设备状态。",
+          payload: "INTA",
+        },
+        {
+          lane: "data",
+          from: config.deviceName,
+          to: "CPU",
+          title: "设备提供中断信息",
+          detail: `数据总线携带中断向量 / 状态值 ${config.data}。`,
+          payload: config.data,
+        },
+      ];
+    }
+    return [
+      common.addressToTarget,
+      common.readControl,
+      {
+        lane: "data",
+        from: "主存",
+        to: "CPU",
+        title: "主存返回数据",
+        detail: `数据总线携带 ${config.data}，方向为主存到 CPU。`,
+        payload: config.data,
+      },
+    ];
+  }
+
+  function runBusTransaction() {
+    stopStepTimer("bus", "#busAuto", "自动演示");
+    try {
+      const config = readBusTransactionConfig();
+      state.bus.result = {
+        config,
+        steps: createBusTransactionSteps(config),
+      };
+      state.bus.cursor = 0;
+      renderBusTransaction();
+    } catch (error) {
+      state.bus.result = null;
+      $("#busStepCounter").textContent = "输入有误";
+      $("#busTransactionResult").innerHTML = `<div class="status-error">${escapeHtml(error.message)}</div>`;
+    }
+  }
+
+  function renderBusTransaction() {
+    const result = state.bus.result;
+    if (!result) {
+      $("#busTransactionResult").innerHTML = `<div class="empty-state">点击“生成事务”后逐步观察地址、数据、控制三类总线。</div>`;
+      return;
+    }
+    const steps = result.steps;
+    const index = clamp(state.bus.cursor, 0, steps.length - 1);
+    const step = steps[index];
+    $("#busStepCounter").textContent = `第 ${index + 1} / ${steps.length} 步`;
+    const lanes = [
+      ["address", "地址总线", "CPU → 目标", "去哪里"],
+      ["data", "数据总线", "双向", "传什么"],
+      ["control", "控制总线", "按信号而定", "怎么做"],
+    ];
+    const nodes = ["CPU", "主存", result.config.deviceName];
+    $("#busTransactionResult").innerHTML = `
+      <div class="memory-stage-card focus-card">
+        <span>当前看这里</span>
+        <h4>${escapeHtml(step.title)}</h4>
+        <p>${escapeHtml(step.detail)}</p>
+      </div>
+      <div class="bus-lab-grid">
+        ${renderLearningStepper(steps.map((item) => ({ title: item.title, detail: `${item.from} → ${item.to}` })), index, "bus-stepper")}
+        <div class="bus-canvas">
+          <div class="bus-node-row">
+            ${nodes
+              .map((node) => `
+                <div class="bus-node ${step.from === node || step.to === node ? "active" : ""}">
+                  <strong>${escapeHtml(node)}</strong>
+                  <span>${node === "CPU" ? "发起/响应事务" : node === "主存" ? "存放指令和数据" : "外设或接口"}</span>
+                </div>
+              `)
+              .join("")}
+          </div>
+          <div class="bus-lane-stack">
+            ${lanes
+              .map(([id, name, direction, question]) => `
+                <div class="bus-lane-card ${id} ${step.lane === id ? "active" : ""}">
+                  <strong>${escapeHtml(name)}</strong>
+                  <span>${escapeHtml(question)} · ${escapeHtml(direction)}</span>
+                  ${step.lane === id ? `<code>${escapeHtml(step.payload)}</code>` : ""}
+                </div>
+              `)
+              .join("")}
+          </div>
+          <div class="bus-packet ${step.lane}">
+            <span>${escapeHtml(step.from)}</span>
+            <strong>${escapeHtml(step.payload)}</strong>
+            <span>${escapeHtml(step.to)}</span>
+          </div>
+        </div>
+        <div class="signal-board compact">
+          ${steps
+            .map((item, itemIndex) => `
+              <div class="signal-chip ${itemIndex === index ? "active" : itemIndex < index ? "done" : ""}">
+                <strong>${escapeHtml(item.lane === "complete" ? "ACK" : item.lane.toUpperCase())}</strong>
+                <span>${escapeHtml(item.payload)}</span>
+              </div>
+            `)
+            .join("")}
+        </div>
+      </div>
+    `;
+  }
+
+  function stepBusTransaction(delta) {
+    if (!state.bus.result) {
+      runBusTransaction();
+      return;
+    }
+    const max = state.bus.result.steps.length - 1;
+    state.bus.cursor = clamp(state.bus.cursor + delta, 0, max);
+    renderBusTransaction();
+    if (state.bus.cursor === max) stopStepTimer("bus", "#busAuto", "自动演示");
+  }
+
+  function resetBusTransaction() {
+    stopStepTimer("bus", "#busAuto", "自动演示");
+    state.bus.cursor = 0;
+    renderBusTransaction();
+  }
+
+  function toggleBusAuto() {
+    if (!state.bus.result) runBusTransaction();
+    toggleStepTimer(
+      "bus",
+      "#busAuto",
+      "自动演示",
+      "暂停演示",
+      () => stepBusTransaction(1),
+      () => !state.bus.result || state.bus.cursor >= state.bus.result.steps.length - 1
+    );
+  }
+
+  function parseArbitrationDevices() {
+    const lines = String($("#arbDevices").value || "")
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+    if (!lines.length) throw new Error("主设备列表不能为空");
+    const devices = lines.map((line, index) => {
+      const parts = line.split(",").map((part) => part.trim());
+      if (parts.length < 3) throw new Error(`第 ${index + 1} 行应为：名称,优先级,仲裁号`);
+      const priority = Number.parseInt(parts[1], 10);
+      if (!Number.isInteger(priority)) throw new Error(`第 ${index + 1} 行优先级必须是整数`);
+      if (!/^[01]+$/.test(parts[2])) throw new Error(`第 ${index + 1} 行仲裁号必须是二进制串`);
+      return {
+        id: parts[0],
+        name: parts[0],
+        priority,
+        code: parts[2],
+        order: index,
+      };
+    });
+    const names = new Set(devices.map((device) => device.name));
+    if (names.size !== devices.length) throw new Error("主设备名称不能重复");
+    return devices;
+  }
+
+  function parseArbitrationRequests(devices) {
+    const names = String($("#arbRequests").value || "")
+      .split(/[,\s，、]+/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+    const known = new Set(devices.map((device) => device.name));
+    const requests = names.filter((name) => known.has(name));
+    if (!requests.length) {
+      return devices.slice(0, Math.min(2, devices.length)).map((device) => device.name);
+    }
+    return Array.from(new Set(requests));
+  }
+
+  function createArbitrationSteps(config) {
+    const requested = new Set(config.requests);
+    const devices = config.devices;
+    const requestText = config.requests.join("、");
+    const steps = [
+      {
+        title: "设备提出总线请求",
+        detail: `${requestText} 正在请求共享总线。仲裁器必须保证同一时刻只有一个主设备获得授权。`,
+        active: config.requests,
+        probed: [],
+        eliminated: [],
+        winner: "",
+      },
+    ];
+
+    const byPriority = [...devices]
+      .filter((device) => requested.has(device.name))
+      .sort((left, right) => right.priority - left.priority || left.order - right.order);
+
+    if (config.mode === "chain") {
+      steps.push({
+        title: "中央仲裁器发出 BG",
+        detail: "授权信号从链首设备开始逐级传递，未请求者继续向后传。",
+        active: config.requests,
+        probed: [],
+        eliminated: [],
+        winner: "",
+      });
+      let winner = "";
+      const probed = [];
+      for (const device of devices) {
+        probed.push(device.name);
+        if (requested.has(device.name)) {
+          winner = device.name;
+          steps.push({
+            title: `BG 到达 ${device.name} 并停止`,
+            detail: `${device.name} 正在请求总线，因此截断授权并成为本轮获胜者。后面的请求设备必须等待下一轮。`,
+            active: config.requests,
+            probed: [...probed],
+            eliminated: devices.slice(device.order + 1).filter((item) => requested.has(item.name)).map((item) => item.name),
+            winner,
+          });
+          break;
+        }
+        steps.push({
+          title: `${device.name} 未请求，继续传递`,
+          detail: `${device.name} 没有请求总线，BG 沿链路传给下一个设备。`,
+          active: config.requests,
+          probed: [...probed],
+          eliminated: [],
+          winner: "",
+        });
+      }
+      return steps;
+    }
+
+    if (config.mode === "counter") {
+      const start = clamp(config.counterStart, 0, devices.length - 1);
+      steps.push({
+        title: `计数器从地址 ${start} 开始查询`,
+        detail: "仲裁器逐个广播设备编号，匹配到正在请求的设备时停止计数。",
+        active: config.requests,
+        probed: [],
+        eliminated: [],
+        winner: "",
+        counter: start,
+      });
+      const probed = [];
+      for (let offset = 0; offset < devices.length; offset += 1) {
+        const index = (start + offset) % devices.length;
+        const device = devices[index];
+        probed.push(device.name);
+        if (requested.has(device.name)) {
+          steps.push({
+            title: `查询命中 ${device.name}`,
+            detail: `广播地址 ${index} 与 ${device.name} 匹配，且该设备正在请求总线，因此获得授权。`,
+            active: config.requests,
+            probed: [...probed],
+            eliminated: config.requests.filter((name) => name !== device.name),
+            winner: device.name,
+            counter: index,
+          });
+          break;
+        }
+        steps.push({
+          title: `地址 ${index}：${device.name} 未请求`,
+          detail: "本地址没有命中请求设备，计数器继续向后扫描。",
+          active: config.requests,
+          probed: [...probed],
+          eliminated: [],
+          winner: "",
+          counter: index,
+        });
+      }
+      return steps;
+    }
+
+    if (config.mode === "parallel") {
+      const ordered = config.priorityRule === "round"
+        ? [...byPriority].sort((left, right) => {
+            const leftDistance = (left.order - state.arbitration.roundPointer + devices.length) % devices.length;
+            const rightDistance = (right.order - state.arbitration.roundPointer + devices.length) % devices.length;
+            return leftDistance - rightDistance;
+          })
+        : byPriority;
+      const winner = ordered[0] ? ordered[0].name : "";
+      steps.push({
+        title: "独立请求线并行进入仲裁器",
+        detail: "每个设备拥有独立 REQ 线，仲裁器一次性看到全部请求。",
+        active: config.requests,
+        probed: config.requests,
+        eliminated: [],
+        winner: "",
+      });
+      steps.push({
+        title: `${winner} 获得独立授权线 GNT`,
+        detail: config.priorityRule === "round"
+          ? "循环优先从上次获胜者之后开始扫描，减少长期饥饿。"
+          : "固定优先级编码器选择优先级最高的请求设备。",
+        active: config.requests,
+        probed: config.requests,
+        eliminated: config.requests.filter((name) => name !== winner),
+        winner,
+      });
+      return steps;
+    }
+
+    const maxBits = Math.max(...devices.map((device) => device.code.length));
+    let alive = devices.filter((device) => requested.has(device.name));
+    steps.push({
+      title: "请求者同时送出仲裁号",
+      detail: "没有中央仲裁器，设备从高位到低位比较仲裁号。某位为 0 而总线上存在 1 的设备退出。",
+      active: config.requests,
+      probed: alive.map((device) => device.name),
+      eliminated: [],
+      winner: "",
+      bit: -1,
+    });
+    for (let bit = 0; bit < maxBits && alive.length > 1; bit += 1) {
+      const hasOne = alive.some((device) => device.code.padStart(maxBits, "0")[bit] === "1");
+      const before = alive;
+      if (hasOne) alive = alive.filter((device) => device.code.padStart(maxBits, "0")[bit] === "1");
+      const eliminated = before.filter((device) => !alive.includes(device)).map((device) => device.name);
+      steps.push({
+        title: `比较第 ${bit + 1} 位：${hasOne ? "总线上存在 1" : "全部为 0"}`,
+        detail: eliminated.length
+          ? `${eliminated.join("、")} 在该位为 0，退出竞争；剩余 ${alive.map((device) => device.name).join("、")}。`
+          : "本位没有淘汰设备，继续比较下一位。",
+        active: config.requests,
+        probed: alive.map((device) => device.name),
+        eliminated,
+        winner: alive.length === 1 ? alive[0].name : "",
+        bit,
+      });
+    }
+    if (alive[0]) {
+      steps.push({
+        title: `${alive[0].name} 获得总线`,
+        detail: `${alive[0].name} 的仲裁号 ${alive[0].code} 在请求者中最高，因此保留竞争资格并获得总线。`,
+        active: config.requests,
+        probed: [alive[0].name],
+        eliminated: config.requests.filter((name) => name !== alive[0].name),
+        winner: alive[0].name,
+        bit: maxBits - 1,
+      });
+    }
+    return steps;
+  }
+
+  function runBusArbitration() {
+    stopStepTimer("arbitration", "#arbAuto", "自动演示");
+    try {
+      const devices = parseArbitrationDevices();
+      const config = {
+        devices,
+        requests: parseArbitrationRequests(devices),
+        mode: $("#arbMode").value,
+        counterStart: Number.parseInt($("#arbCounterStart").value || "0", 10) || 0,
+        priorityRule: $("#arbPriorityRule").value,
+      };
+      state.arbitration.result = {
+        config,
+        steps: createArbitrationSteps(config),
+      };
+      state.arbitration.cursor = 0;
+      renderBusArbitration();
+    } catch (error) {
+      state.arbitration.result = null;
+      $("#arbStepCounter").textContent = "输入有误";
+      $("#busArbitrationResult").innerHTML = `<div class="status-error">${escapeHtml(error.message)}</div>`;
+    }
+  }
+
+  function renderBusArbitration() {
+    const result = state.arbitration.result;
+    if (!result) {
+      $("#busArbitrationResult").innerHTML = `<div class="empty-state">点击“开始仲裁”后查看不同仲裁方式如何选出唯一总线主人。</div>`;
+      return;
+    }
+    const steps = result.steps;
+    const index = clamp(state.arbitration.cursor, 0, steps.length - 1);
+    const step = steps[index];
+    const config = result.config;
+    const modeName = {
+      chain: "链式查询",
+      counter: "计数器定时查询",
+      parallel: "独立请求",
+      distributed: "分布式仲裁",
+    }[config.mode];
+    $("#arbStepCounter").textContent = `第 ${index + 1} / ${steps.length} 步`;
+    $("#busArbitrationResult").innerHTML = `
+      <div class="memory-stage-card focus-card">
+        <span>${escapeHtml(modeName)}</span>
+        <h4>${escapeHtml(step.title)}</h4>
+        <p>${escapeHtml(step.detail)}</p>
+      </div>
+      <div class="arb-lab-grid">
+        ${renderLearningStepper(steps.map((item) => ({ title: item.title, detail: item.winner ? `获胜：${item.winner}` : item.detail })), index, "arb-stepper")}
+        <div class="arb-board ${escapeHtml(config.mode)}">
+          <div class="arb-device-grid">
+            ${config.devices
+              .map((device) => {
+                const requested = config.requests.includes(device.name);
+                const probed = step.probed.includes(device.name);
+                const winner = step.winner === device.name;
+                const eliminated = step.eliminated.includes(device.name);
+                return `
+                  <div class="arb-device ${requested ? "requesting" : ""} ${probed ? "probing" : ""} ${winner ? "winner" : ""} ${eliminated ? "eliminated" : ""}">
+                    <strong>${escapeHtml(device.name)}</strong>
+                    <span>优先级 ${device.priority} · CN ${escapeHtml(device.code)}</span>
+                  </div>
+                `;
+              })
+              .join("")}
+          </div>
+          <div class="arbiter-box">
+            <strong>${config.mode === "distributed" ? "仲裁总线" : "总线仲裁器"}</strong>
+            <span>${step.counter !== undefined ? `当前查询地址 ${step.counter}` : step.bit !== undefined && step.bit >= 0 ? `比较位 ${step.bit + 1}` : "等待请求"}</span>
+          </div>
+          <div class="bus-owner-box ${step.winner ? "active" : ""}">
+            <strong>共享系统总线</strong>
+            <span>${step.winner ? `已授权：${escapeHtml(step.winner)}` : "尚未授权"}</span>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>设备</th><th>请求</th><th>状态</th></tr></thead>
+            <tbody>
+              ${config.devices
+                .map((device) => {
+                  const status = step.winner === device.name
+                    ? "获胜"
+                    : step.eliminated.includes(device.name)
+                      ? "等待下一轮"
+                      : step.probed.includes(device.name)
+                        ? "正在比较"
+                        : config.requests.includes(device.name)
+                          ? "请求中"
+                          : "未请求";
+                  return `<tr><td>${escapeHtml(device.name)}</td><td>${config.requests.includes(device.name) ? "是" : "否"}</td><td>${escapeHtml(status)}</td></tr>`;
+                })
+                .join("")}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  }
+
+  function stepBusArbitration(delta) {
+    if (!state.arbitration.result) {
+      runBusArbitration();
+      return;
+    }
+    const max = state.arbitration.result.steps.length - 1;
+    state.arbitration.cursor = clamp(state.arbitration.cursor + delta, 0, max);
+    renderBusArbitration();
+    if (state.arbitration.cursor === max) {
+      const finalStep = state.arbitration.result.steps[max];
+      const winnerIndex = state.arbitration.result.config.devices.findIndex((device) => device.name === finalStep.winner);
+      if (winnerIndex >= 0) state.arbitration.roundPointer = (winnerIndex + 1) % state.arbitration.result.config.devices.length;
+      stopStepTimer("arbitration", "#arbAuto", "自动演示");
+    }
+  }
+
+  function resetBusArbitration() {
+    stopStepTimer("arbitration", "#arbAuto", "自动演示");
+    state.arbitration.cursor = 0;
+    renderBusArbitration();
+  }
+
+  function toggleBusArbitrationAuto() {
+    if (!state.arbitration.result) runBusArbitration();
+    toggleStepTimer(
+      "arbitration",
+      "#arbAuto",
+      "自动演示",
+      "暂停演示",
+      () => stepBusArbitration(1),
+      () => !state.arbitration.result || state.arbitration.cursor >= state.arbitration.result.steps.length - 1
+    );
+  }
+
+  function parseKeyboardLayout(value = DEFAULT_KEYBOARD_LAYOUT_TEXT) {
+    const rows = String(value || DEFAULT_KEYBOARD_LAYOUT_TEXT)
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const tokens = line.split(/\s+/).filter(Boolean);
+        return tokens.length === 1 && !/^space$/i.test(tokens[0]) && Array.from(tokens[0]).length >= 3 ? Array.from(tokens[0]) : tokens;
+      });
+    const colCount = rows[0]?.length || 0;
+    if (rows.length < 2 || colCount < 2 || rows.some((row) => row.length !== colCount)) {
+      throw new Error("键盘布局至少需要 2 行 2 列，且每行键数一致；可用空格分隔，也可写成 123456");
+    }
+    if (rows.length > 8 || colCount > 8) {
+      throw new Error("为了保持页面紧凑，键盘布局最多支持 8 行 8 列");
+    }
+    const normalizedKeys = rows.flat().map((key) => normalizeKeyboardKey(key));
+    if (new Set(normalizedKeys).size !== normalizedKeys.length) {
+      throw new Error("键盘布局中不能出现重复键值");
+    }
+    return rows.map((row) => row.map((key) => normalizeKeyboardKey(key)));
+  }
+
+  function normalizeKeyboardKey(value) {
+    const text = String(value || "").trim();
+    if (text === "Space") return "SPACE";
+    if (text.length === 1) return text.toUpperCase();
+    return text.toUpperCase();
+  }
+
+  function findKeyboardKey(layout, key) {
+    const normalized = normalizeKeyboardKey(key);
+    for (let row = 0; row < layout.length; row += 1) {
+      for (let col = 0; col < layout[row].length; col += 1) {
+        if (normalizeKeyboardKey(layout[row][col]) === normalized) {
+          return { row, col, key: layout[row][col] };
+        }
+      }
+    }
+    return null;
+  }
+
+  function keyboardLineBits(activeIndex, lineCount) {
+    return Array.from({ length: lineCount }, (_, index) => (index === activeIndex ? "0" : "1")).join("");
+  }
+
+  function keyboardIndexCode(value, count) {
+    const width = Math.max(1, Math.ceil(Math.log2(Math.max(1, count))));
+    return value.toString(2).padStart(width, "0");
+  }
+
+  function keyboardColumnBits(col, width = 4) {
+    return keyboardLineBits(col, width);
+  }
+
+  function createKeyboardSteps(layout, selected, debounceMs) {
+    const rowCount = layout.length;
+    const colCount = layout[0].length;
+    const steps = [
+      {
+        title: `已选择按键 ${selected.key}`,
+        detail: `按键 ${selected.key} 位于 R${selected.row} 与 C${selected.col} 的交叉点。下一步开始逐行扫描。`,
+        phase: "ready",
+        row: null,
+        col: null,
+      },
+    ];
+    for (let row = 0; row < rowCount; row += 1) {
+      const hit = row === selected.row;
+      steps.push({
+        title: hit ? `扫描 R${row}：检测到 C${selected.col}` : `扫描 R${row}：本行无按键闭合`,
+        detail: hit
+          ? `R${row} 输出有效电平时，按键 ${selected.key} 将 R${row} 与 C${selected.col} 接通，列输入变为 ${keyboardColumnBits(selected.col, colCount)}。`
+          : `${colCount} 条列线保持 ${keyboardLineBits(null, colCount)}，说明被按下的键不在这一行。`,
+        phase: "scan",
+        row,
+        col: hit ? selected.col : null,
+      });
+    }
+    steps.push(
+      {
+        title: "定位完成：行列唯一确定按键",
+        detail: `有效位置为 R${selected.row} × C${selected.col}，查表得到字符 ${selected.key}。`,
+        phase: "locate",
+        row: selected.row,
+        col: selected.col,
+      },
+      {
+        title: "原始触点可能抖动",
+        detail: `控制器读到位置编码 ${keyboardIndexCode(selected.row, rowCount)} ${keyboardIndexCode(selected.col, colCount)}，但机械触点可能在几毫秒内反复通断。`,
+        phase: "bounce",
+        row: selected.row,
+        col: selected.col,
+      },
+      {
+        title: `防抖确认：上报 ${selected.key}`,
+        detail: `等待约 ${debounceMs} ms 后再次读取，状态仍稳定，因此只上报一次有效按键 ${selected.key}。`,
+        phase: "confirm",
+        row: selected.row,
+        col: selected.col,
+      }
+    );
+    return steps;
+  }
+
+  function updateKeyboardRunButton() {
+    const button = $("#keyboardRun");
+    if (button) button.textContent = state.keyboard.running ? "关闭仿真" : "启动仿真";
+  }
+
+  function confirmKeyboardPendingAtCurrentRow() {
+    const pending = state.keyboard.pending;
+    if (!state.keyboard.running || !pending) return;
+    if (pending.row !== state.keyboard.cursor) return;
+    state.keyboard.selected = { ...pending };
+    state.keyboard.pending = null;
+    state.keyboard.lastSource = state.keyboard.selected.source;
+  }
+
+  function runKeyboardSimulation(source = "启动仿真") {
+    startKeyboardSimulation(source);
+  }
+
+  function startKeyboardSimulation(source = "启动仿真") {
+    try {
+      const layout = parseKeyboardLayout();
+      if (state.keyboard.timer) window.clearInterval(state.keyboard.timer);
+      state.keyboard.layout = layout;
+      state.keyboard.result = {
+        layout,
+        debounceMs: DEFAULT_KEYBOARD_DEBOUNCE_MS,
+      };
+      state.keyboard.running = true;
+      state.keyboard.capture = true;
+      state.keyboard.lastSource = source;
+      state.keyboard.cursor = 0;
+      state.keyboard.selected = null;
+      state.keyboard.pending = null;
+      updateKeyboardRunButton();
+      const button = $("#keyboardRun");
+      if (button) button.blur();
+      renderKeyboardSimulation();
+      state.keyboard.timer = window.setInterval(() => {
+        if (!$("#keyboard-sim.active")) {
+          stopKeyboardSimulation({ render: false, clearSelection: false });
+          return;
+        }
+        const rowCount = state.keyboard.layout?.length || 1;
+        state.keyboard.cursor = (state.keyboard.cursor + 1) % rowCount;
+        confirmKeyboardPendingAtCurrentRow();
+        renderKeyboardSimulation();
+      }, KEYBOARD_SCAN_INTERVAL_MS);
+    } catch (error) {
+      state.keyboard.result = null;
+      state.keyboard.running = false;
+      state.keyboard.capture = false;
+      updateKeyboardRunButton();
+      $("#keyboardStepCounter").textContent = "启动失败";
+      $("#keyboardResult").innerHTML = `<div class="status-error">${escapeHtml(error.message)}</div>`;
+    }
+  }
+
+  function stopKeyboardSimulation(options = {}) {
+    const { render = true, clearSelection = false } = options;
+    if (state.keyboard.timer) {
+      window.clearInterval(state.keyboard.timer);
+      state.keyboard.timer = null;
+    }
+    state.keyboard.running = false;
+    state.keyboard.capture = false;
+    state.keyboard.pending = null;
+    if (clearSelection) {
+      state.keyboard.selected = null;
+      state.keyboard.lastSource = "尚未按键";
+    }
+    updateKeyboardRunButton();
+    if (render) renderKeyboardSimulation();
+  }
+
+  function toggleKeyboardSimulation() {
+    if (state.keyboard.running) {
+      stopKeyboardSimulation();
+      return;
+    }
+    startKeyboardSimulation();
+  }
+
+  function renderKeyboardMatrix(layout, selected, step) {
+    const row = step.row;
+    const col = step.col;
+    const found = ["locate", "confirm"].includes(step.phase);
+    const bouncing = step.phase === "bounce";
+    const rowCount = layout.length;
+    const colCount = layout[0].length;
+    return `
+      <div class="keyboard-matrix-wrap" style="--keyboard-rows: ${rowCount}; --keyboard-cols: ${colCount};">
+        <div class="keyboard-row-labels">
+          ${layout.map((_, rowIndex) => `<div class="${rowIndex === row ? "active" : ""}">R${rowIndex}</div>`).join("")}
+        </div>
+        <div class="keyboard-grid">
+          ${layout
+            .flatMap((layoutRow, rowIndex) =>
+              layoutRow.map((key, colIndex) => {
+                const match = Boolean(selected && rowIndex === selected.row && colIndex === selected.col);
+                const active = rowIndex === row;
+                const detected = colIndex === col;
+                return `
+                  <div class="matrix-key ${match ? "pressed" : ""} ${match && found ? "found" : ""} ${match && bouncing ? "bouncing" : ""} ${active ? "row-active" : ""} ${detected ? "col-detected" : ""}" data-keyboard-key="${escapeHtml(key)}">
+                    <small>R${rowIndex}·C${colIndex}</small>
+                    ${escapeHtml(key)}
+                  </div>
+                `;
+              })
+            )
+            .join("")}
+        </div>
+        <div class="keyboard-col-labels">
+          ${layout[0].map((_, colIndex) => `<div class="${colIndex === col ? "detected" : ""}">C${colIndex}</div>`).join("")}
+        </div>
+      </div>
+    `;
+  }
+
+  function renderKeyboardSimulation() {
+    const result = state.keyboard.result || {
+      layout: state.keyboard.layout || parseKeyboardLayout(),
+      debounceMs: DEFAULT_KEYBOARD_DEBOUNCE_MS,
+    };
+    const resultEl = $("#keyboardResult");
+    const statusEl = $("#keyboardCaptureStatus");
+    if (!resultEl) return;
+    const layout = result.layout;
+    const running = state.keyboard.running;
+    const selected = state.keyboard.selected;
+    const pending = state.keyboard.pending;
+    const rowCount = layout.length;
+    const colCount = layout[0].length;
+    const activeRow = running ? clamp(state.keyboard.cursor, 0, rowCount - 1) : null;
+    const detectedCol = running && selected && selected.row === activeRow ? selected.col : null;
+    const step = {
+      row: activeRow,
+      col: detectedCol,
+      phase: detectedCol === null ? (running ? "scan" : "ready") : "confirm",
+    };
+    const ascii = selected && selected.key.length === 1 ? selected.key.charCodeAt(0) : "—";
+    const colRead = !running ? "—" : detectedCol === null ? keyboardLineBits(null, colCount) : keyboardColumnBits(detectedCol, colCount);
+    $("#keyboardStepCounter").textContent = running ? `持续扫描 R${activeRow}` : "等待启动";
+    if (statusEl) {
+      statusEl.className = running ? "status-good" : "empty-state";
+      statusEl.textContent = running
+        ? selected
+          ? `正在扫描。最近按下：${selected.key}（${selected.source}）`
+          : pending
+            ? "已接收到按键，等待扫描动画走到对应行后确认。"
+            : "正在扫描。请按下键盘上的数字或字母。"
+        : selected
+          ? `仿真已关闭。最近按下：${selected.key}`
+          : "仿真未启动。";
+    }
+    const focusTitle = running
+      ? selected
+        ? `检测到按键 ${selected.key}`
+        : pending
+          ? "等待扫描确认"
+          : "正在循环扫描键盘矩阵"
+      : "键盘仿真未启动";
+    const focusDetail = running
+      ? selected
+        ? `按键 ${selected.key} 位于 R${selected.row} 与 C${selected.col}，当前扫描到该行时列输入会变为 ${keyboardColumnBits(selected.col, colCount)}。`
+        : pending
+          ? "控制器继续按固定频率逐行扫描，只有扫到闭合键所在行时才读出列线并显示键值。"
+          : `控制器正在从 R0 到 R${rowCount - 1} 循环输出有效电平，等待用户按下数字或字母键。`
+      : "点击启动仿真后，矩阵会持续扫描并读取真实键盘按键。";
+    resultEl.innerHTML = `
+      <div class="memory-stage-card focus-card ${running ? "active" : ""}">
+        <span>${running ? "实时扫描" : "待启动"}</span>
+        <h4>${escapeHtml(focusTitle)}</h4>
+        <p>${escapeHtml(focusDetail)}</p>
+      </div>
+      <div class="keyboard-lab-grid">
+        <div class="keyboard-scan-list">
+          ${layout
+            .map((_, rowIndex) => {
+              const isActive = rowIndex === activeRow;
+              const isHit = selected && rowIndex === selected.row;
+              return `
+                <div class="keyboard-scan-row ${isActive ? "active" : ""} ${isHit ? "hit" : ""}">
+                  <strong>R${rowIndex}</strong>
+                  <span>${isActive ? "正在扫描" : isHit ? "最近按键所在行" : "等待扫描"}</span>
+                </div>
+              `;
+            })
+            .join("")}
+        </div>
+        <div>
+          ${renderKeyboardMatrix(layout, selected, step)}
+          <div class="keyboard-wave ${running ? "show-raw show-clean" : ""}">
+            <div class="wave-raw-line"></div>
+            <div class="wave-clean-line"></div>
+            <span>扫描时钟</span>
+            <strong>${running ? `R${activeRow} 有效` : "未启动"}</strong>
+          </div>
+        </div>
+        <div class="keyboard-readout">
+          <div><strong>扫描状态</strong><span>${running ? (pending ? "等待确认" : "运行中") : "已停止"}</span></div>
+          <div><strong>当前扫描行</strong><span>${activeRow === null ? "—" : `R${activeRow}`}</span></div>
+          <div><strong>列输入</strong><span>${colRead}</span></div>
+          <div><strong>最近按键</strong><span>${selected ? escapeHtml(selected.key) : pending ? "等待扫描确认" : "—"}</span></div>
+          <div><strong>位置编码</strong><span>${selected ? `${keyboardIndexCode(selected.row, rowCount)} ${keyboardIndexCode(selected.col, colCount)}` : pending ? "等待扫描确认" : "—"}</span></div>
+          <div><strong>字符码</strong><span>${escapeHtml(ascii)}</span></div>
+        </div>
+      </div>
+    `;
+  }
+
+  function stepKeyboardSimulation(delta) {
+    if (!state.keyboard.running) {
+      startKeyboardSimulation();
+      return;
+    }
+    const rowCount = state.keyboard.layout?.length || parseKeyboardLayout().length;
+    state.keyboard.cursor = (state.keyboard.cursor + delta + rowCount) % rowCount;
+    confirmKeyboardPendingAtCurrentRow();
+    renderKeyboardSimulation();
+  }
+
+  function resetKeyboardSimulation() {
+    stopKeyboardSimulation({ clearSelection: true });
+  }
+
+  function toggleKeyboardAuto() {
+    toggleKeyboardSimulation();
+  }
+
+  function toggleKeyboardCapture() {
+    toggleKeyboardSimulation();
+  }
+
+  function handlePhysicalKeyboard(event) {
+    if (!state.keyboard.running || !$("#keyboard-sim.active")) return;
+    const tag = event.target && event.target.tagName ? event.target.tagName.toLowerCase() : "";
+    if (["input", "textarea", "select"].includes(tag) || event.target?.isContentEditable) return;
+    const key = normalizeKeyboardKey(event.key === " " ? "Space" : event.key);
+    const layout = state.keyboard.layout || parseKeyboardLayout();
+    const found = findKeyboardKey(layout, key);
+    if (!found) return;
+    event.preventDefault();
+    state.keyboard.pending = { ...found, source: `真实键盘 ${event.key} / ${event.code}` };
+    state.keyboard.selected = null;
+    state.keyboard.lastSource = "等待扫描确认";
+    renderKeyboardSimulation();
+  }
+
   async function apiPost(path, payload) {
     const response = await fetch(path, {
       method: "POST",
@@ -2208,7 +4166,7 @@
       setDemoStatus(
         plan && plan.reason
           ? plan.reason
-          : "暂不支持该功能仿真。当前可演示：补码/定点、IEEE 754、Cache、虚拟存储、存储读写、存储扩展、流水线、CPU 数据通路、汇编解释。",
+          : "暂不支持该功能仿真。当前可演示：补码/定点、IEEE 754、Cache、虚拟存储、存储读写、存储扩展、流水线、CPU 数据通路、汇编解释、硬布线控制、时序表达式、总线事务、总线仲裁、键盘扫描。",
         "error"
       );
       return;
@@ -2229,28 +4187,16 @@
         runDatapath();
       } else if (plan.targetPanel === "cache-sim") {
         setInputValue("#cacheAccesses", inputs.accesses);
-        setInputValue("#cacheAddressBits", inputs.addressBits);
-        setInputValue("#cacheLines", inputs.lines);
-        setInputValue("#cacheBlockSize", inputs.blockSize);
         setInputValue("#cacheMapping", inputs.mapping);
-        setInputValue("#cacheAssociativity", inputs.associativity);
         setInputValue("#cacheReplacement", inputs.replacement);
         runCache();
       } else if (plan.targetPanel === "virtual-sim") {
         setInputValue("#vmMode", inputs.mode);
-        setInputValue("#vmLogicalAddress", inputs.logicalAddress);
-        setInputValue("#vmPageSize", inputs.pageSize);
-        setInputValue("#vmFrames", inputs.frames);
         setInputValue("#vmReplacement", inputs.replacement);
         setInputValue("#vmReferences", inputs.references);
-        setInputValue("#vmSegmentTable", inputs.segmentTable);
-        setInputValue("#vmSegmentPageTable", inputs.segmentPageTable);
         runVirtualMemory();
       } else if (plan.targetPanel === "memory-access-sim") {
         setInputValue("#memoryOperation", inputs.operation);
-        setInputValue("#memoryAddressBits", inputs.addressBits);
-        setInputValue("#memoryColumnBits", inputs.columnBits);
-        setInputValue("#memoryDataBits", inputs.dataBits);
         setInputValue("#memoryAddress", inputs.address);
         setInputValue("#memoryData", inputs.data);
         runMemoryAccess();
@@ -2261,6 +4207,33 @@
         setInputValue("#targetWords", inputs.targetWords);
         setInputValue("#targetBits", inputs.targetBits);
         runMemoryExpansion();
+      } else if (plan.targetPanel === "hardwire-sim") {
+        setInputValue("#hardwireOp", inputs.op);
+        setInputValue("#hardwirePC", inputs.pc);
+        setInputValue("#hardwireDest", inputs.dest);
+        setInputValue("#hardwireSource", inputs.source);
+        setInputValue("#hardwireDestValue", inputs.destValue);
+        setInputValue("#hardwireSourceValue", inputs.sourceValue);
+        setInputValue("#hardwireAddress", inputs.address);
+        setInputValue("#hardwireBits", inputs.bits);
+        runHardwireSimulation();
+      } else if (plan.targetPanel === "control-expression-sim") {
+        runControlExpressionSimulation(inputs.signal);
+      } else if (plan.targetPanel === "bus-transaction-sim") {
+        setInputValue("#busOperation", inputs.operation);
+        setInputValue("#busAddress", inputs.address);
+        setInputValue("#busData", inputs.data);
+        setInputValue("#busDeviceName", inputs.deviceName);
+        runBusTransaction();
+      } else if (plan.targetPanel === "bus-arbitration-sim") {
+        setInputValue("#arbMode", inputs.mode);
+        setInputValue("#arbDevices", inputs.devices);
+        setInputValue("#arbRequests", inputs.requests);
+        setInputValue("#arbCounterStart", inputs.counterStart);
+        setInputValue("#arbPriorityRule", inputs.priorityRule);
+        runBusArbitration();
+      } else if (plan.targetPanel === "keyboard-sim") {
+        runKeyboardSimulation("智能演示入口");
       } else if (plan.targetPanel === "twos-sim") {
         if (inputs.demoType === "ieee754" || inputs.a !== undefined || inputs.b !== undefined) {
           setInputValue("#floatA", inputs.a);
@@ -2341,6 +4314,12 @@
         setSimulationPanel(button.dataset.simPanel);
       });
     });
+    $all("[data-sim-card]").forEach((button) => {
+      button.addEventListener("click", () => {
+        setSection("simulation");
+        setSimulationPanel(button.dataset.simCard);
+      });
+    });
     $("#demoGenerate").addEventListener("click", runDemoPlanner);
     $all(".demo-example").forEach((button) => {
       button.addEventListener("click", () => {
@@ -2354,9 +4333,18 @@
     $("#cacheRun").addEventListener("click", runCache);
     $("#cachePrev").addEventListener("click", () => stepCache(-1));
     $("#cacheNext").addEventListener("click", () => stepCache(1));
+    const cacheAuto = $("#cacheAuto");
+    if (cacheAuto) cacheAuto.addEventListener("click", toggleCacheAuto);
+    const cacheReset = $("#cacheReset");
+    if (cacheReset) cacheReset.addEventListener("click", resetCache);
     $("#vmRun").addEventListener("click", runVirtualMemory);
     $("#vmPrev").addEventListener("click", () => stepVirtualMemory(-1));
     $("#vmNext").addEventListener("click", () => stepVirtualMemory(1));
+    const vmAuto = $("#vmAuto");
+    if (vmAuto) vmAuto.addEventListener("click", toggleVirtualMemoryAuto);
+    const vmReset = $("#vmReset");
+    if (vmReset) vmReset.addEventListener("click", resetVirtualMemory);
+    $("#memoryOperation").addEventListener("change", updateMemoryInputHints);
     $("#memoryRun").addEventListener("click", runMemoryAccess);
     $("#memoryPrev").addEventListener("click", () => stepMemoryAccess(-1));
     $("#memoryNext").addEventListener("click", () => stepMemoryAccess(1));
@@ -2375,11 +4363,41 @@
     $("#assemblyPrev").addEventListener("click", () => stepAssembly(-1));
     $("#assemblyNext").addEventListener("click", () => stepAssembly(1));
     $("#assemblyReset").addEventListener("click", resetAssembly);
+    $("#hardwireRun").addEventListener("click", runHardwireSimulation);
+    $("#hardwirePrev").addEventListener("click", () => stepHardwireSimulation(-1));
+    $("#hardwireNext").addEventListener("click", () => stepHardwireSimulation(1));
+    $("#hardwireAuto").addEventListener("click", toggleHardwireAuto);
+    $("#hardwireReset").addEventListener("click", resetHardwireSimulation);
+    $("#controlRun").addEventListener("click", () => runControlExpressionSimulation());
+    $("#controlSignalSelect").addEventListener("change", () => runControlExpressionSimulation($("#controlSignalSelect").value));
+    $("#controlPrev").addEventListener("click", () => stepControlExpression(-1));
+    $("#controlNext").addEventListener("click", () => stepControlExpression(1));
+    $("#controlAll").addEventListener("click", showFullControlExpression);
+    $("#controlReset").addEventListener("click", () => runControlExpressionSimulation());
+    $("#busRun").addEventListener("click", runBusTransaction);
+    $("#busPrev").addEventListener("click", () => stepBusTransaction(-1));
+    $("#busNext").addEventListener("click", () => stepBusTransaction(1));
+    $("#busAuto").addEventListener("click", toggleBusAuto);
+    $("#busReset").addEventListener("click", resetBusTransaction);
+    $("#arbRun").addEventListener("click", runBusArbitration);
+    $("#arbPrev").addEventListener("click", () => stepBusArbitration(-1));
+    $("#arbNext").addEventListener("click", () => stepBusArbitration(1));
+    $("#arbAuto").addEventListener("click", toggleBusArbitrationAuto);
+    $("#arbReset").addEventListener("click", resetBusArbitration);
+    $("#keyboardRun").addEventListener("click", toggleKeyboardSimulation);
+    document.addEventListener("keydown", handlePhysicalKeyboard);
+    window.addEventListener("beforeunload", () => {
+      stopCacheAuto();
+      stopVirtualMemoryAuto();
+      stopKeyboardSimulation({ render: false, clearSelection: false });
+    });
   }
 
   function boot() {
+    installImportedSimulationPanels();
     renderRecommendedFeatures();
     bindEvents();
+    updateMemoryInputHints();
     runTwosComplement();
     runFloat();
     runCache();
@@ -2389,6 +4407,11 @@
     runPipeline();
     runDatapath();
     loadAssembly();
+    runHardwireSimulation();
+    runControlExpressionSimulation();
+    runBusTransaction();
+    runBusArbitration();
+    renderKeyboardSimulation();
   }
 
   document.addEventListener("DOMContentLoaded", boot);

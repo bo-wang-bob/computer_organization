@@ -1,0 +1,511 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>微课39｜外围设备—键盘：矩阵扫描与按键防抖</title>
+  <style>
+    :root{
+      --ink:#132238;
+      --muted:#64748b;
+      --line:#d8e4f0;
+      --blue:#1768b8;
+      --blue-deep:#0d4f91;
+      --blue-soft:#eaf4ff;
+      --cyan:#11a8c4;
+      --green:#1f9254;
+      --green-soft:#eaf8f0;
+      --orange:#e47a18;
+      --orange-soft:#fff3e5;
+      --red:#d64545;
+      --red-soft:#fff0f0;
+      --purple:#7048c8;
+      --purple-soft:#f2edff;
+      --shadow:0 14px 36px rgba(22,61,103,.12);
+    }
+
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%;font-family:"Microsoft YaHei","PingFang SC",Arial,sans-serif;color:var(--ink);background:#eef5fb}
+    button,input{font:inherit}
+    .app{width:min(1780px,calc(100% - 36px));margin:0 auto;padding:10px 0 18px}
+
+    header{
+      display:grid;
+      grid-template-columns:minmax(0,1fr) auto;
+      gap:18px;
+      align-items:center;
+      padding:18px 22px;
+      background:#fff;
+      border:1px solid var(--line);
+      border-radius:12px;
+      box-shadow:var(--shadow);
+    }
+    h1{margin:0 0 6px;color:#0b2b59;font-size:30px;line-height:1.2}
+    .subtitle{margin:0;color:var(--muted);font-size:15px;line-height:1.55}
+    .controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+    button{
+      border:1px solid #b8cce0;
+      background:#fff;
+      color:#15395f;
+      font-weight:800;
+      border-radius:8px;
+      padding:9px 13px;
+      min-height:40px;
+      cursor:pointer;
+      transition:.2s ease;
+    }
+    button:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 6px 15px rgba(23,104,184,.13)}
+    button.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+    button:disabled{opacity:.45;cursor:not-allowed;transform:none}
+    .speed{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px;padding-left:4px;white-space:nowrap}
+    input[type="range"]{width:104px;accent-color:var(--blue)}
+
+    .statusbar{display:grid;grid-template-columns:minmax(0,1fr) 480px;gap:12px;margin:12px 0}
+    .status,.legend{background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow)}
+    .status{min-height:82px;padding:14px 17px;display:flex;flex-direction:column;justify-content:center}
+    .status strong{color:var(--blue);font-size:18px;margin-bottom:5px}
+    .status span{color:#31465f;line-height:1.55}
+    .legend{padding:13px 15px;display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;align-content:center;color:var(--muted);font-size:13px}
+    .legend-item{display:flex;align-items:center;gap:7px}
+    .dot{width:17px;height:17px;border-radius:5px;border:1px solid #cbd8e5;flex:none}
+
+    .main-grid{display:grid;grid-template-columns:minmax(680px,1.18fr) minmax(450px,.82fr);gap:12px;align-items:stretch}
+    section{background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);overflow:hidden}
+    .section-title{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:13px 16px;background:linear-gradient(90deg,var(--blue-deep),var(--blue));color:#fff;font-size:17px;font-weight:900}
+    .section-title small{font-size:12px;font-weight:700;opacity:.9}
+    .body{padding:14px}
+
+    .matrix-card{position:relative;min-height:560px;background:linear-gradient(180deg,#fbfdff,#f3f8fd);border:1px solid #dbe8f4;border-radius:10px;padding:16px;overflow:hidden}
+    .matrix-layout{display:grid;grid-template-columns:78px minmax(0,1fr);grid-template-rows:minmax(0,1fr) 72px;gap:10px;height:100%}
+    .row-labels{display:grid;grid-template-rows:repeat(4,1fr);gap:13px;padding:11px 0}
+    .col-labels{grid-column:2;display:grid;grid-template-columns:repeat(4,1fr);gap:13px;padding:0 11px}
+    .line-label{display:flex;align-items:center;justify-content:center;border-radius:8px;background:#e9f3fd;border:1px solid #bfd8ee;color:#185a98;font-weight:900;transition:.25s ease}
+    .line-label.active{background:#1768b8;color:#fff;border-color:#1768b8;box-shadow:0 0 0 4px rgba(23,104,184,.17)}
+    .line-label.detected{background:var(--green-soft);color:#12653a;border-color:#8dd2ad;box-shadow:0 0 0 4px rgba(31,146,84,.14)}
+
+    .matrix-stage{position:relative;padding:11px}
+    .wire-layer{position:absolute;inset:11px;pointer-events:none;z-index:0}
+    .hwire,.vwire{position:absolute;background:#bdd3e8;border-radius:999px;transition:.25s ease;opacity:.9}
+    .hwire{left:0;right:0;height:4px;transform:translateY(-50%)}
+    .vwire{top:0;bottom:0;width:4px;transform:translateX(-50%)}
+    .hwire.active,.vwire.active{background:var(--orange);box-shadow:0 0 0 4px rgba(228,122,24,.14),0 0 18px rgba(228,122,24,.58)}
+    .vwire.detected{background:var(--green);box-shadow:0 0 0 4px rgba(31,146,84,.14),0 0 18px rgba(31,146,84,.45)}
+    .key-grid{position:relative;z-index:2;display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(4,1fr);gap:13px;height:100%}
+    .key{
+      position:relative;
+      border:1px solid #bad0e4;
+      background:linear-gradient(180deg,#fff,#edf5fc);
+      color:#173c63;
+      border-radius:12px;
+      min-height:82px;
+      font-size:26px;
+      font-weight:900;
+      box-shadow:inset 0 -5px 0 rgba(25,76,125,.11),0 7px 15px rgba(28,70,111,.09);
+      transition:.18s ease;
+      cursor:pointer;
+    }
+    .key:hover{transform:translateY(-2px);border-color:#6ba5d5}
+    .key small{position:absolute;left:8px;top:7px;font-size:10px;color:#8393a7;font-weight:800}
+    .key.pressed{background:linear-gradient(180deg,#fff7ec,#ffe2bd);border-color:#ec9a43;color:#a84b00;transform:translateY(4px);box-shadow:inset 0 2px 5px rgba(116,59,0,.18),0 2px 5px rgba(28,70,111,.08)}
+    .key.found{background:linear-gradient(180deg,#effbf4,#d8f4e4);border-color:#56b77e;color:#176a3e;box-shadow:0 0 0 5px rgba(31,146,84,.13),inset 0 -5px 0 rgba(31,146,84,.12)}
+    .key.bouncing{animation:bounceKey .16s linear infinite alternate}
+    @keyframes bounceKey{from{transform:translateY(1px)}to{transform:translateY(5px)}}
+
+    .scan-arrow{position:absolute;z-index:3;left:18px;width:34px;height:34px;border-radius:50%;background:var(--orange);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:900;box-shadow:0 5px 15px rgba(228,122,24,.32);opacity:0;transition:.25s ease}
+    .scan-arrow.show{opacity:1}
+    .scan-arrow::after{content:"→";font-size:20px}
+
+    .matrix-caption{margin-top:12px;display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+    .fact{border:1px solid #d7e5f1;background:#f8fbff;border-radius:8px;padding:10px;text-align:center}
+    .fact strong{display:block;color:var(--blue);font-size:21px;margin-bottom:3px}
+    .fact span{color:var(--muted);font-size:12px}
+
+    .right-stack{display:grid;grid-template-rows:auto auto 1fr;gap:12px}
+    .process{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;padding:13px}
+    .process-step{position:relative;border:1px solid #d5e3ef;background:#f8fbff;border-radius:9px;padding:9px 7px;text-align:center;color:#52677e;font-size:12px;font-weight:800;transition:.2s ease}
+    .process-step b{display:flex;width:25px;height:25px;border-radius:50%;align-items:center;justify-content:center;margin:0 auto 6px;background:#dbe9f5;color:#1f5c91}
+    .process-step.active{background:var(--purple-soft);border-color:#a994e4;color:#5538a1;box-shadow:0 0 0 3px rgba(112,72,200,.12)}
+    .process-step.active b{background:var(--purple);color:#fff}
+    .process-step.done{background:var(--green-soft);border-color:#9bd4b3;color:#17623a}
+    .process-step.done b{background:var(--green);color:#fff}
+
+    .readout{padding:14px;display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .readout-card{border-radius:9px;padding:11px 12px;border:1px solid #d8e5f0;background:#f8fbff}
+    .readout-card label{display:block;color:var(--muted);font-size:12px;margin-bottom:5px;font-weight:800}
+    .readout-card strong{font-size:22px;color:#173e65}
+    .readout-card.wide{grid-column:1/-1}
+    .binary{letter-spacing:3px;color:var(--purple)!important;font-family:Consolas,monospace}
+    .lookup{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:8px}
+    .lookup span{padding:7px 4px;border:1px solid #d8e5f0;border-radius:6px;text-align:center;background:#fff;font-size:12px;font-weight:800;color:#466078}
+    .lookup span.active{background:var(--green-soft);color:#116438;border-color:#74c395;box-shadow:0 0 0 3px rgba(31,146,84,.1)}
+
+    .debounce-wrap{padding:14px}
+    .wave-title{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:9px;color:#34506c;font-weight:900}
+    .wave-title small{color:var(--muted);font-weight:700}
+    .wavebox{position:relative;height:138px;border:1px solid #d6e3ee;border-radius:9px;background:repeating-linear-gradient(to right,#f8fbff 0,#f8fbff 39px,#eaf1f7 40px),repeating-linear-gradient(to bottom,transparent 0,transparent 33px,#e8eef5 34px);overflow:hidden}
+    svg{width:100%;height:100%;display:block}
+    .wave-raw{fill:none;stroke:var(--red);stroke-width:4;stroke-linejoin:round;stroke-linecap:round;stroke-dasharray:800;stroke-dashoffset:800;transition:stroke-dashoffset .8s ease}
+    .wave-clean{fill:none;stroke:var(--green);stroke-width:5;stroke-linejoin:round;stroke-linecap:round;stroke-dasharray:500;stroke-dashoffset:500;transition:stroke-dashoffset .8s ease .15s}
+    .wavebox.show-raw .wave-raw{stroke-dashoffset:0}
+    .wavebox.show-clean .wave-clean{stroke-dashoffset:0}
+    .delay-band{position:absolute;top:0;bottom:0;left:48%;width:22%;background:rgba(228,122,24,.11);border-left:2px dashed rgba(228,122,24,.7);border-right:2px dashed rgba(228,122,24,.7);opacity:0;transition:.25s}
+    .wavebox.show-delay .delay-band{opacity:1}
+    .wave-label{position:absolute;font-size:11px;font-weight:900}
+    .raw-label{left:9px;top:7px;color:var(--red)}
+    .clean-label{left:9px;bottom:7px;color:var(--green)}
+    .delay-label{right:9px;top:7px;color:#b75b04}
+    .debounce-note{margin-top:9px;border-radius:8px;padding:9px 11px;background:var(--orange-soft);border:1px solid #f2c18f;color:#7c430f;font-size:13px;line-height:1.5}
+
+    .hint{margin-top:12px;color:var(--muted);font-size:12px;text-align:right}
+
+    @media(max-width:1180px){
+      header,.statusbar,.main-grid{grid-template-columns:1fr}
+      .controls{justify-content:flex-start}
+      .main-grid{display:block}
+      .right-stack{margin-top:12px}
+      .matrix-card{min-height:520px}
+    }
+    @media(max-width:720px){
+      .app{width:min(100% - 18px,1780px)}
+      h1{font-size:23px}
+      .legend{grid-template-columns:1fr}
+      .matrix-card{padding:9px;min-height:500px}
+      .matrix-layout{grid-template-columns:52px 1fr;grid-template-rows:1fr 54px;gap:6px}
+      .key-grid,.row-labels,.col-labels{gap:7px}
+      .key{font-size:20px;min-height:64px}
+      .process{grid-template-columns:1fr 1fr}
+      .readout{grid-template-columns:1fr}
+      .readout-card.wide{grid-column:auto}
+      .matrix-caption{grid-template-columns:1fr}
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div>
+      <h1>外围设备—键盘：矩阵扫描与按键防抖</h1>
+      <p class="subtitle">点击任意按键，观察控制器如何逐行扫描、确定行列位置、查表编码，并滤除机械触点抖动。</p>
+    </div>
+    <div class="controls">
+      <button id="prevBtn">上一步</button>
+      <button id="nextBtn" class="primary">下一步</button>
+      <button id="playBtn">自动演示</button>
+      <button id="resetBtn">重置</button>
+      <label class="speed">速度 <input id="speed" type="range" min="500" max="1700" step="100" value="1000"></label>
+    </div>
+  </header>
+
+  <div class="statusbar">
+    <div class="status">
+      <strong id="stepTitle">请选择一个按键</strong>
+      <span id="stepText">矩阵键盘用 4 条行线和 4 条列线连接 16 个按键，只需 8 个引脚，而不是 16 个独立引脚。</span>
+    </div>
+    <div class="legend">
+      <div class="legend-item"><span class="dot" style="background:#fff0d9"></span>当前被按下的按键</div>
+      <div class="legend-item"><span class="dot" style="background:#ffe5ca"></span>正在输出有效电平的行</div>
+      <div class="legend-item"><span class="dot" style="background:#eaf8f0"></span>检测到变化的列</div>
+      <div class="legend-item"><span class="dot" style="background:#f2edff"></span>当前处理阶段</div>
+    </div>
+  </div>
+
+  <div class="main-grid">
+    <section>
+      <div class="section-title"><span>4 × 4 矩阵键盘</span><small>点击任意键开始一次完整输入</small></div>
+      <div class="body">
+        <div class="matrix-card">
+          <div class="matrix-layout">
+            <div class="row-labels" id="rowLabels"></div>
+            <div class="matrix-stage">
+              <div class="wire-layer" id="wireLayer"></div>
+              <div class="scan-arrow" id="scanArrow"></div>
+              <div class="key-grid" id="keyGrid"></div>
+            </div>
+            <div class="col-labels" id="colLabels"></div>
+          </div>
+        </div>
+        <div class="matrix-caption">
+          <div class="fact"><strong>16</strong><span>按键数量</span></div>
+          <div class="fact"><strong>4 + 4 = 8</strong><span>所需行列引脚</span></div>
+          <div class="fact"><strong>节省 50%</strong><span>相对每键独立接线</span></div>
+        </div>
+        <div class="hint">也可按键盘上的 0–9、A–D、*、# 选择按键；空格键执行“下一步”。</div>
+      </div>
+    </section>
+
+    <div class="right-stack">
+      <section>
+        <div class="section-title"><span>输入处理流程</span><small>扫描 → 定位 → 编码 → 防抖确认</small></div>
+        <div class="process" id="process"></div>
+      </section>
+
+      <section>
+        <div class="section-title"><span>控制器读数与查表</span><small>行列位置唯一确定键值</small></div>
+        <div class="readout">
+          <div class="readout-card"><label>当前扫描行</label><strong id="rowRead">—</strong></div>
+          <div class="readout-card"><label>列输入状态</label><strong id="colRead">1111</strong></div>
+          <div class="readout-card"><label>定位结果</label><strong id="positionRead">—</strong></div>
+          <div class="readout-card"><label>键值 / 字符</label><strong id="keyRead">—</strong></div>
+          <div class="readout-card wide"><label>位置编码（行 2 bit + 列 2 bit）</label><strong class="binary" id="binaryRead">— —</strong></div>
+          <div class="readout-card wide"><label>预设查找表（当前行）</label><div class="lookup" id="lookup"></div></div>
+        </div>
+      </section>
+
+      <section>
+        <div class="section-title"><span>机械按键抖动与去抖动</span><small>一次物理动作，只确认一次有效输入</small></div>
+        <div class="debounce-wrap">
+          <div class="wave-title"><span>电平随时间变化</span><small id="timeNote">尚未检测到按键</small></div>
+          <div class="wavebox" id="wavebox">
+            <div class="delay-band"></div>
+            <svg viewBox="0 0 640 138" preserveAspectRatio="none" aria-label="按键抖动波形">
+              <polyline class="wave-raw" points="0,42 250,42 250,98 270,42 286,98 300,42 316,98 334,42 350,98 640,98"></polyline>
+              <polyline class="wave-clean" points="0,118 405,118 405,76 640,76"></polyline>
+            </svg>
+            <span class="wave-label raw-label">原始触点信号</span>
+            <span class="wave-label clean-label">防抖后的有效事件</span>
+            <span class="wave-label delay-label">延时后再次确认</span>
+          </div>
+          <div class="debounce-note" id="debounceNote">检测到状态变化后，不立即上报；等待约 10 ms，再次读取。只有状态仍稳定，才认定为一次有效按键。</div>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script>
+  const keyMap = [
+    ["1","2","3","A"],
+    ["4","5","6","B"],
+    ["7","8","9","C"],
+    ["*","0","#","D"]
+  ];
+  const asciiMap = {"0":48,"1":49,"2":50,"3":51,"4":52,"5":53,"6":54,"7":55,"8":56,"9":57,"A":65,"B":66,"C":67,"D":68,"*":42,"#":35};
+  const processNames = ["逐行扫描","检测列线","定位与编码","延时防抖"];
+
+  const els = {
+    keyGrid: document.getElementById('keyGrid'),
+    rowLabels: document.getElementById('rowLabels'),
+    colLabels: document.getElementById('colLabels'),
+    wireLayer: document.getElementById('wireLayer'),
+    scanArrow: document.getElementById('scanArrow'),
+    process: document.getElementById('process'),
+    stepTitle: document.getElementById('stepTitle'),
+    stepText: document.getElementById('stepText'),
+    rowRead: document.getElementById('rowRead'),
+    colRead: document.getElementById('colRead'),
+    positionRead: document.getElementById('positionRead'),
+    keyRead: document.getElementById('keyRead'),
+    binaryRead: document.getElementById('binaryRead'),
+    lookup: document.getElementById('lookup'),
+    wavebox: document.getElementById('wavebox'),
+    timeNote: document.getElementById('timeNote'),
+    debounceNote: document.getElementById('debounceNote'),
+    prevBtn: document.getElementById('prevBtn'),
+    nextBtn: document.getElementById('nextBtn'),
+    playBtn: document.getElementById('playBtn'),
+    resetBtn: document.getElementById('resetBtn'),
+    speed: document.getElementById('speed')
+  };
+
+  let selected = {row:1,col:2,key:"6"};
+  let step = 0;
+  let playing = false;
+  let timer = null;
+
+  function buildUI(){
+    els.rowLabels.innerHTML = [0,1,2,3].map(i=>`<div class="line-label" data-row-label="${i}">R${i}</div>`).join('');
+    els.colLabels.innerHTML = [0,1,2,3].map(i=>`<div class="line-label" data-col-label="${i}">C${i}</div>`).join('');
+
+    let keys='';
+    keyMap.forEach((row,r)=>row.forEach((key,c)=>{
+      keys += `<button class="key" data-row="${r}" data-col="${c}" aria-label="按键 ${key}"><small>R${r}·C${c}</small>${key}</button>`;
+    }));
+    els.keyGrid.innerHTML=keys;
+
+    const wires=[];
+    for(let i=0;i<4;i++){
+      wires.push(`<div class="hwire" data-hwire="${i}" style="top:${(i+.5)*25}%"></div>`);
+      wires.push(`<div class="vwire" data-vwire="${i}" style="left:${(i+.5)*25}%"></div>`);
+    }
+    els.wireLayer.innerHTML=wires.join('');
+    els.process.innerHTML=processNames.map((n,i)=>`<div class="process-step" data-process="${i}"><b>${i+1}</b>${n}</div>`).join('');
+
+    document.querySelectorAll('.key').forEach(btn=>btn.addEventListener('click',()=>{
+      chooseKey(Number(btn.dataset.row),Number(btn.dataset.col));
+    }));
+  }
+
+  function chooseKey(row,col){
+    stopPlay();
+    selected={row,col,key:keyMap[row][col]};
+    step=0;
+    render();
+  }
+
+  function setActiveRows(activeRow, detectedCol=null){
+    document.querySelectorAll('[data-row-label]').forEach(el=>{
+      el.classList.toggle('active',Number(el.dataset.rowLabel)===activeRow);
+    });
+    document.querySelectorAll('[data-col-label]').forEach(el=>{
+      el.classList.toggle('detected',Number(el.dataset.colLabel)===detectedCol);
+    });
+    document.querySelectorAll('[data-hwire]').forEach(el=>{
+      el.classList.toggle('active',Number(el.dataset.hwire)===activeRow);
+    });
+    document.querySelectorAll('[data-vwire]').forEach(el=>{
+      el.classList.toggle('detected',Number(el.dataset.vwire)===detectedCol);
+    });
+    if(activeRow===null){
+      els.scanArrow.classList.remove('show');
+    }else{
+      els.scanArrow.classList.add('show');
+      els.scanArrow.style.top=`calc(${(activeRow+.5)*25}% - 17px)`;
+    }
+  }
+
+  function renderLookup(row, activeCol=null){
+    const useRow = row ?? selected.row;
+    els.lookup.innerHTML=keyMap[useRow].map((k,c)=>`<span class="${c===activeCol?'active':''}">C${c} → ${k}</span>`).join('');
+  }
+
+  function renderProcess(current){
+    document.querySelectorAll('[data-process]').forEach(el=>{
+      const i=Number(el.dataset.process);
+      el.classList.toggle('active',i===current);
+      el.classList.toggle('done',i<current || current===4);
+    });
+  }
+
+  function renderKeys(found=false,bounce=false){
+    document.querySelectorAll('.key').forEach(btn=>{
+      const match=Number(btn.dataset.row)===selected.row && Number(btn.dataset.col)===selected.col;
+      btn.classList.toggle('pressed',match && !found);
+      btn.classList.toggle('found',match && found);
+      btn.classList.toggle('bouncing',match && bounce);
+    });
+  }
+
+  function rowState(row){
+    return row===null?'—':`R${row} 输出低电平`;
+  }
+
+  function render(){
+    els.prevBtn.disabled=step===0;
+    els.nextBtn.disabled=step===7;
+    els.playBtn.textContent=playing?'暂停':'自动演示';
+    els.wavebox.className='wavebox';
+    renderKeys(false,false);
+    renderProcess(step===0? -1 : Math.min(3, step<=4?0:step-4));
+    setActiveRows(null,null);
+    els.rowRead.textContent='—';
+    els.colRead.textContent='1111';
+    els.positionRead.textContent='—';
+    els.keyRead.textContent='—';
+    els.binaryRead.textContent='— —';
+    renderLookup(selected.row,null);
+    els.timeNote.textContent='尚未检测到按键';
+    els.debounceNote.textContent='检测到状态变化后，不立即上报；等待约 10 ms，再次读取。只有状态仍稳定，才认定为一次有效按键。';
+
+    if(step===0){
+      renderKeys(false,false);
+      els.stepTitle.textContent=`已选择按键 ${selected.key}`;
+      els.stepText.textContent=`按键 ${selected.key} 位于 R${selected.row} 与 C${selected.col} 的交叉点。点击“下一步”开始逐行扫描。`;
+      return;
+    }
+
+    if(step>=1 && step<=4){
+      const activeRow=step-1;
+      const hit=activeRow===selected.row;
+      setActiveRows(activeRow,hit?selected.col:null);
+      renderKeys(false,false);
+      els.rowRead.textContent=rowState(activeRow);
+      els.colRead.textContent=hit?('1'.repeat(selected.col)+'0'+'1'.repeat(3-selected.col)):'1111';
+      renderLookup(activeRow,hit?selected.col:null);
+      renderProcess(0);
+      if(hit){
+        els.stepTitle.textContent=`扫描 R${activeRow}：检测到 C${selected.col} 电平变化`;
+        els.stepText.textContent=`R${activeRow} 被置为有效低电平时，按键 ${selected.key} 将 R${activeRow} 与 C${selected.col} 接通，因此列输入由 1 变为 0。`;
+      }else{
+        els.stepTitle.textContent=`扫描 R${activeRow}：本行没有按键闭合`;
+        els.stepText.textContent=`控制器依次激活每一行。此时四条列线仍为 1111，说明被按下的键不在 R${activeRow}。`;
+      }
+      return;
+    }
+
+    if(step===5){
+      setActiveRows(selected.row,selected.col);
+      renderKeys(true,false);
+      renderProcess(1);
+      els.rowRead.textContent=rowState(selected.row);
+      els.colRead.textContent='1'.repeat(selected.col)+'0'+'1'.repeat(3-selected.col);
+      els.positionRead.textContent=`R${selected.row}, C${selected.col}`;
+      renderLookup(selected.row,selected.col);
+      els.stepTitle.textContent='定位完成：行号与列号唯一确定按键';
+      els.stepText.textContent=`扫描到 R${selected.row} 时，C${selected.col} 出现有效电平，因此交叉点 R${selected.row}×C${selected.col} 就是被按下的位置。`;
+      return;
+    }
+
+    if(step===6){
+      setActiveRows(selected.row,selected.col);
+      renderKeys(true,true);
+      renderProcess(2);
+      els.rowRead.textContent=rowState(selected.row);
+      els.colRead.textContent='1'.repeat(selected.col)+'0'+'1'.repeat(3-selected.col);
+      els.positionRead.textContent=`R${selected.row}, C${selected.col}`;
+      els.keyRead.textContent=`${selected.key}（ASCII ${asciiMap[selected.key]}）`;
+      els.binaryRead.textContent=`${selected.row.toString(2).padStart(2,'0')} ${selected.col.toString(2).padStart(2,'0')}`;
+      renderLookup(selected.row,selected.col);
+      els.wavebox.classList.add('show-raw');
+      els.timeNote.textContent='触点在几毫秒内反复通断';
+      els.debounceNote.textContent='机械簧片刚接触时会弹跳，控制器可能连续读到 0—1—0—1。若立即上报，一次按下可能被误判成多次。';
+      els.stepTitle.textContent='查表得到键值，但原始触点正在抖动';
+      els.stepText.textContent=`位置编码 ${selected.row.toString(2).padStart(2,'0')} ${selected.col.toString(2).padStart(2,'0')} 通过查找表映射为字符 ${selected.key}。此时还不能立即认定输入有效。`;
+      return;
+    }
+
+    if(step===7){
+      setActiveRows(selected.row,selected.col);
+      renderKeys(true,false);
+      renderProcess(4);
+      els.rowRead.textContent=rowState(selected.row);
+      els.colRead.textContent='1'.repeat(selected.col)+'0'+'1'.repeat(3-selected.col);
+      els.positionRead.textContent=`R${selected.row}, C${selected.col}`;
+      els.keyRead.textContent=`${selected.key}（ASCII ${asciiMap[selected.key]}）`;
+      els.binaryRead.textContent=`${selected.row.toString(2).padStart(2,'0')} ${selected.col.toString(2).padStart(2,'0')}`;
+      renderLookup(selected.row,selected.col);
+      els.wavebox.classList.add('show-raw','show-delay','show-clean');
+      els.timeNote.textContent='约 10 ms 后状态仍稳定';
+      els.debounceNote.textContent=`防抖确认完成：延时后再次读取，R${selected.row}—C${selected.col} 仍保持按下状态，因此只上报一次键值 ${selected.key}。`;
+      els.stepTitle.textContent=`有效输入确认：上报字符 ${selected.key}`;
+      els.stepText.textContent='完整流程结束：矩阵结构节省引脚，扫描确定位置，查表转换键值，防抖保证一次物理动作只产生一次有效事件。';
+    }
+  }
+
+  function next(){if(step<7){step++;render()}else stopPlay()}
+  function prev(){if(step>0){step--;render()}}
+  function stopPlay(){playing=false;clearInterval(timer);timer=null;render()}
+  function togglePlay(){
+    if(playing){stopPlay();return}
+    if(step===7)step=0;
+    playing=true;render();
+    timer=setInterval(()=>{if(step>=7){stopPlay();return}next()},Number(els.speed.value));
+  }
+  function reset(){stopPlay();selected={row:1,col:2,key:'6'};step=0;render()}
+
+  els.nextBtn.addEventListener('click',next);
+  els.prevBtn.addEventListener('click',prev);
+  els.playBtn.addEventListener('click',togglePlay);
+  els.resetBtn.addEventListener('click',reset);
+  els.speed.addEventListener('input',()=>{if(playing){stopPlay();togglePlay()}});
+  document.addEventListener('keydown',e=>{
+    if(['INPUT','BUTTON','TEXTAREA','SELECT'].includes(e.target.tagName))return;
+    if(e.code==='Space'){e.preventDefault();next();return}
+    const k=e.key.toUpperCase();
+    for(let r=0;r<4;r++)for(let c=0;c<4;c++)if(keyMap[r][c]===k){chooseKey(r,c);return}
+  });
+
+  buildUI();
+  render();
+</script>
+</body>
+</html>

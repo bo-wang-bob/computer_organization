@@ -75,15 +75,15 @@ class IEEE754Request(BaseModel):
 
 class CacheRequest(BaseModel):
     address: int | str
-    addressBits: int | str = 12
-    lines: int | str = 16
+    addressBits: int | str = 6
+    lines: int | str = 4
     blockSize: int | str = 4
 
 
 class CacheSystemRequest(BaseModel):
     accesses: str | list[int | str]
-    addressBits: int | str = 12
-    lines: int | str = 16
+    addressBits: int | str = 6
+    lines: int | str = 4
     blockSize: int | str = 4
     mapping: str = "direct"
     associativity: int | str = 2

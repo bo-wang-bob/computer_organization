@@ -1,0 +1,770 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>例5.3｜硬布线控制器控制信号逻辑表达式推导</title>
+<style>
+  :root{
+    --navy:#0b2e63;
+    --blue:#1565c0;
+    --blue-2:#2f80ed;
+    --cyan:#eaf6ff;
+    --green:#18864b;
+    --green-soft:#eaf8f0;
+    --orange:#d56a00;
+    --orange-soft:#fff3e4;
+    --purple:#6b48c8;
+    --purple-soft:#f1edff;
+    --red:#c93737;
+    --red-soft:#fff0f0;
+    --ink:#13243a;
+    --muted:#64748b;
+    --line:#d7e2ef;
+    --paper:#ffffff;
+    --bg:#edf4fa;
+    --shadow:0 12px 32px rgba(17,46,81,.12);
+    --radius:12px;
+  }
+
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0;
+    min-height:100vh;
+    font-family:"Microsoft YaHei","PingFang SC",Arial,sans-serif;
+    color:var(--ink);
+    background:
+      radial-gradient(circle at 12% 0%, rgba(47,128,237,.12), transparent 32%),
+      linear-gradient(180deg,#f5f9fd 0%,var(--bg) 100%);
+  }
+
+  button,input{font:inherit}
+  .app{width:min(1880px,calc(100% - 32px));margin:0 auto;padding:12px 0 24px}
+
+  header{
+    display:grid;
+    grid-template-columns:minmax(0,1fr) auto;
+    gap:18px;
+    align-items:center;
+    padding:18px 20px;
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    background:rgba(255,255,255,.96);
+    box-shadow:var(--shadow);
+    position:sticky;
+    top:8px;
+    z-index:30;
+    backdrop-filter:blur(10px);
+  }
+  .title-wrap{min-width:0}
+  .eyebrow{font-size:13px;font-weight:800;color:var(--blue);letter-spacing:.08em;margin-bottom:6px}
+  h1{margin:0;color:var(--navy);font-size:clamp(24px,2.3vw,36px);line-height:1.2}
+  .subtitle{margin:7px 0 0;color:var(--muted);font-size:14px;line-height:1.55}
+
+  .controls{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+  button{
+    border:1px solid #b8cbe0;
+    background:#fff;
+    color:#163b66;
+    font-weight:800;
+    min-height:40px;
+    padding:9px 13px;
+    border-radius:9px;
+    cursor:pointer;
+    transition:.2s ease;
+  }
+  button:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 5px 14px rgba(21,101,192,.15)}
+  button.primary{color:#fff;background:var(--blue);border-color:var(--blue)}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  .speed{display:flex;align-items:center;gap:7px;color:var(--muted);font-size:13px;font-weight:700;white-space:nowrap;margin-left:2px}
+  input[type="range"]{width:104px;accent-color:var(--blue)}
+
+  .progress-shell{margin:12px 0 0;height:5px;background:#dfe9f3;border-radius:99px;overflow:hidden}
+  .progress-bar{height:100%;width:0;background:linear-gradient(90deg,var(--blue-2),var(--purple));transition:width .35s ease}
+
+  .status-row{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(340px,.75fr);gap:12px;margin:12px 0}
+  .card{
+    min-width:0;
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+  }
+  .message{padding:15px 18px;min-height:102px;display:flex;flex-direction:column;justify-content:center}
+  .message-top{display:flex;align-items:center;gap:10px;margin-bottom:7px;flex-wrap:wrap}
+  .step-counter{font-size:12px;font-weight:900;color:#fff;background:var(--purple);border-radius:999px;padding:4px 9px}
+  .message strong{font-size:19px;color:var(--blue)}
+  .message p{margin:0;color:#31445c;line-height:1.65;font-size:15px}
+
+  .rule-card{padding:14px 16px;display:flex;flex-direction:column;justify-content:center}
+  .rule-title{font-weight:900;color:var(--navy);margin-bottom:8px}
+  .rule-line{display:flex;align-items:center;gap:8px;flex-wrap:wrap;color:#33475f;font-size:14px;line-height:1.5}
+  .logic-chip{display:inline-flex;align-items:center;justify-content:center;min-height:28px;padding:4px 9px;border-radius:7px;border:1px solid #c9daf0;background:#f7fbff;font-weight:900;color:#174d86}
+  .logic-op{font-size:20px;font-weight:900;color:var(--orange)}
+
+  .workspace{display:grid;grid-template-columns:minmax(0,1.18fr) minmax(430px,.82fr);gap:12px;align-items:start}
+  .left-col,.right-col{display:grid;gap:12px;min-width:0}
+
+  .panel-title{
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+    padding:13px 16px;background:linear-gradient(90deg,#0d4f99,#1565c0);color:#fff;
+    border-radius:var(--radius) var(--radius) 0 0;font-size:17px;font-weight:900;
+  }
+  .panel-title small{font-size:12px;opacity:.88;font-weight:700;text-align:right}
+  .panel-body{padding:14px;min-width:0}
+
+  /* Flow chart */
+  .flow-scroll{overflow-x:auto;padding-bottom:3px}
+  .flow{min-width:880px;display:grid;grid-template-columns:84px repeat(5,minmax(130px,1fr));gap:8px;align-items:stretch}
+  .lane-label{
+    min-height:112px;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    background:#0d3c73;color:#fff;font-weight:900;border:1px solid #0a315e;
+  }
+  .lane-label strong{font-size:25px}.lane-label span{font-size:11px;opacity:.88;margin-top:5px}
+  .flow-card{
+    border:1px solid #c9d8e8;border-radius:10px;background:#fbfdff;padding:10px;position:relative;overflow:hidden;
+    transition:.25s ease;min-height:112px;
+  }
+  .flow-card::before{content:"";position:absolute;inset:0 auto 0 0;width:5px;background:#9cb8d6}
+  .flow-card.fetch{grid-column:2 / 7;background:#eef8ef;border-color:#a8d6b7}
+  .flow-card.fetch::before{background:var(--green)}
+  .flow-card.inactive{background:#f6f8fb;color:#94a3b8;border-style:dashed}
+  .flow-card.active{
+    border-color:#f1a44b;background:var(--orange-soft);box-shadow:0 0 0 3px rgba(213,106,0,.16);transform:translateY(-2px)
+  }
+  .flow-card.active::before{background:var(--orange)}
+  .flow-card.dim{opacity:.4;filter:saturate(.65)}
+  .flow-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:7px}
+  .flow-head strong{font-size:17px;color:#123d70}
+  .flow-card.fetch .flow-head strong{color:#17683d}
+  .cycle-badge{font-size:11px;border-radius:999px;padding:3px 7px;background:#e8f1fb;color:#14548f;font-weight:900}
+  .micro-list{display:grid;gap:5px}
+  .micro{display:flex;align-items:flex-start;gap:6px;font-size:12px;line-height:1.35;color:#33475f;padding:4px 6px;border-radius:6px}
+  .micro .t{flex:0 0 auto;color:#fff;background:#6b7f96;border-radius:5px;padding:1px 5px;font-weight:900}
+  .micro.active{background:#fff2dc;color:#713a00;font-weight:800}
+  .micro.active .t{background:var(--orange)}
+  .flow-separator{grid-column:1 / 7;height:1px;background:#cbd9e7;margin:1px 0}
+
+  /* Timing matrix */
+  .condition-grid{display:grid;grid-template-columns:96px repeat(4,1fr);gap:7px}
+  .condition-grid .head,.condition-grid .rowhead,.condition-cell{
+    min-height:42px;border-radius:8px;display:flex;align-items:center;justify-content:center;text-align:center;border:1px solid var(--line)
+  }
+  .condition-grid .head{background:#0f5fb4;color:#fff;font-weight:900}
+  .condition-grid .rowhead{background:#e9f2fb;color:#164d86;font-weight:900}
+  .condition-cell{background:#f8fbfe;color:#7c8ea3;font-weight:800;transition:.2s}
+  .condition-cell.active{background:#fff0d8;border-color:#e7a146;color:#9a4a00;box-shadow:inset 0 0 0 2px rgba(213,106,0,.16)}
+  .condition-cell.level{background:#eaf8f0;border-color:#8bc9a6;color:#17653a}
+  .opcode-wrap{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap}
+  .opcode{
+    padding:7px 11px;border-radius:8px;border:1px solid #c7d7e7;background:#f8fbff;color:#4f647b;font-weight:900;font-size:13px;
+    transition:.2s
+  }
+  .opcode.active{color:#fff;background:var(--purple);border-color:var(--purple);box-shadow:0 0 0 3px rgba(107,72,200,.15)}
+  .opcode.group-active{background:var(--purple-soft);border-color:#a894df;color:#5131ad}
+  .type-strip{margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .type-box{border:1px solid var(--line);border-radius:9px;padding:9px 10px;background:#fbfdff}
+  .type-box strong{display:block;font-size:13px;color:var(--navy);margin-bottom:3px}
+  .type-box span{font-size:12px;color:var(--muted);line-height:1.4}
+  .type-box.active{background:var(--green-soft);border-color:#8dc8a7;box-shadow:0 0 0 2px rgba(24,134,75,.12)}
+
+  /* Formula */
+  .formula-panel{overflow:hidden}
+  .formula-head{padding:14px 16px;background:linear-gradient(90deg,#5835b5,#795bd5);color:#fff}
+  .formula-head-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+  .signal-name{font-size:28px;font-weight:1000;letter-spacing:.02em}
+  .signal-meaning{font-size:13px;opacity:.9;margin-top:3px}
+  .signal-type{flex:0 0 auto;border:1px solid rgba(255,255,255,.45);border-radius:999px;padding:5px 9px;font-weight:900;font-size:12px;background:rgba(255,255,255,.12)}
+  .formula-body{padding:16px}
+  .formula-label{font-size:12px;color:var(--muted);font-weight:900;letter-spacing:.08em;margin-bottom:8px}
+  .formula-display{
+    min-height:74px;border:1px solid #d8d0f2;background:#faf8ff;border-radius:11px;padding:14px;
+    display:flex;align-items:center;flex-wrap:wrap;gap:8px;font-family:Consolas,"Courier New",monospace;font-size:clamp(20px,2vw,30px);font-weight:900;color:#2b1b64;
+  }
+  .formula-left{color:#0f3e73}
+  .term-token{display:inline-flex;align-items:center;gap:2px;padding:4px 7px;border-radius:7px;background:#fff;border:1px solid #d9d0f3;animation:pop .25s ease-out}
+  .term-token.current{background:#fff0d8;border-color:#e7a146;color:#9a4a00;box-shadow:0 0 0 3px rgba(213,106,0,.13)}
+  .term-token.pending{opacity:.18;filter:blur(.6px)}
+  .plus{color:var(--orange);font-family:inherit}
+  .placeholder{font-size:15px;color:#8a96a7;font-family:"Microsoft YaHei",sans-serif;font-weight:700}
+  @keyframes pop{from{transform:scale(.9);opacity:.2}to{transform:scale(1);opacity:1}}
+
+  .reason-box{margin-top:12px;border-left:5px solid var(--orange);background:var(--orange-soft);border-radius:8px;padding:11px 12px}
+  .reason-box strong{display:block;color:#8b4300;margin-bottom:4px;font-size:14px}
+  .reason-box p{margin:0;color:#60401f;font-size:13px;line-height:1.55}
+  .condition-summary{margin-top:12px;display:flex;gap:7px;flex-wrap:wrap}
+  .condition-pill{border-radius:999px;padding:5px 9px;font-size:12px;font-weight:900;background:#eef4fa;border:1px solid #d0deeb;color:#34516e}
+  .condition-pill.machine{background:#eaf8f0;border-color:#96cfad;color:#17643a}
+  .condition-pill.pulse{background:#fff1dc;border-color:#edb36c;color:#925000}
+  .condition-pill.op{background:#f1edff;border-color:#b7a6e8;color:#5634b6}
+
+  /* signal navigator */
+  .signal-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+  .signal-btn{
+    min-height:63px;text-align:left;padding:8px 10px;border-radius:9px;border:1px solid #cbd9e7;background:#fbfdff;cursor:pointer;transition:.2s
+  }
+  .signal-btn:hover{border-color:#7ba8d7;background:#f3f9ff}
+  .signal-btn.active{background:#eaf3ff;border-color:#4f91d4;box-shadow:0 0 0 3px rgba(21,101,192,.12)}
+  .signal-btn.done{border-color:#90c9a9;background:#f2fbf5}
+  .signal-btn strong{display:block;color:#123e70;font-size:15px;margin-bottom:4px}
+  .signal-btn span{display:block;color:#6a7d92;font-size:11px;line-height:1.3}
+  .signal-btn.done::after{content:"已推导";float:right;margin-top:-29px;font-size:10px;color:#187242;font-weight:900}
+
+  /* datapath — responsive SVG layout */
+  .datapath-wrap{
+    overflow-x:auto;
+    overflow-y:hidden;
+    padding:14px;
+  }
+  .datapath{
+    display:block;
+    width:100%;
+    min-width:720px;
+    height:auto;
+    aspect-ratio:980 / 460;
+    border:1px solid #d3e0ec;
+    border-radius:12px;
+    background:
+      linear-gradient(#f1f6fb 1px,transparent 1px),
+      linear-gradient(90deg,#f1f6fb 1px,transparent 1px),
+      #fff;
+    background-size:28px 28px;
+  }
+  .datapath .zone{
+    fill:#f8fbff;
+    stroke:#dce7f1;
+    stroke-width:1.5;
+    stroke-dasharray:7 7;
+  }
+  .datapath .zone-label{
+    fill:#7a8fa5;
+    font-size:14px;
+    font-weight:800;
+    letter-spacing:.08em;
+  }
+  .datapath .edge{
+    fill:none;
+    stroke:#bed0e0;
+    stroke-width:4;
+    stroke-linecap:round;
+    stroke-linejoin:round;
+    opacity:.5;
+    marker-end:url(#arrow-muted);
+    transition:stroke .25s ease,opacity .25s ease,filter .25s ease,stroke-width .25s ease;
+  }
+  .datapath .edge.secondary{stroke-dasharray:8 8;opacity:.38}
+  .datapath .edge.active{
+    stroke:var(--orange);
+    stroke-width:6;
+    opacity:1;
+    marker-end:url(#arrow-active);
+    filter:drop-shadow(0 0 5px rgba(213,106,0,.5));
+    stroke-dasharray:14 9;
+    animation:dashFlow .75s linear infinite;
+  }
+  @keyframes dashFlow{to{stroke-dashoffset:-23}}
+  .datapath .node{transition:filter .25s ease,transform .25s ease;transform-box:fill-box;transform-origin:center}
+  .datapath .node rect{
+    fill:#f8fbff;
+    stroke:#8eb0d1;
+    stroke-width:2.5;
+    rx:12;
+    transition:fill .25s ease,stroke .25s ease,stroke-width .25s ease;
+  }
+  .datapath .node .node-title{fill:#173f6b;font-size:20px;font-weight:900;text-anchor:middle}
+  .datapath .node .node-sub{fill:#6d8297;font-size:12px;font-weight:700;text-anchor:middle}
+  .datapath .node.active{transform:scale(1.035);filter:drop-shadow(0 4px 7px rgba(213,106,0,.22))}
+  .datapath .node.active rect{fill:#fff0d8;stroke:#e49331;stroke-width:4}
+  .datapath .node.active .node-title{fill:#874200}
+  .datapath .path-label{opacity:0;transition:opacity .2s ease;pointer-events:none}
+  .datapath .path-label rect{fill:#fff7eb;stroke:#efa94f;stroke-width:1.5;rx:7}
+  .datapath .path-label text{fill:#8b4a00;font-size:13px;font-weight:900;text-anchor:middle;dominant-baseline:middle}
+  .datapath .path-label.active{opacity:1}
+  .datapath .bus-label{fill:#8ba0b4;font-size:12px;font-weight:800;text-anchor:middle}
+
+  /* full formulas */
+  .answer-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+  .answer-card{border:1px solid #d4e0ec;border-radius:9px;padding:9px 10px;background:#f9fbfd;min-height:68px;transition:.25s}
+  .answer-card.active{background:#fff3e4;border-color:#eba956;box-shadow:0 0 0 3px rgba(213,106,0,.12)}
+  .answer-card.done{background:#effaf3;border-color:#99cfaf}
+  .answer-card strong{display:block;color:#113d70;font-size:13px;margin-bottom:5px}
+  .answer-card code{font-family:Consolas,"Courier New",monospace;font-size:13px;color:#39256e;font-weight:900;white-space:normal}
+
+  .footer-note{margin-top:12px;color:#6e8094;font-size:12px;line-height:1.6;text-align:right}
+
+  @media (max-width:1260px){
+    header{position:static;grid-template-columns:1fr}
+    .controls{justify-content:flex-start}
+    .workspace{grid-template-columns:1fr}
+    .status-row{grid-template-columns:1fr}
+    .signal-list,.answer-grid{grid-template-columns:repeat(3,minmax(150px,1fr))}
+  }
+  @media (max-width:760px){
+    .app{width:min(100% - 16px,1880px);padding-top:8px}
+    header{padding:14px}
+    .controls{display:grid;grid-template-columns:repeat(2,1fr);width:100%}
+    .controls button{width:100%}
+    .speed{grid-column:1 / -1}
+    .signal-list,.answer-grid{grid-template-columns:1fr 1fr}
+    .condition-grid{grid-template-columns:72px repeat(4,1fr);gap:5px;font-size:12px}
+    .panel-title{align-items:flex-start;flex-direction:column}
+  }
+  @media (max-width:470px){.signal-list,.answer-grid{grid-template-columns:1fr}.type-strip{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="title-wrap">
+      <div class="eyebrow">微课 36 · PPT 例 5.3</div>
+      <h1>硬布线控制器：控制信号逻辑表达式推导</h1>
+      <p class="subtitle">从指令周期流程图出发，逐个推导 RD(I)、RD(D)、WE(D)、LDPC、LDIR、LDAR、LDDR、PC+1、LDRy。</p>
+      <div class="progress-shell"><div id="progressBar" class="progress-bar"></div></div>
+    </div>
+    <div class="controls">
+      <button id="prevBtn">上一步</button>
+      <button id="nextBtn" class="primary">下一步</button>
+      <button id="playBtn">播放</button>
+      <button id="resetBtn">重置</button>
+      <label class="speed">速度 <input id="speed" type="range" min="550" max="1900" step="50" value="1100"></label>
+    </div>
+  </header>
+
+  <div class="status-row">
+    <section class="card message">
+      <div class="message-top"><span id="stepCounter" class="step-counter">步骤 1/18</span><strong id="stepTitle">读题：从流程图反推控制条件</strong></div>
+      <p id="stepText">先不看答案。对每个控制信号，依次回答三个问题：在哪个机器周期？哪个节拍？哪些指令会触发？</p>
+    </section>
+    <section class="card rule-card">
+      <div class="rule-title">表达式生成规则</div>
+      <div class="rule-line"><span class="logic-chip">同一次触发的条件</span><span class="logic-op">相与</span><span class="logic-chip">M · T · OP</span></div>
+      <div class="rule-line" style="margin-top:7px"><span class="logic-chip">同一信号的多种触发</span><span class="logic-op">相或</span><span class="logic-chip">条件① + 条件②</span></div>
+    </section>
+  </div>
+
+  <main class="workspace">
+    <div class="left-col">
+      <section class="card">
+        <div class="panel-title"><span>① 指令周期流程图</span><small>高亮处就是当前控制信号的来源</small></div>
+        <div class="panel-body flow-scroll">
+          <div class="flow" id="flowChart">
+            <div class="lane-label"><strong>M1</strong><span>取指周期</span></div>
+            <div class="flow-card fetch" data-flow="fetch">
+              <div class="flow-head"><strong>所有指令公共取指</strong><span class="cycle-badge">M1</span></div>
+              <div class="micro-list">
+                <div class="micro" data-micro="fetch-read"><span class="t">全周期</span><span>PC → ABUS(I)，RD(I) 有效</span></div>
+                <div class="micro" data-micro="fetch-t3"><span class="t">T3</span><span>IBUS → IR；PC 执行 +1</span></div>
+                <div class="micro" data-micro="fetch-t4"><span class="t">T4</span><span>将新地址打入 PC</span></div>
+              </div>
+            </div>
+
+            <div class="flow-separator"></div>
+            <div class="lane-label"><strong>M2</strong><span>执行/准备</span></div>
+            <div class="flow-card" data-flow="mov">
+              <div class="flow-head"><strong>MOV</strong><span class="cycle-badge">M2</span></div>
+              <div class="micro-list"><div class="micro" data-micro="mov-t3"><span class="t">T3</span><span>Ry → DR</span></div><div class="micro" data-micro="mov-t4"><span class="t">T4</span><span>DR → Rx</span></div></div>
+            </div>
+            <div class="flow-card" data-flow="lad">
+              <div class="flow-head"><strong>LAD</strong><span class="cycle-badge">M2</span></div>
+              <div class="micro-list"><div class="micro" data-micro="lad-t4"><span class="t">T4</span><span>IR → AR</span></div><div class="micro"><span class="t">→M3</span><span>随后读取数据存储器</span></div></div>
+            </div>
+            <div class="flow-card" data-flow="add">
+              <div class="flow-head"><strong>ADD</strong><span class="cycle-badge">M2</span></div>
+              <div class="micro-list"><div class="micro" data-micro="add-t3"><span class="t">T3</span><span>Rx + Ry → DR</span></div><div class="micro" data-micro="add-t4"><span class="t">T4</span><span>DR → Ry</span></div></div>
+            </div>
+            <div class="flow-card" data-flow="sto">
+              <div class="flow-head"><strong>STO</strong><span class="cycle-badge">M2</span></div>
+              <div class="micro-list"><div class="micro" data-micro="sto-t4"><span class="t">T4</span><span>Ry → AR</span></div><div class="micro"><span class="t">→M3</span><span>随后写数据存储器</span></div></div>
+            </div>
+            <div class="flow-card" data-flow="jmp">
+              <div class="flow-head"><strong>JMP</strong><span class="cycle-badge">M2</span></div>
+              <div class="micro-list"><div class="micro" data-micro="jmp-t4"><span class="t">T4</span><span>IR → PC</span></div><div class="micro"><span class="t">结束</span><span>直接转向目标地址</span></div></div>
+            </div>
+
+            <div class="flow-separator"></div>
+            <div class="lane-label"><strong>M3</strong><span>数据访存</span></div>
+            <div class="flow-card inactive"><div class="flow-head"><strong>MOV</strong><span class="cycle-badge">无 M3</span></div><div class="micro-list"><div class="micro"><span>在 M2 已完成</span></div></div></div>
+            <div class="flow-card" data-flow="lad-m3">
+              <div class="flow-head"><strong>LAD</strong><span class="cycle-badge">M3</span></div>
+              <div class="micro-list"><div class="micro" data-micro="lad-m3-level"><span class="t">全周期</span><span>AR → ABUS(D)，RD(D) 有效</span></div><div class="micro" data-micro="lad-m3-t3"><span class="t">T3</span><span>DBUS → DR</span></div><div class="micro"><span class="t">T4</span><span>DR → Rx</span></div></div>
+            </div>
+            <div class="flow-card inactive"><div class="flow-head"><strong>ADD</strong><span class="cycle-badge">无 M3</span></div><div class="micro-list"><div class="micro"><span>在 M2 已完成</span></div></div></div>
+            <div class="flow-card" data-flow="sto-m3">
+              <div class="flow-head"><strong>STO</strong><span class="cycle-badge">M3</span></div>
+              <div class="micro-list"><div class="micro" data-micro="sto-m3-t3"><span class="t">T3</span><span>Rx → DBUS，WE(D) 有效</span></div><div class="micro"><span class="t">结束</span><span>完成数据写入</span></div></div>
+            </div>
+            <div class="flow-card inactive"><div class="flow-head"><strong>JMP</strong><span class="cycle-badge">无 M3</span></div><div class="micro-list"><div class="micro"><span>在 M2 已完成</span></div></div></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="panel-title"><span>② 时序与指令条件定位</span><small>机器周期 M、节拍脉冲 T、操作码译码 OP</small></div>
+        <div class="panel-body">
+          <div class="condition-grid" id="conditionGrid">
+            <div class="head">机器周期</div><div class="head">T1</div><div class="head">T2</div><div class="head">T3</div><div class="head">T4</div>
+            <div class="rowhead">M1</div><div class="condition-cell" data-cell="M1T1">M1T1</div><div class="condition-cell" data-cell="M1T2">M1T2</div><div class="condition-cell" data-cell="M1T3">M1T3</div><div class="condition-cell" data-cell="M1T4">M1T4</div>
+            <div class="rowhead">M2</div><div class="condition-cell" data-cell="M2T1">M2T1</div><div class="condition-cell" data-cell="M2T2">M2T2</div><div class="condition-cell" data-cell="M2T3">M2T3</div><div class="condition-cell" data-cell="M2T4">M2T4</div>
+            <div class="rowhead">M3</div><div class="condition-cell" data-cell="M3T1">M3T1</div><div class="condition-cell" data-cell="M3T2">M3T2</div><div class="condition-cell" data-cell="M3T3">M3T3</div><div class="condition-cell" data-cell="M3T4">M3T4</div>
+          </div>
+          <div class="opcode-wrap" id="opcodeWrap">
+            <span class="opcode" data-op="MOV">MOV</span><span class="opcode" data-op="LAD">LAD</span><span class="opcode" data-op="ADD">ADD</span><span class="opcode" data-op="STO">STO</span><span class="opcode" data-op="JMP">JMP</span><span class="opcode" data-op="ALL">所有指令</span>
+          </div>
+          <div class="type-strip">
+            <div class="type-box" data-type="level"><strong>电位信号</strong><span>在整个机器周期内保持有效，表达式可不含具体 T。</span></div>
+            <div class="type-box" data-type="pulse"><strong>脉冲/装载信号</strong><span>只在指定节拍动作，表达式通常含 T3 或 T4。</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="panel-title"><span>③ 简化 CPU 数据通路</span><small>橙色箭头显示当前微操作的数据流向</small></div>
+        <div class="panel-body datapath-wrap">
+          <svg class="datapath" id="datapath" viewBox="0 0 980 460" role="img" aria-label="例5.3简化CPU数据通路动态演示">
+            <defs>
+              <marker id="arrow-muted" markerWidth="11" markerHeight="11" refX="9" refY="5.5" orient="auto" markerUnits="strokeWidth">
+                <path d="M0,0 L10,5.5 L0,11 Z" fill="#bed0e0"></path>
+              </marker>
+              <marker id="arrow-active" markerWidth="11" markerHeight="11" refX="9" refY="5.5" orient="auto" markerUnits="strokeWidth">
+                <path d="M0,0 L10,5.5 L0,11 Z" fill="#d56a00"></path>
+              </marker>
+            </defs>
+
+            <!-- 分区背景，避免元件和连线挤在一起 -->
+            <rect class="zone" x="22" y="22" width="936" height="112" rx="14"></rect>
+            <text class="zone-label" x="42" y="48">取指与转移通路</text>
+            <rect class="zone" x="22" y="158" width="936" height="122" rx="14"></rect>
+            <text class="zone-label" x="42" y="184">寄存器与运算通路</text>
+            <rect class="zone" x="22" y="304" width="936" height="132" rx="14"></rect>
+            <text class="zone-label" x="42" y="330">数据存储器通路</text>
+
+            <!-- 连线放在节点下层；均采用折线/曲线绕开元件 -->
+            <path class="edge" data-edge="pc-imem" d="M180 84 H270"></path>
+            <path class="edge" data-edge="imem-ir" d="M420 84 H760"></path>
+            <path class="edge secondary" data-edge="ir-pc" d="M835 48 V22 H110 V48"></path>
+
+            <path class="edge" data-edge="reg-alu" d="M420 219 H560"></path>
+            <path class="edge" data-edge="alu-dr" d="M710 219 H825 V340"></path>
+            <path class="edge" data-edge="reg-dr" d="M420 242 C540 288 660 300 760 365"></path>
+            <path class="edge secondary" data-edge="dr-reg" d="M760 392 C650 438 500 418 345 278"></path>
+
+            <path class="edge secondary" data-edge="ir-ar" d="M910 84 H942 V316 H110 V340"></path>
+            <path class="edge" data-edge="ar-dmem" d="M180 375 H270"></path>
+            <path class="edge" data-edge="dmem-dr" d="M420 375 H760"></path>
+            <path class="edge secondary" data-edge="reg-ar" d="M270 242 C205 268 145 288 110 340"></path>
+            <path class="edge secondary" data-edge="reg-dmem" d="M345 278 V340"></path>
+
+            <!-- 数据通路节点 -->
+            <g class="node" data-node="pc">
+              <rect x="40" y="48" width="140" height="72"></rect>
+              <text class="node-title" x="110" y="78">PC</text>
+              <text class="node-sub" x="110" y="101">程序计数器</text>
+            </g>
+            <g class="node" data-node="imem">
+              <rect x="270" y="48" width="150" height="72"></rect>
+              <text class="node-title" x="345" y="77">指令存储器</text>
+              <text class="node-sub" x="345" y="101">RD(I)</text>
+            </g>
+            <g class="node" data-node="ir">
+              <rect x="760" y="48" width="150" height="72"></rect>
+              <text class="node-title" x="835" y="78">IR</text>
+              <text class="node-sub" x="835" y="101">指令寄存器</text>
+            </g>
+            <g class="node" data-node="reg">
+              <rect x="270" y="190" width="150" height="88"></rect>
+              <text class="node-title" x="345" y="224">寄存器组</text>
+              <text class="node-sub" x="345" y="249">Rx / Ry</text>
+            </g>
+            <g class="node" data-node="alu">
+              <rect x="560" y="190" width="150" height="88"></rect>
+              <text class="node-title" x="635" y="224">ALU</text>
+              <text class="node-sub" x="635" y="249">Rx + Ry</text>
+            </g>
+            <g class="node" data-node="ar">
+              <rect x="40" y="340" width="140" height="72"></rect>
+              <text class="node-title" x="110" y="370">AR</text>
+              <text class="node-sub" x="110" y="393">数据地址寄存器</text>
+            </g>
+            <g class="node" data-node="dmem">
+              <rect x="270" y="340" width="150" height="72"></rect>
+              <text class="node-title" x="345" y="369">数据存储器</text>
+              <text class="node-sub" x="345" y="393">RD(D) / WE(D)</text>
+            </g>
+            <g class="node" data-node="dr">
+              <rect x="760" y="340" width="150" height="72"></rect>
+              <text class="node-title" x="835" y="370">DR</text>
+              <text class="node-sub" x="835" y="393">数据缓冲寄存器</text>
+            </g>
+
+            <!-- 仅在对应微操作激活时显示的标签 -->
+            <g class="path-label" data-label="fetch">
+              <rect x="535" y="58" width="68" height="28"></rect><text x="569" y="72">取指</text>
+            </g>
+            <g class="path-label" data-label="pcinc">
+              <rect x="432" y="12" width="72" height="28"></rect><text x="468" y="26">PC+1</text>
+            </g>
+            <g class="path-label" data-label="jmp">
+              <rect x="526" y="12" width="66" height="28"></rect><text x="559" y="26">JMP</text>
+            </g>
+            <g class="path-label" data-label="add">
+              <rect x="462" y="195" width="66" height="28"></rect><text x="495" y="209">ADD</text>
+            </g>
+            <g class="path-label" data-label="mov">
+              <rect x="548" y="282" width="66" height="28"></rect><text x="581" y="296">MOV</text>
+            </g>
+            <g class="path-label" data-label="lad">
+              <rect x="535" y="353" width="66" height="28"></rect><text x="568" y="367">LAD</text>
+            </g>
+            <g class="path-label" data-label="sto">
+              <rect x="347" y="292" width="66" height="28"></rect><text x="380" y="306">STO</text>
+            </g>
+          </svg>
+        </div>
+      </section>
+    </div>
+
+    <div class="right-col">
+      <section class="card formula-panel">
+        <div class="formula-head">
+          <div class="formula-head-top">
+            <div><div id="signalName" class="signal-name">待选择</div><div id="signalMeaning" class="signal-meaning">从流程图中寻找控制信号出现的全部条件</div></div>
+            <span id="signalType" class="signal-type">推导准备</span>
+          </div>
+        </div>
+        <div class="formula-body">
+          <div class="formula-label">当前表达式</div>
+          <div id="formulaDisplay" class="formula-display"><span class="placeholder">点击“下一步”开始逐项推导</span></div>
+          <div class="reason-box"><strong id="reasonTitle">推导方法</strong><p id="reasonText">先在流程图中定位控制信号对应的微操作，再读取机器周期、节拍和指令条件。</p></div>
+          <div id="conditionSummary" class="condition-summary"></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="panel-title"><span>控制信号导航</span><small>可点击任一信号跳转到其推导</small></div>
+        <div class="panel-body"><div id="signalList" class="signal-list"></div></div>
+      </section>
+
+      <section class="card">
+        <div class="panel-title"><span>例 5.3 完整结果</span><small>已讲到的表达式会逐步点亮</small></div>
+        <div class="panel-body"><div id="answerGrid" class="answer-grid"></div></div>
+      </section>
+    </div>
+  </main>
+
+  <div class="footer-note">提示：空格键进入下一步；←/→ 切换步骤。表达式中的相邻符号表示逻辑“与”，加号表示逻辑“或”。</div>
+</div>
+
+<script>
+const signals = {
+  rdi:{name:'RD(I)',meaning:'指令存储器读命令',type:'电位信号',typeKey:'level',formula:'M1',terms:[
+    {expr:'M1',machines:['M1'],pulses:[],ops:['ALL'],flows:['fetch'],micros:['fetch-read'],nodes:['pc','imem'],edges:['pc-imem'],labels:['fetch'],reason:'所有机器指令都必须先取指。整个 M1 期间指令存储器持续处于读状态，因此只需机器周期条件 M1，不必再限定某个节拍脉冲。'}]},
+  rdd:{name:'RD(D)',meaning:'数据存储器读命令',type:'电位信号',typeKey:'level',formula:'M3·LAD',terms:[
+    {expr:'M3·LAD',machines:['M3'],pulses:[],ops:['LAD'],flows:['lad-m3'],micros:['lad-m3-level'],nodes:['ar','dmem'],edges:['ar-dmem'],labels:['lad'],reason:'只有 LAD 需要读取数据存储器，而且读取发生在 M3。读命令在整个 M3 期间保持有效，所以表达式为 M3 与 LAD 相与。'}]},
+  wed:{name:'WE(D)',meaning:'数据存储器写命令',type:'脉冲信号',typeKey:'pulse',formula:'M3·T3·STO',terms:[
+    {expr:'M3·T3·STO',machines:['M3'],pulses:['T3'],ops:['STO'],flows:['sto-m3'],micros:['sto-m3-t3'],nodes:['reg','dmem'],edges:['reg-dmem'],labels:['sto'],reason:'只有 STO 执行数据写入。流程图把写动作安排在 M3 的 T3，因此三个条件必须同时满足：M3、T3、STO。'}]},
+  ldpc:{name:'LDPC',meaning:'打入程序计数器 PC',type:'装载脉冲信号',typeKey:'pulse',formula:'M1·T4 + M2·T4·JMP',terms:[
+    {expr:'M1·T4',machines:['M1'],pulses:['T4'],ops:['ALL'],flows:['fetch'],micros:['fetch-t4'],nodes:['pc'],edges:[],labels:['pcinc'],reason:'第一种触发来自公共取指：PC 在 T3 完成加 1，随后在 M1T4 将新地址打入 PC，因此得到第一项 M1·T4。'},
+    {expr:'M2·T4·JMP',machines:['M2'],pulses:['T4'],ops:['JMP'],flows:['jmp'],micros:['jmp-t4'],nodes:['ir','pc'],edges:['ir-pc'],labels:['jmp'],reason:'第二种触发来自 JMP：在 M2T4，IR 中的目标地址写入 PC，所以得到第二项 M2·T4·JMP。两个场景任一发生都要产生 LDPC，因此最终用逻辑“或”连接。'}]},
+  ldir:{name:'LDIR',meaning:'打入指令寄存器 IR',type:'装载脉冲信号',typeKey:'pulse',formula:'M1·T3',terms:[
+    {expr:'M1·T3',machines:['M1'],pulses:['T3'],ops:['ALL'],flows:['fetch'],micros:['fetch-t3'],nodes:['imem','ir'],edges:['imem-ir'],labels:['fetch'],reason:'取出的指令在 M1 的 T3 从 IBUS 打入 IR。该操作是所有指令共有的，因此不需要操作码条件。'}]},
+  ldar:{name:'LDAR',meaning:'打入数据地址寄存器 AR',type:'装载脉冲信号',typeKey:'pulse',formula:'M2·T4·(LAD + STO)',terms:[
+    {expr:'M2·T4·LAD',machines:['M2'],pulses:['T4'],ops:['LAD'],flows:['lad'],micros:['lad-t4'],nodes:['ir','ar'],edges:['ir-ar'],labels:['lad'],reason:'LAD 在 M2T4 把指令中的数据地址送入 AR，形成触发条件 M2·T4·LAD。'},
+    {expr:'M2·T4·STO',machines:['M2'],pulses:['T4'],ops:['STO'],flows:['sto'],micros:['sto-t4'],nodes:['reg','ar'],edges:['reg-ar'],labels:['sto'],reason:'STO 也在 M2T4 准备数据存储器地址，只是地址来自 Ry，形成 M2·T4·STO。两项具有公共因子 M2·T4，可化为 M2·T4·(LAD + STO)。'}]},
+  lddr:{name:'LDDR',meaning:'打入数据缓冲寄存器 DR',type:'装载脉冲信号',typeKey:'pulse',formula:'M2·T3·(MOV + ADD) + M3·T3·LAD',terms:[
+    {expr:'M2·T3·(MOV + ADD)',machines:['M2'],pulses:['T3'],ops:['MOV','ADD'],flows:['mov','add'],micros:['mov-t3','add-t3'],nodes:['reg','alu','dr'],edges:['reg-dr','reg-alu','alu-dr'],labels:['mov','add'],reason:'在 M2T3，MOV 把 Ry 送入 DR，ADD 把 ALU 运算结果送入 DR。两种指令共享 M2T3，因此合并为 M2·T3·(MOV + ADD)。'},
+    {expr:'M3·T3·LAD',machines:['M3'],pulses:['T3'],ops:['LAD'],flows:['lad-m3'],micros:['lad-m3-t3'],nodes:['dmem','dr'],edges:['dmem-dr'],labels:['lad'],reason:'LAD 还会在 M3T3 把数据存储器读出的数据打入 DR，形成另一项 M3·T3·LAD。两类触发任一发生都产生 LDDR，所以两项相或。'}]},
+  pc1:{name:'PC+1',meaning:'程序计数器执行加 1',type:'运算脉冲信号',typeKey:'pulse',formula:'M1·T3',terms:[
+    {expr:'M1·T3',machines:['M1'],pulses:['T3'],ops:['ALL'],flows:['fetch'],micros:['fetch-t3'],nodes:['pc'],edges:[],labels:['pcinc'],reason:'公共取指过程中，PC 在 M1T3 执行加 1，为下一条顺序指令准备地址。所有指令都需要该动作，所以无操作码条件。'}]},
+  ldry:{name:'LDRy',meaning:'打入 Ry 寄存器',type:'装载脉冲信号',typeKey:'pulse',formula:'M2·T4·ADD',terms:[
+    {expr:'M2·T4·ADD',machines:['M2'],pulses:['T4'],ops:['ADD'],flows:['add'],micros:['add-t4'],nodes:['dr','reg'],edges:['dr-reg'],labels:['add'],reason:'只有 ADD 在 M2T4 把 DR 中的运算结果写回 Ry，所以机器周期、节拍和操作码三个条件缺一不可。'}]}
+};
+
+const signalOrder=['rdi','rdd','wed','ldpc','ldir','ldar','lddr','pc1','ldry'];
+const steps=[
+  {title:'读题：从流程图反推控制条件',text:'先不看答案。对每个控制信号，依次回答三个问题：在哪个机器周期？哪个节拍？哪些指令会触发？'},
+  {title:'先分清两类时序信号',text:'RD(I)、RD(D) 是机器周期内持续有效的电位信号；写命令和寄存器装载通常在某个节拍瞬间发生，因此表达式需要包含 T。',typeKey:'level'},
+  {signal:'rdi',term:0,final:true,title:'推导 RD(I)：公共取指周期持续读指存'},
+  {signal:'rdd',term:0,final:true,title:'推导 RD(D)：只有 LAD 的 M3 读取数存'},
+  {signal:'wed',term:0,final:true,title:'推导 WE(D)：STO 在 M3T3 写数存'},
+  {signal:'ldpc',term:0,final:false,title:'LDPC 第一种来源：顺序取指后更新 PC'},
+  {signal:'ldpc',term:1,final:false,title:'LDPC 第二种来源：JMP 修改 PC'},
+  {signal:'ldpc',term:1,final:true,title:'合并 LDPC 的两种触发条件'},
+  {signal:'ldir',term:0,final:true,title:'推导 LDIR：M1T3 将指令打入 IR'},
+  {signal:'ldar',term:0,final:false,title:'LDAR 第一种来源：LAD 准备数据地址'},
+  {signal:'ldar',term:1,final:false,title:'LDAR 第二种来源：STO 准备数据地址'},
+  {signal:'ldar',term:1,final:true,title:'提取公因子，得到 LDAR'},
+  {signal:'lddr',term:0,final:false,title:'LDDR 第一类来源：MOV 与 ADD 的 M2T3'},
+  {signal:'lddr',term:1,final:false,title:'LDDR 第二类来源：LAD 的 M3T3'},
+  {signal:'lddr',term:1,final:true,title:'合并 LDDR 的全部触发条件'},
+  {signal:'pc1',term:0,final:true,title:'推导 PC+1：公共取指的 M1T3'},
+  {signal:'ldry',term:0,final:true,title:'推导 LDRy：ADD 在 M2T4 写回 Ry'},
+  {summary:true,title:'例 5.3 推导完成',text:'所有表达式都来自同一条规则：同一触发场景内的 M、T、OP 相与；同一控制信号的不同触发场景相或。'}
+];
+
+let currentStep=0,playing=false,timer=null;
+const $=id=>document.getElementById(id);
+const prevBtn=$('prevBtn'),nextBtn=$('nextBtn'),playBtn=$('playBtn'),resetBtn=$('resetBtn'),speed=$('speed');
+
+function clearHighlights(){
+  document.querySelectorAll('.flow-card').forEach(x=>x.classList.remove('active','dim'));
+  document.querySelectorAll('.micro').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.condition-cell').forEach(x=>x.classList.remove('active','level'));
+  document.querySelectorAll('.opcode').forEach(x=>x.classList.remove('active','group-active'));
+  document.querySelectorAll('.type-box').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.node,.edge,.path-label').forEach(x=>x.classList.remove('active'));
+}
+
+function applyTerm(term,typeKey){
+  clearHighlights();
+  if(typeKey) document.querySelector(`[data-type="${typeKey}"]`)?.classList.add('active');
+  const allFlowCards=[...document.querySelectorAll('.flow-card[data-flow]')];
+  if(term.flows?.length){
+    allFlowCards.forEach(card=>{const key=card.dataset.flow;if(term.flows.includes(key)) card.classList.add('active'); else card.classList.add('dim');});
+  }
+  term.micros?.forEach(k=>document.querySelector(`[data-micro="${k}"]`)?.classList.add('active'));
+  if(typeKey==='level'){
+    term.machines?.forEach(m=>{
+      ['T1','T2','T3','T4'].forEach(t=>document.querySelector(`[data-cell="${m}${t}"]`)?.classList.add('level'));
+    });
+  }else{
+    term.machines?.forEach(m=>term.pulses?.forEach(t=>document.querySelector(`[data-cell="${m}${t}"]`)?.classList.add('active')));
+  }
+  term.ops?.forEach(op=>{
+    const chip=document.querySelector(`[data-op="${op}"]`); if(chip) chip.classList.add(term.ops.length>1?'group-active':'active');
+  });
+  term.nodes?.forEach(k=>document.querySelector(`[data-node="${k}"]`)?.classList.add('active'));
+  term.edges?.forEach(k=>document.querySelector(`[data-edge="${k}"]`)?.classList.add('active'));
+  term.labels?.forEach(k=>document.querySelector(`[data-label="${k}"]`)?.classList.add('active'));
+}
+
+function renderFormula(sig,visibleCount,currentTerm,final){
+  const parts=[];
+  parts.push(`<span class="formula-left">${sig.name}</span><span>=</span>`);
+  if(final){
+    parts.push(`<span class="term-token current">${sig.formula}</span>`);
+  }else{
+    sig.terms.forEach((term,i)=>{
+      if(i>0) parts.push(`<span class="plus">+</span>`);
+      const state=i<visibleCount?'':i===visibleCount?'current':'pending';
+      parts.push(`<span class="term-token ${state}">${term.expr}</span>`);
+    });
+  }
+  $('formulaDisplay').innerHTML=parts.join('');
+}
+
+function conditionPills(term){
+  const pills=[];
+  term.machines?.forEach(v=>pills.push(`<span class="condition-pill machine">机器周期 ${v}</span>`));
+  term.pulses?.forEach(v=>pills.push(`<span class="condition-pill pulse">节拍 ${v}</span>`));
+  term.ops?.forEach(v=>pills.push(`<span class="condition-pill op">指令 ${v==='ALL'?'全部':v}</span>`));
+  return pills.join('');
+}
+
+function completedSignals(stepIndex){
+  const done=new Set();
+  for(let i=0;i<=stepIndex;i++){
+    const s=steps[i]; if(s.signal&&s.final) done.add(s.signal);
+  }
+  if(steps[stepIndex]?.summary) signalOrder.forEach(k=>done.add(k));
+  return done;
+}
+
+function renderSignalNav(activeKey,done){
+  $('signalList').innerHTML=signalOrder.map(k=>{
+    const s=signals[k];
+    const cls=['signal-btn',activeKey===k?'active':'',done.has(k)?'done':''].filter(Boolean).join(' ');
+    return `<button class="${cls}" data-jump="${k}"><strong>${s.name}</strong><span>${s.meaning}</span></button>`;
+  }).join('');
+  document.querySelectorAll('[data-jump]').forEach(btn=>btn.addEventListener('click',()=>jumpToSignal(btn.dataset.jump)));
+}
+
+function renderAnswers(activeKey,done){
+  $('answerGrid').innerHTML=signalOrder.map(k=>{
+    const s=signals[k];
+    const cls=['answer-card',activeKey===k?'active':'',done.has(k)?'done':''].filter(Boolean).join(' ');
+    return `<div class="${cls}"><strong>${s.name} · ${s.type}</strong><code>${done.has(k)||activeKey===k?s.formula:'待推导'}</code></div>`;
+  }).join('');
+}
+
+function render(index){
+  const step=steps[index];
+  const done=completedSignals(index);
+  $('stepCounter').textContent=`步骤 ${index+1}/${steps.length}`;
+  $('stepTitle').textContent=step.title;
+  $('progressBar').style.width=`${Math.round(index/(steps.length-1)*100)}%`;
+  clearHighlights();
+
+  let activeKey=null;
+  if(step.signal){
+    activeKey=step.signal;
+    const sig=signals[step.signal];
+    const term=sig.terms[step.term];
+    $('stepText').textContent=step.text||term.reason;
+    $('signalName').textContent=sig.name;
+    $('signalMeaning').textContent=sig.meaning;
+    $('signalType').textContent=sig.type;
+    $('reasonTitle').textContent=step.final?'得到逻辑表达式':'当前触发条件';
+    $('reasonText').textContent=term.reason;
+    $('conditionSummary').innerHTML=conditionPills(term);
+    applyTerm(term,sig.typeKey);
+    renderFormula(sig,step.term,step.term,step.final);
+  }else if(step.summary){
+    $('stepText').textContent=step.text;
+    $('signalName').textContent='全部完成';
+    $('signalMeaning').textContent='九个控制信号均已由流程图与时序条件推导得到';
+    $('signalType').textContent='例 5.3 答案';
+    $('formulaDisplay').innerHTML='<span class="formula-left">M、T、OP</span><span class="plus">→</span><span class="term-token current">与项</span><span class="plus">→</span><span class="term-token current">或项合成</span>';
+    $('reasonTitle').textContent='核心规律';
+    $('reasonText').textContent='不是背表达式，而是先找微操作出现的全部位置，再把每个位置的机器周期、节拍和指令条件编码成布尔项。';
+    $('conditionSummary').innerHTML='<span class="condition-pill machine">先找 M</span><span class="condition-pill pulse">再找 T</span><span class="condition-pill op">最后找 OP</span>';
+    document.querySelectorAll('.flow-card:not(.inactive)').forEach(x=>x.classList.add('active'));
+  }else{
+    $('stepText').textContent=step.text;
+    $('signalName').textContent=index===1?'电位与脉冲':'待选择';
+    $('signalMeaning').textContent=index===1?'先判断控制信号需要持续有效，还是只在某一节拍动作':'从流程图中寻找控制信号出现的全部条件';
+    $('signalType').textContent=index===1?'时序分类':'推导准备';
+    $('formulaDisplay').innerHTML=index===1?'<span class="term-token current">电位信号：M</span><span class="plus">/</span><span class="term-token current">脉冲信号：M·T·OP</span>':'<span class="placeholder">点击“下一步”开始逐项推导</span>';
+    $('reasonTitle').textContent=index===1?'先判断信号类型':'推导方法';
+    $('reasonText').textContent=index===1?'电位信号可覆盖一个完整机器周期；寄存器装载和存储器写入必须落在明确节拍，以避免数据竞争。':'先在流程图中定位控制信号对应的微操作，再读取机器周期、节拍和指令条件。';
+    $('conditionSummary').innerHTML='';
+    if(index===1){document.querySelector('[data-type="level"]')?.classList.add('active');document.querySelector('[data-type="pulse"]')?.classList.add('active');}
+  }
+
+  renderSignalNav(activeKey,done);
+  renderAnswers(activeKey,done);
+  prevBtn.disabled=index===0;
+  nextBtn.disabled=index===steps.length-1;
+  playBtn.textContent=playing?'暂停':'播放';
+}
+
+function jumpToSignal(key){
+  const idx=steps.findIndex(s=>s.signal===key);
+  if(idx>=0){stopPlay(false);currentStep=idx;render(currentStep);window.scrollTo({top:0,behavior:'smooth'});}
+}
+function goNext(){if(currentStep<steps.length-1){currentStep++;render(currentStep)}else stopPlay()}
+function goPrev(){if(currentStep>0){currentStep--;render(currentStep)}}
+function stopPlay(doRender=true){playing=false;clearInterval(timer);timer=null;if(doRender)render(currentStep)}
+function togglePlay(){
+  if(playing){stopPlay();return}
+  playing=true;render(currentStep);
+  timer=setInterval(()=>{if(currentStep>=steps.length-1){stopPlay();return}goNext()},Number(speed.value));
+}
+function reset(){stopPlay(false);currentStep=0;render(0)}
+
+prevBtn.addEventListener('click',goPrev);
+nextBtn.addEventListener('click',goNext);
+playBtn.addEventListener('click',togglePlay);
+resetBtn.addEventListener('click',reset);
+speed.addEventListener('input',()=>{if(playing){stopPlay(false);togglePlay()}});
+document.addEventListener('keydown',e=>{
+  const tag=e.target?.tagName?.toLowerCase();
+  if(['input','textarea','select','button'].includes(tag)||e.target?.isContentEditable)return;
+  if(e.code==='Space'||e.key==='ArrowRight'){e.preventDefault();goNext()}
+  if(e.key==='ArrowLeft'){e.preventDefault();goPrev()}
+});
+
+render(0);
+</script>
+</body>
+</html>

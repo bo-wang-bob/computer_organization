@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1" name="viewport"/>
+<title>微课37：总线—基本原理｜交互式演示</title>
+<style>
+    :root{
+      --ink:#132238;
+      --muted:#667085;
+      --line:#d7e2ef;
+      --blue:#1967bf;
+      --blue-dark:#0b4b86;
+      --blue-soft:#edf6ff;
+      --orange:#d96c00;
+      --orange-soft:#fff2df;
+      --green:#218a53;
+      --green-soft:#e9f7ef;
+      --purple:#6c42bd;
+      --purple-soft:#f1ebff;
+      --red:#d64545;
+      --shadow:0 12px 32px rgba(17,46,81,.12);
+      --radius:10px;
+    }
+
+    *{box-sizing:border-box}
+    html{scroll-behavior:smooth}
+    body{
+      margin:0;
+      min-height:100vh;
+      font-family:"Microsoft YaHei","PingFang SC",Arial,sans-serif;
+      color:var(--ink);
+      background:
+        radial-gradient(circle at 12% 0%,rgba(25,103,191,.10),transparent 28%),
+        radial-gradient(circle at 92% 10%,rgba(108,66,189,.08),transparent 24%),
+        #eef5fb;
+    }
+
+    button,input,select{font:inherit}
+    button{touch-action:manipulation}
+
+    .app{
+      width:min(1760px,calc(100% - 36px));
+      margin:0 auto;
+      padding:12px 0 28px;
+    }
+
+    .topbar{
+      display:grid;
+      grid-template-columns:minmax(0,1fr) auto;
+      gap:18px;
+      align-items:center;
+      background:#fff;
+      border:1px solid var(--line);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      padding:18px 20px;
+      position:sticky;
+      top:8px;
+      z-index:30;
+    }
+
+    .eyebrow{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      color:var(--blue);
+      font-weight:900;
+      font-size:13px;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      margin-bottom:6px;
+    }
+
+    .eyebrow::before{
+      content:"";
+      width:9px;height:9px;border-radius:50%;
+      background:var(--orange);
+      box-shadow:0 0 0 5px rgba(217,108,0,.12);
+    }
+
+    h1{margin:0;font-size:clamp(25px,2.25vw,36px);line-height:1.16;color:#0b2b59}
+    .subtitle{margin:7px 0 0;color:var(--muted);font-size:14px;line-height:1.55}
+
+    .controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+    .btn{
+      border:1px solid #b8cbe0;
+      background:#fff;
+      color:#12355c;
+      font-weight:800;
+      border-radius:8px;
+      padding:9px 12px;
+      min-height:40px;
+      cursor:pointer;
+      transition:transform .16s,box-shadow .16s,background .16s,border-color .16s;
+    }
+    .btn:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 7px 16px rgba(17,46,81,.11)}
+    .btn.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+    .btn.warn{background:var(--orange);border-color:var(--orange);color:#fff}
+    .btn:disabled{opacity:.45;cursor:not-allowed}
+    .speed{display:flex;align-items:center;gap:7px;color:var(--muted);font-size:12px;font-weight:700;white-space:nowrap;margin-left:3px}
+    input[type="range"]{accent-color:var(--blue)}
+    .speed input{width:92px}
+
+    .overview{
+      display:grid;
+      grid-template-columns:minmax(0,1.45fr) minmax(320px,.55fr);
+      gap:12px;
+      margin:12px 0;
+    }
+
+    .card,section{
+      background:#fff;
+      border:1px solid var(--line);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+    }
+
+    .lesson-status{padding:15px 17px;display:grid;grid-template-columns:auto minmax(0,1fr);gap:14px;align-items:center}
+    .step-badge{
+      width:62px;height:62px;border-radius:16px;
+      background:linear-gradient(135deg,var(--blue),#4b8bd0);
+      color:#fff;display:grid;place-items:center;text-align:center;
+      font-weight:900;line-height:1.05;box-shadow:0 9px 20px rgba(25,103,191,.24)
+    }
+    .step-badge strong{font-size:24px;display:block}
+    .lesson-status h2{margin:0 0 5px;font-size:18px;color:var(--blue-dark)}
+    .lesson-status p{margin:0;color:#33465f;line-height:1.55;font-size:14px}
+
+    .goal-card{padding:14px 16px}
+    .goal-card h3{margin:0 0 9px;color:#0b2b59;font-size:16px}
+    .goal-tags{display:flex;flex-wrap:wrap;gap:7px}
+    .goal-tag{border:1px solid #cfe1f5;background:#f7fbff;border-radius:999px;padding:6px 9px;font-size:12px;font-weight:800;color:#285377}
+
+    .chapter-nav{
+      display:grid;
+      grid-template-columns:repeat(2,minmax(0,1fr));
+      gap:8px;
+      margin-bottom:12px;
+    }
+    .chapter-btn{
+      border:1px solid var(--line);
+      background:#fff;
+      border-radius:9px;
+      min-height:62px;
+      padding:10px 12px;
+      text-align:left;
+      cursor:pointer;
+      display:grid;
+      grid-template-columns:auto minmax(0,1fr);
+      gap:10px;
+      align-items:center;
+      color:#2a4058;
+      box-shadow:0 7px 18px rgba(17,46,81,.07);
+      transition:.2s;
+    }
+    .chapter-btn:hover{transform:translateY(-1px)}
+    .chapter-btn.active{border-color:var(--blue);background:var(--blue-soft);box-shadow:0 0 0 3px rgba(25,103,191,.12)}
+    .chapter-num{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:#e7eef6;color:var(--blue-dark);font-weight:900}
+    .chapter-btn.active .chapter-num{background:var(--blue);color:#fff}
+    .chapter-btn strong{display:block;font-size:14px;margin-bottom:2px}
+    .chapter-btn small{display:block;color:var(--muted);font-size:11px;line-height:1.3}
+
+    .stage{display:none}
+    .stage.active{display:block;animation:stageIn .28s ease}
+    @keyframes stageIn{from{opacity:.2;transform:translateY(5px)}to{opacity:1;transform:none}}
+
+    .section-title{
+      padding:13px 16px;
+      background:linear-gradient(90deg,#0f5fb4,#347fc7);
+      color:#fff;
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:12px;
+      font-weight:900;
+      font-size:17px;
+      border-radius:9px 9px 0 0;
+    }
+    .section-title small{font-size:12px;font-weight:700;opacity:.88;text-align:right}
+
+    .concept-grid{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(300px,.75fr);gap:12px}
+    .concept-body{padding:16px}
+    .definition{
+      border:1px solid #cfe1f5;
+      background:linear-gradient(135deg,#f6fbff,#eef7ff);
+      padding:15px;
+      border-radius:9px;
+      line-height:1.75;
+      color:#243a54;
+      font-size:15px;
+    }
+    .definition strong{color:var(--blue);font-size:18px}
+    .why-bus{margin-top:14px;display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .compare-box{border:1px solid var(--line);border-radius:9px;padding:13px;background:#fbfdff}
+    .compare-box h4{margin:0 0 8px;font-size:14px;color:#0b2b59}
+    .wire-canvas{height:185px;position:relative;border-radius:8px;background:#f4f7fb;overflow:hidden;border:1px dashed #c6d3e1}
+    .node-mini{position:absolute;width:68px;height:38px;border:2px solid #8eb1d7;background:#fff;border-radius:8px;display:grid;place-items:center;font-weight:900;font-size:12px;color:#214c75;z-index:2}
+    .line-mini{position:absolute;height:2px;background:#9ab3cc;transform-origin:left center}
+    .shared-road{position:absolute;left:15%;right:15%;top:86px;height:18px;border-radius:999px;background:linear-gradient(90deg,#1967bf,#5c91c7);box-shadow:0 0 0 5px rgba(25,103,191,.10)}
+    .shared-tap{position:absolute;width:2px;background:#7e9bb8}
+    .benefit-list{display:grid;gap:9px;margin-top:12px}
+    .benefit{display:grid;grid-template-columns:36px 1fr;gap:10px;align-items:center;border:1px solid var(--line);border-radius:9px;padding:10px;background:#fff}
+    .benefit-icon{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;font-size:18px;font-weight:900}
+    .benefit:nth-child(1) .benefit-icon{background:var(--green-soft);color:var(--green)}
+    .benefit:nth-child(2) .benefit-icon{background:var(--orange-soft);color:var(--orange)}
+    .benefit:nth-child(3) .benefit-icon{background:var(--purple-soft);color:var(--purple)}
+    .benefit strong{display:block;font-size:13px;color:#173a5e}
+    .benefit span{display:block;font-size:12px;color:var(--muted);line-height:1.45;margin-top:2px}
+
+    .transaction-layout{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(330px,.45fr);gap:12px}
+    .system-panel{overflow:hidden}
+    .system-canvas{
+      position:relative;
+      min-height:590px;
+      padding:24px 22px 20px;
+      background:
+        linear-gradient(rgba(25,103,191,.035) 1px,transparent 1px),
+        linear-gradient(90deg,rgba(25,103,191,.035) 1px,transparent 1px),
+        #fbfdff;
+      background-size:28px 28px;
+      overflow:hidden;
+    }
+
+    .device{
+      position:absolute;
+      width:150px;
+      min-height:92px;
+      background:#fff;
+      border:2px solid #a9bfd6;
+      border-radius:14px;
+      box-shadow:0 10px 22px rgba(17,46,81,.10);
+      padding:12px;
+      z-index:4;
+      transition:.2s;
+    }
+    .device.active{border-color:var(--orange);box-shadow:0 0 0 4px rgba(217,108,0,.13),0 13px 28px rgba(17,46,81,.13);transform:translateY(-2px)}
+    .device-icon{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;color:#fff;font-weight:900;margin-bottom:8px}
+    .device.cpu{left:5%;top:218px}.device.cpu .device-icon{background:var(--purple)}
+    .device.memory{right:5%;top:78px}.device.memory .device-icon{background:var(--green)}
+    .device.io{right:5%;bottom:78px}.device.io .device-icon{background:var(--orange)}
+    .device h4{margin:0;font-size:15px;color:#163a5c}.device p{margin:4px 0 0;font-size:11px;color:var(--muted);line-height:1.35}
+
+    .bus-rack{
+      position:absolute;
+      left:25%;right:25%;top:98px;bottom:98px;
+      border:2px solid #bdd1e5;
+      border-radius:20px;
+      background:rgba(255,255,255,.90);
+      padding:20px 20px;
+      display:grid;
+      grid-template-rows:repeat(3,1fr);
+      gap:16px;
+      z-index:2;
+      box-shadow:inset 0 0 30px rgba(25,103,191,.04);
+    }
+    .bus-lane{position:relative;border-radius:14px;border:1px solid;overflow:hidden;padding:12px 12px 10px;display:flex;align-items:center}
+    .bus-lane.address{border-color:#efbd7d;background:#fff8ef}
+    .bus-lane.data{border-color:#94bde6;background:#f2f8ff}
+    .bus-lane.control{border-color:#9ed2b4;background:#f1fbf5}
+    .lane-label{position:absolute;left:10px;top:8px;font-size:12px;font-weight:900}
+    .address .lane-label{color:var(--orange)}.data .lane-label{color:var(--blue)}.control .lane-label{color:var(--green)}
+    .lane-track{height:22px;position:absolute;left:12px;right:12px;bottom:15px;border-radius:999px;overflow:hidden}
+    .address .lane-track{background:repeating-linear-gradient(90deg,#e7aa61 0 18px,#f7d5ad 18px 26px)}
+    .data .lane-track{background:repeating-linear-gradient(90deg,#5b98d5 0 18px,#c2dcf4 18px 26px)}
+    .control .lane-track{background:repeating-linear-gradient(90deg,#64ad82 0 18px,#c8e7d4 18px 26px)}
+    .direction-note{position:absolute;right:12px;top:8px;font-size:11px;font-weight:800;color:#667085}
+
+    .connector{position:absolute;height:3px;background:#9cb6cf;z-index:1;transform-origin:left center}
+    .connector::after{content:"";position:absolute;right:-5px;top:-3px;border-left:7px solid #9cb6cf;border-top:4px solid transparent;border-bottom:4px solid transparent}
+    .connector.bidirectional::before{content:"";position:absolute;left:-5px;top:-3px;border-right:7px solid #9cb6cf;border-top:4px solid transparent;border-bottom:4px solid transparent}
+
+    .packet{
+      position:absolute;
+      z-index:10;
+      display:none;
+      min-width:74px;
+      max-width:130px;
+      padding:7px 10px;
+      border-radius:9px;
+      color:#fff;
+      font-size:11px;
+      font-weight:900;
+      text-align:center;
+      box-shadow:0 8px 18px rgba(17,46,81,.22);
+      pointer-events:none;
+    }
+    .packet.address{background:var(--orange)}
+    .packet.data{background:var(--blue)}
+    .packet.control{background:var(--green)}
+    .packet.show{display:block}
+
+    .flow-side{padding:15px;display:flex;flex-direction:column;gap:10px}
+    .scenario-select{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+    .scenario-btn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:9px 7px;font-size:12px;font-weight:900;color:#315270;cursor:pointer}
+    .scenario-btn.active{background:var(--blue-soft);border-color:var(--blue);color:var(--blue-dark)}
+    .timeline{display:grid;gap:8px;margin-top:2px}
+    .timeline-step{border:1px solid var(--line);border-radius:9px;padding:10px;background:#f9fbfd;display:grid;grid-template-columns:32px 1fr;gap:9px;align-items:start;transition:.2s}
+    .timeline-step.active{border-color:var(--orange);background:var(--orange-soft);box-shadow:0 0 0 3px rgba(217,108,0,.10)}
+    .timeline-step.done{border-color:#9ed2b4;background:var(--green-soft)}
+    .timeline-index{width:28px;height:28px;border-radius:50%;background:#dfe8f1;color:#36536e;display:grid;place-items:center;font-weight:900;font-size:12px}
+    .timeline-step.active .timeline-index{background:var(--orange);color:#fff}.timeline-step.done .timeline-index{background:var(--green);color:#fff}
+    .timeline-step strong{font-size:13px;color:#173a5e;display:block;margin-bottom:3px}
+    .timeline-step p{font-size:11px;line-height:1.42;color:var(--muted);margin:0}
+    .concept-tip{border-left:4px solid var(--blue);background:#f4f9ff;padding:11px 12px;border-radius:0 8px 8px 0;font-size:12px;line-height:1.55;color:#2e4b69;margin-top:auto}
+
+    .type-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+    .type-card{overflow:hidden;transition:.2s}
+    .type-card:hover{transform:translateY(-2px)}
+    .type-head{padding:13px 14px;color:#fff;display:flex;justify-content:space-between;align-items:center;font-weight:900}
+    .type-card.address .type-head{background:var(--orange)}
+    .type-card.data .type-head{background:var(--blue)}
+    .type-card.control .type-head{background:var(--green)}
+    .type-body{padding:15px}
+    .type-symbol{height:98px;border-radius:9px;display:grid;place-items:center;font-size:42px;font-weight:900;margin-bottom:12px;position:relative;overflow:hidden}
+    .type-card.address .type-symbol{background:var(--orange-soft);color:var(--orange)}
+    .type-card.data .type-symbol{background:var(--blue-soft);color:var(--blue)}
+    .type-card.control .type-symbol{background:var(--green-soft);color:var(--green)}
+    .type-card h3{margin:0 0 8px;font-size:18px;color:#173a5e}
+    .fact-list{display:grid;gap:8px}
+    .fact{border:1px solid var(--line);border-radius:8px;padding:9px;background:#fbfdff}
+    .fact b{display:block;color:#30516e;font-size:12px;margin-bottom:3px}.fact span{font-size:12px;color:var(--muted);line-height:1.4}
+    .signal-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+    .signal-chip{padding:5px 7px;border-radius:6px;font-size:11px;font-weight:800;border:1px solid var(--line);background:#fff}
+
+    .sorting-game{margin-top:12px;overflow:hidden}
+    .sorting-body{padding:15px;display:grid;grid-template-columns:minmax(300px,.7fr) minmax(0,1.3fr);gap:14px}
+    .signal-bank{display:flex;flex-wrap:wrap;gap:8px;align-content:flex-start}
+    .drag-signal{border:1px solid #c6d7e8;background:#fff;border-radius:8px;padding:8px 10px;font-weight:900;font-size:12px;color:#2b4e70;cursor:pointer;transition:.16s}
+    .drag-signal:hover{transform:translateY(-1px)}
+    .drag-signal.selected{outline:3px solid rgba(108,66,189,.18);border-color:var(--purple);background:var(--purple-soft)}
+    .sort-zones{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+    .sort-zone{min-height:150px;border:2px dashed #c6d7e8;border-radius:10px;padding:10px;background:#fbfdff}
+    .sort-zone h4{margin:0 0 9px;font-size:13px;text-align:center;color:#24496b}
+    .placed{display:flex;flex-wrap:wrap;gap:6px}
+    .placed .drag-signal{cursor:pointer;padding:6px 8px}
+    .game-feedback{grid-column:1/-1;min-height:40px;border-radius:8px;padding:9px 11px;background:#f4f7fb;color:#42566c;font-size:12px;line-height:1.5}
+
+    .sim-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .sim-body{padding:16px}
+    .slider-row{display:grid;grid-template-columns:180px minmax(150px,1fr) 90px;gap:12px;align-items:center;margin:10px 0 16px}
+    .slider-row label{font-weight:900;color:#264868;font-size:13px}
+    .value-pill{border:1px solid #bdd2e8;background:#f5faff;border-radius:999px;padding:7px 9px;text-align:center;font-weight:900;color:var(--blue-dark);font-size:12px}
+    .metric-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+    .metric{border:1px solid var(--line);border-radius:9px;padding:11px;background:#fbfdff;text-align:center}
+    .metric strong{display:block;font-size:21px;color:var(--blue);line-height:1.1;margin-bottom:5px;overflow-wrap:anywhere}.metric span{font-size:11px;color:var(--muted);line-height:1.35}
+    .transfer-visual{margin-top:14px;border:1px solid var(--line);border-radius:9px;padding:13px;background:#f8fbff;min-height:154px}
+    .transfer-label{display:flex;justify-content:space-between;font-size:12px;font-weight:900;color:#31516e;margin-bottom:10px}
+    .data-blocks{display:flex;flex-wrap:wrap;gap:5px;align-content:flex-start}
+    .bit-block{height:28px;min-width:24px;border-radius:5px;background:#cfe3f8;border:1px solid #8eb8e2;display:grid;place-items:center;font-size:9px;font-weight:900;color:#24527b;transition:.2s}
+    .bit-block.current{background:var(--orange-soft);border-color:var(--orange);color:#8a3d00;box-shadow:0 0 0 3px rgba(217,108,0,.12)}
+    .formula{margin-top:12px;padding:11px;border-left:4px solid var(--purple);background:var(--purple-soft);border-radius:0 8px 8px 0;font-size:12px;color:#493872;line-height:1.55}
+
+    .address-cubes{display:grid;grid-template-columns:repeat(8,1fr);gap:5px;margin-top:12px}
+    .addr-cell{height:24px;border-radius:4px;border:1px solid #edc997;background:#fff7ec;transition:.2s}
+    .addr-cell.lit{background:var(--orange);border-color:var(--orange)}
+
+    .arb-layout{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(300px,.75fr);gap:12px}
+    .arb-canvas{padding:16px;min-height:520px;position:relative;overflow:hidden}
+    .requesters{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+    .requester{border:2px solid #bdd1e5;border-radius:12px;padding:12px;background:#fff;text-align:center;transition:.2s}
+    .requester.requesting{border-color:var(--orange);background:var(--orange-soft);box-shadow:0 0 0 3px rgba(217,108,0,.10)}
+    .requester.granted{border-color:var(--green);background:var(--green-soft);box-shadow:0 0 0 4px rgba(33,138,83,.12)}
+    .requester-icon{width:44px;height:44px;border-radius:12px;background:#edf3f9;display:grid;place-items:center;margin:0 auto 8px;color:#274b6d;font-weight:900}
+    .requester h4{margin:0;font-size:14px;color:#173a5e}.requester p{margin:4px 0 9px;color:var(--muted);font-size:11px}
+    .request-btn{border:1px solid #b8cbe0;background:#fff;border-radius:7px;padding:7px 9px;font-size:11px;font-weight:900;color:#244b71;cursor:pointer}
+    .request-btn.active{background:var(--orange);border-color:var(--orange);color:#fff}
+    .arbiter{width:160px;margin:55px auto 24px;border:2px solid var(--purple);background:var(--purple-soft);border-radius:15px;padding:14px;text-align:center;position:relative;z-index:3;box-shadow:0 12px 24px rgba(108,66,189,.15)}
+    .arbiter strong{color:var(--purple);font-size:16px}.arbiter span{display:block;color:#65547b;font-size:11px;margin-top:4px}
+    .shared-bus-box{height:76px;border-radius:14px;background:linear-gradient(135deg,#174b7b,#1967bf);padding:12px;color:#fff;text-align:center;position:relative;overflow:hidden}
+    .shared-bus-box strong{display:block;font-size:16px;margin-bottom:4px}.shared-bus-box span{font-size:11px;opacity:.88}
+    .bus-occupant{position:absolute;left:12px;right:12px;bottom:9px;height:18px;border-radius:999px;background:rgba(255,255,255,.16);overflow:hidden}
+    .bus-occupant-fill{height:100%;width:0;background:linear-gradient(90deg,#fff,#bfe0ff);border-radius:999px;transition:width .12s linear}
+    .queue-card{padding:15px}
+    .queue-card h3{margin:0 0 10px;color:#173a5e;font-size:16px}
+    .mode-toggle{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:12px}
+    .mode-btn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:9px;font-size:12px;font-weight:900;color:#35536e;cursor:pointer}
+    .mode-btn.active{background:var(--purple);border-color:var(--purple);color:#fff}
+    .queue{display:grid;gap:7px;min-height:145px}
+    .queue-item{border:1px solid var(--line);border-radius:8px;padding:9px;background:#f9fbfd;display:flex;justify-content:space-between;align-items:center;font-size:12px;font-weight:800;color:#31506e}
+    .queue-item:first-child{border-color:var(--green);background:var(--green-soft)}
+    .empty-queue{border:1px dashed #c9d7e5;border-radius:9px;display:grid;place-items:center;color:#7b8ca0;font-size:12px;min-height:90px}
+    .arb-status{margin-top:12px;border-radius:8px;padding:10px 11px;background:#f4f7fb;font-size:12px;line-height:1.55;color:#42566c;min-height:62px}
+    .collision{background:#fff0f0!important;color:#8d2f2f!important;border:1px solid #f0b5b5}
+
+    .quiz{margin-top:12px;overflow:hidden}
+    .quiz-body{padding:15px;display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+    .quiz-card{border:1px solid var(--line);border-radius:9px;padding:12px;background:#fbfdff}
+    .quiz-card h4{margin:0 0 9px;font-size:13px;color:#173a5e;line-height:1.45}
+    .quiz-options{display:grid;gap:6px}
+    .quiz-option{border:1px solid #cad8e5;background:#fff;border-radius:7px;padding:8px;text-align:left;font-size:11px;font-weight:800;color:#35526e;cursor:pointer}
+    .quiz-option.correct{background:var(--green-soft);border-color:var(--green);color:#17633a}
+    .quiz-option.wrong{background:#fff0f0;border-color:var(--red);color:#8d2f2f}
+    .quiz-result{margin-top:8px;min-height:32px;font-size:11px;color:var(--muted);line-height:1.45}
+
+    .footer-note{margin-top:13px;text-align:right;color:var(--muted);font-size:12px}
+
+    @media(max-width:1180px){
+      .topbar,.overview,.concept-grid,.transaction-layout,.arb-layout{grid-template-columns:1fr}
+      .topbar{position:relative;top:auto}.controls{justify-content:flex-start}
+      .type-grid,.quiz-body{grid-template-columns:1fr}
+      .sim-grid{grid-template-columns:1fr}
+      .sorting-body{grid-template-columns:1fr}
+      .system-canvas{min-height:650px}
+      .flow-side{min-height:420px}
+    }
+    @media(max-width:820px){
+      .app{width:min(100% - 18px,1760px)}
+      .chapter-nav{grid-template-columns:1fr 1fr}
+      .chapter-btn small{display:none}
+      .why-bus{grid-template-columns:1fr}
+      .sort-zones{grid-template-columns:1fr}
+      .metric-grid{grid-template-columns:1fr 1fr}
+      .slider-row{grid-template-columns:1fr}.value-pill{text-align:left;width:max-content}
+      .requesters{grid-template-columns:1fr}
+      .system-canvas{min-height:800px}
+      .device.cpu{left:50%;top:30px;transform:translateX(-50%)}
+      .device.memory{left:3%;right:auto;top:auto;bottom:30px}
+      .device.io{right:3%;bottom:30px}
+      .bus-rack{left:8%;right:8%;top:160px;bottom:160px}
+      .device.active.cpu{transform:translateX(-50%) translateY(-2px)}
+    }
+    @media(max-width:560px){
+      .chapter-nav{grid-template-columns:1fr}
+      .lesson-status{grid-template-columns:1fr}.step-badge{width:100%;height:45px;display:flex;gap:6px;border-radius:9px}.step-badge strong{font-size:18px}
+      .scenario-select,.mode-toggle{grid-template-columns:1fr}
+      .metric-grid{grid-template-columns:1fr}
+      .quiz-body{padding:10px}
+      .system-canvas{min-height:910px}
+      .bus-rack{left:4%;right:4%}
+      .device{width:132px}
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+<header class="topbar">
+<div>
+<div class="eyebrow">Micro Lesson 37</div>
+<h1>总线—基本原理｜交互式微课</h1>
+<p class="subtitle">聚焦两条主线：地址、数据、控制三类信息如何协作，以及多个部件共享总线时如何通过仲裁避免冲突。</p>
+</div>
+<div class="controls">
+<button class="btn" id="prevGuide">上一步</button>
+<button class="btn primary" id="nextGuide">下一步</button>
+<button class="btn" id="autoGuide">自动讲解</button>
+<button class="btn" id="resetAll">重置</button>
+<label class="speed">速度 <input id="guideSpeed" max="1800" min="650" step="50" type="range" value="1100"/></label>
+</div>
+</header>
+<div class="overview">
+<div class="card lesson-status">
+<div class="step-badge"><strong id="guideStepNo">1</strong><span>/ 2</span></div>
+<div>
+<h2 id="guideTitle">三类信息：地址、数据与控制</h2>
+<p id="guideText">一次完整传输通常先指出目标地址，再发出读写等控制命令，最后通过数据总线搬运真正的数据。</p>
+</div>
+</div>
+<div class="card goal-card"><h3>本讲达成</h3><div class="goal-tags"><span class="goal-tag">辨认三类信息线</span><span class="goal-tag">看懂一次总线事务</span><span class="goal-tag">解释共享为何需要仲裁</span></div></div>
+</div>
+<nav aria-label="课程章节" class="chapter-nav"><button class="chapter-btn active" data-stage="0"><span class="chapter-num">2</span><span><strong>三类信息线</strong><small>地址、数据、控制如何协作</small></span></button><button class="chapter-btn" data-stage="1"><span class="chapter-num">4</span><span><strong>仲裁与共享</strong><small>多个主设备如何有序使用公共通路</small></span></button></nav>
+<main>
+
+<div class="stage active" data-stage-panel="0">
+<div class="transaction-layout">
+<section class="system-panel">
+<div class="section-title"><span>一次总线事务如何完成</span><small>选择场景后，逐步观察地址、控制、数据三类信息</small></div>
+<div class="system-canvas" id="systemCanvas">
+<div class="device cpu" id="devCpu"><div class="device-icon">CPU</div><h4>处理器</h4><p>发起访存或 I/O 操作</p></div>
+<div class="device memory" id="devMemory"><div class="device-icon">M</div><h4>主存</h4><p>保存指令和数据</p></div>
+<div class="device io" id="devIo"><div class="device-icon">I/O</div><h4>I/O 设备</h4><p>键盘、磁盘、网卡等</p></div>
+<div class="bus-rack">
+<div class="bus-lane address"><span class="lane-label">地址总线</span><span class="direction-note">CPU → 目标</span><div class="lane-track"></div></div>
+<div class="bus-lane data"><span class="lane-label">数据总线</span><span class="direction-note">双向</span><div class="lane-track"></div></div>
+<div class="bus-lane control"><span class="lane-label">控制总线</span><span class="direction-note">方向因信号而异</span><div class="lane-track"></div></div>
+</div>
+<div class="packet" id="packet"></div>
+</div>
+</section>
+<section>
+<div class="section-title"><span>事务控制台</span><small>空格键也可进入下一步</small></div>
+<div class="flow-side">
+<div class="scenario-select">
+<button class="scenario-btn active" data-scenario="readMem">CPU 读取主存</button>
+<button class="scenario-btn" data-scenario="writeMem">CPU 写入主存</button>
+<button class="scenario-btn" data-scenario="readIo">CPU 读取 I/O</button>
+<button class="scenario-btn" data-scenario="interrupt">I/O 发出中断</button>
+</div>
+<div class="controls" style="justify-content:flex-start">
+<button class="btn" id="txPrev">上一步</button>
+<button class="btn primary" id="txNext">下一步</button>
+<button class="btn" id="txPlay">播放事务</button>
+</div>
+<div class="timeline" id="timeline"></div>
+<div class="concept-tip" id="txTip">地址、命令和数据不是一回事。三类信号分工协作，才构成一次完整的总线传输。</div>
+</div>
+</section>
+</div>
+<div class="type-grid" style="margin-top:12px">
+<section class="type-card address">
+<div class="type-head"><span>地址总线</span><span>单向</span></div>
+<div class="type-body"><div class="type-symbol">→</div><h3>“去哪里？”</h3><div class="fact-list"><div class="fact"><b>传输内容</b><span>主存单元地址或 I/O 端口地址。</span></div><div class="fact"><b>典型方向</b><span>由 CPU 发出，指向被访问的目标。</span></div><div class="fact"><b>位宽影响</b><span>n 位地址线最多区分 2ⁿ 个地址。</span></div></div></div>
+</section>
+<section class="type-card data">
+<div class="type-head"><span>数据总线</span><span>双向</span></div>
+<div class="type-body"><div class="type-symbol">↔</div><h3>“传什么？”</h3><div class="fact-list"><div class="fact"><b>传输内容</b><span>操作数、指令或运算结果。</span></div><div class="fact"><b>典型方向</b><span>读操作流向 CPU，写操作流出 CPU。</span></div><div class="fact"><b>位宽影响</b><span>位数越多，单次可携带的数据量越大。</span></div></div></div>
+</section>
+<section class="type-card control">
+<div class="type-head"><span>控制总线</span><span>按信号而定</span></div>
+<div class="type-body"><div class="type-symbol">⚙</div><h3>“怎么做？”</h3><div class="fact-list"><div class="fact"><b>传输内容</b><span>读、写、时钟、中断请求/响应等。</span></div><div class="fact"><b>方向特征</b><span>有的由 CPU 发出，有的由外设返回。</span></div><div class="fact"><b>核心作用</b><span>规定动作、状态与时序，维持传输秩序。</span></div></div><div class="signal-chips"><span class="signal-chip">READ</span><span class="signal-chip">WRITE</span><span class="signal-chip">CLOCK</span><span class="signal-chip">IRQ</span></div></div>
+</section>
+</div>
+
+</div>
+
+<div class="stage" data-stage-panel="1">
+<div class="arb-layout">
+<section>
+<div class="section-title"><span>多个部件争用同一条总线</span><small>点击设备发起请求，再观察无仲裁与有仲裁的差别</small></div>
+<div class="arb-canvas">
+<div class="requesters">
+<div class="requester" data-device="CPU"><div class="requester-icon">CPU</div><h4>CPU</h4><p>访存请求，优先级高</p><button class="request-btn" data-request="CPU">发起请求</button></div>
+<div class="requester" data-device="DMA"><div class="requester-icon">DMA</div><h4>DMA 控制器</h4><p>大块数据搬运</p><button class="request-btn" data-request="DMA">发起请求</button></div>
+<div class="requester" data-device="IO"><div class="requester-icon">I/O</div><h4>I/O 设备</h4><p>低速外设传输</p><button class="request-btn" data-request="IO">发起请求</button></div>
+</div>
+<div class="arbiter"><strong>总线仲裁器</strong><span id="arbiterRule">规则：固定优先级 CPU &gt; DMA &gt; I/O</span></div>
+<div class="shared-bus-box"><strong>共享系统总线</strong><span id="busOwnerText">当前空闲</span><div class="bus-occupant"><div class="bus-occupant-fill" id="busOccupantFill"></div></div></div>
+</div>
+</section>
+<section>
+<div class="section-title"><span>仲裁控制台</span><small>同一时刻只允许一个主设备获得授权</small></div>
+<div class="queue-card">
+<div class="mode-toggle">
+<button class="mode-btn active" data-mode="arb">启用仲裁</button>
+<button class="mode-btn" data-mode="noarb">关闭仲裁</button>
+</div>
+<div class="controls" style="justify-content:flex-start;margin-bottom:10px">
+<button class="btn primary" id="runArb">处理请求</button>
+<button class="btn" id="demoArb">自动演示冲突</button>
+<button class="btn" id="clearArb">清空</button>
+</div>
+<h3>等待队列</h3>
+<div class="queue" id="arbQueue"></div>
+<div class="arb-status" id="arbStatus">当前没有设备请求总线。可同时点亮多个请求，再点击“处理请求”。</div>
+<div class="concept-tip" style="margin-top:12px"><b>结论：</b>共享总线节省硬件，但必须通过仲裁决定“谁先用”。否则多个设备同时驱动信号线，会导致信息冲突。</div>
+</div>
+</section>
+</div>
+
+</div>
+</main>
+<div class="footer-note">建议课堂操作顺序：先演示一次地址—控制—数据协作，再通过多设备争用对比无仲裁冲突与有仲裁授权。</div>
+</div>
+<script>
+(function(){
+  "use strict";
+
+  const $ = (sel, root=document) => root.querySelector(sel);
+  const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
+
+  const guide = [
+    {title:"三类信息：地址、数据与控制",text:"一次完整传输通常先指出目标地址，再发出读写等控制命令，最后通过数据总线搬运真正的数据。"},
+    {title:"公共资源必须分时使用并进行仲裁",text:"同一时刻若多个主设备同时驱动共享总线会发生冲突，因此需要仲裁器决定谁获得使用权。"}
+  ];
+  let guideIndex=0, guideTimer=null, guidePlaying=false;
+
+  const stageButtons=$$(".chapter-btn");
+  const stages=$$(".stage");
+  function setStage(index){
+    guideIndex=Math.max(0,Math.min(guide.length-1,index));
+    stageButtons.forEach((b,i)=>b.classList.toggle("active",i===guideIndex));
+    stages.forEach((s,i)=>s.classList.toggle("active",i===guideIndex));
+    $("#guideStepNo").textContent=guideIndex+1;
+    $("#guideTitle").textContent=guide[guideIndex].title;
+    $("#guideText").textContent=guide[guideIndex].text;
+    $("#prevGuide").disabled=guideIndex===0;
+    $("#nextGuide").disabled=guideIndex===guide.length-1;
+    window.scrollTo({top:0,behavior:"smooth"});
+  }
+  stageButtons.forEach((b,i)=>b.addEventListener("click",()=>{stopGuide();setStage(i)}));
+  $("#prevGuide").addEventListener("click",()=>{stopGuide();setStage(guideIndex-1)});
+  $("#nextGuide").addEventListener("click",()=>{stopGuide();setStage(guideIndex+1)});
+  function stopGuide(){guidePlaying=false;clearInterval(guideTimer);guideTimer=null;$("#autoGuide").textContent="自动讲解"}
+  $("#autoGuide").addEventListener("click",()=>{
+    if(guidePlaying){stopGuide();return}
+    guidePlaying=true;$("#autoGuide").textContent="暂停讲解";
+    guideTimer=setInterval(()=>{
+      if(guideIndex>=guide.length-1){stopGuide();return}
+      setStage(guideIndex+1);
+    },Number($("#guideSpeed").value));
+  });
+  $("#guideSpeed").addEventListener("input",()=>{if(guidePlaying){stopGuide();$("#autoGuide").click()}});
+
+
+  const scenarioDefs={
+    readMem:{target:"memory",steps:[
+      {lane:"address",from:"cpu",to:"memory",label:"地址 0x2A",title:"CPU 给出主存地址",desc:"地址总线指出要访问的主存单元。"},
+      {lane:"control",from:"cpu",to:"memory",label:"READ",title:"CPU 发出读命令",desc:"控制总线说明这次操作是“读取”。"},
+      {lane:"data",from:"memory",to:"cpu",label:"数据 10110110",title:"主存返回数据",desc:"数据总线把目标单元内容送回 CPU。"}
+    ],tip:"读操作中，数据方向是主存 → CPU，因此数据总线必须支持双向传输。"},
+    writeMem:{target:"memory",steps:[
+      {lane:"address",from:"cpu",to:"memory",label:"地址 0x35",title:"CPU 给出主存地址",desc:"先确定写入哪个存储单元。"},
+      {lane:"data",from:"cpu",to:"memory",label:"数据 01101001",title:"CPU 放置待写数据",desc:"数据总线把新数据送向主存。"},
+      {lane:"control",from:"cpu",to:"memory",label:"WRITE",title:"CPU 发出写命令",desc:"控制总线通知主存完成写入。"}
+    ],tip:"写操作中，数据方向是 CPU → 主存。读写方向相反，正说明数据总线是双向的。"},
+    readIo:{target:"io",steps:[
+      {lane:"address",from:"cpu",to:"io",label:"端口 0x60",title:"CPU 选择 I/O 端口",desc:"地址总线也可携带 I/O 端口地址。"},
+      {lane:"control",from:"cpu",to:"io",label:"I/O READ",title:"CPU 发出 I/O 读命令",desc:"控制信号区分存储器操作与 I/O 操作。"},
+      {lane:"data",from:"io",to:"cpu",label:"按键码 0x1C",title:"设备返回数据",desc:"例如键盘把按键扫描码送给 CPU。"}
+    ],tip:"总线连接的不只是主存。通过接口，输入输出设备也能共享系统的信息通路。"},
+    interrupt:{target:"io",steps:[
+      {lane:"control",from:"io",to:"cpu",label:"IRQ",title:"I/O 发出中断请求",desc:"外设可通过控制线主动请求 CPU 服务。"},
+      {lane:"control",from:"cpu",to:"io",label:"INTA",title:"CPU 返回中断响应",desc:"CPU 确认并准备处理该中断。"},
+      {lane:"data",from:"io",to:"cpu",label:"中断向量",title:"设备提供中断信息",desc:"CPU 获取服务入口或设备状态。"}
+    ],tip:"控制总线并非全是 CPU 单向发出。中断请求等状态信号可由外设送往 CPU。"}
+  };
+  let scenario="readMem",txIndex=-1,txPlaying=false,txTimer=null;
+  const packet=$("#packet"),canvas=$("#systemCanvas");
+
+  function devicePoint(name,lane){
+    const el=name==="cpu"?$("#devCpu"):name==="memory"?$("#devMemory"):$("#devIo");
+    const cr=canvas.getBoundingClientRect(),r=el.getBoundingClientRect();
+    const laneEls={address:$$(".bus-lane",canvas)[0],data:$$(".bus-lane",canvas)[1],control:$$(".bus-lane",canvas)[2]};
+    const lr=laneEls[lane].getBoundingClientRect();
+    const centerX=r.left-cr.left+r.width/2,centerY=r.top-cr.top+r.height/2;
+    const busCenterX=lr.left-cr.left+lr.width/2,busCenterY=lr.top-cr.top+lr.height/2;
+    return {x:centerX,y:centerY,bx:busCenterX,by:busCenterY};
+  }
+  function animatePacket(step){
+    [$("#devCpu"),$("#devMemory"),$("#devIo")].forEach(d=>d.classList.remove("active"));
+    const fromEl=step.from==="cpu"?$("#devCpu"):step.from==="memory"?$("#devMemory"):$("#devIo");
+    const toEl=step.to==="cpu"?$("#devCpu"):step.to==="memory"?$("#devMemory"):$("#devIo");
+    fromEl.classList.add("active");toEl.classList.add("active");
+    packet.className=`packet ${step.lane} show`;packet.textContent=step.label;
+    const a=devicePoint(step.from,step.lane),b=devicePoint(step.to,step.lane);
+    const start={x:a.x,y:a.y},mid1={x:a.bx,y:a.by},mid2={x:b.bx,y:b.by},end={x:b.x,y:b.y};
+    const keyframes=[start,mid1,mid2,end].map(p=>({left:(p.x-45)+"px",top:(p.y-18)+"px"}));
+    packet.animate(keyframes,{duration:900,easing:"ease-in-out",fill:"forwards"});
+  }
+  function renderTimeline(){
+    const def=scenarioDefs[scenario];
+    $("#timeline").innerHTML=def.steps.map((s,i)=>`<div class="timeline-step ${i<txIndex?"done":i===txIndex?"active":""}"><div class="timeline-index">${i+1}</div><div><strong>${s.title}</strong><p>${s.desc}</p></div></div>`).join("");
+    $("#txTip").textContent=txIndex<0?"点击“下一步”观察一次完整总线事务。":def.tip;
+    $("#txPrev").disabled=txIndex<0;
+    $("#txNext").disabled=txIndex>=def.steps.length-1;
+  }
+  function setScenario(name){stopTx();scenario=name;txIndex=-1;packet.className="packet";$$('.scenario-btn').forEach(b=>b.classList.toggle('active',b.dataset.scenario===name));[$("#devCpu"),$("#devMemory"),$("#devIo")].forEach(d=>d.classList.remove("active"));renderTimeline()}
+  function txNext(){const steps=scenarioDefs[scenario].steps;if(txIndex<steps.length-1){txIndex++;renderTimeline();animatePacket(steps[txIndex])}else stopTx()}
+  function txPrev(){if(txIndex>=0){txIndex--;packet.className="packet";renderTimeline();if(txIndex>=0)animatePacket(scenarioDefs[scenario].steps[txIndex]);else[$("#devCpu"),$("#devMemory"),$("#devIo")].forEach(d=>d.classList.remove("active"))}}
+  function stopTx(){txPlaying=false;clearInterval(txTimer);txTimer=null;$("#txPlay").textContent="播放事务"}
+  $$('.scenario-btn').forEach(b=>b.addEventListener('click',()=>setScenario(b.dataset.scenario)));
+  $("#txNext").addEventListener("click",txNext);$("#txPrev").addEventListener("click",txPrev);
+  $("#txPlay").addEventListener("click",()=>{if(txPlaying){stopTx();return}if(txIndex>=scenarioDefs[scenario].steps.length-1)txIndex=-1;txPlaying=true;$("#txPlay").textContent="暂停";txNext();txTimer=setInterval(()=>{if(txIndex>=scenarioDefs[scenario].steps.length-1){stopTx();return}txNext()},1200)});
+  renderTimeline();
+
+  let arbMode='arb',requests=new Set(),arbTimer=null,arbDemoTimer=null;
+  const priority={CPU:3,DMA:2,IO:1},names={CPU:'CPU',DMA:'DMA 控制器',IO:'I/O 设备'};
+  function renderArb(){
+    $$('[data-device]').forEach(c=>{const d=c.dataset.device;c.classList.toggle('requesting',requests.has(d));c.classList.remove('granted');$('.request-btn',c).classList.toggle('active',requests.has(d));$('.request-btn',c).textContent=requests.has(d)?'撤回请求':'发起请求'});
+    const sorted=[...requests].sort((a,b)=>priority[b]-priority[a]);
+    $("#arbQueue").innerHTML=sorted.length?sorted.map((d,i)=>`<div class="queue-item"><span>${i+1}. ${names[d]}</span><span>${i===0&&arbMode==='arb'?'候选':''}</span></div>`).join(''):'<div class="empty-queue">暂无请求</div>';
+  }
+  $$('[data-request]').forEach(b=>b.addEventListener('click',()=>{const d=b.dataset.request;if(requests.has(d))requests.delete(d);else requests.add(d);renderArb()}));
+  $$('[data-mode]').forEach(b=>b.addEventListener('click',()=>{arbMode=b.dataset.mode;$$('[data-mode]').forEach(x=>x.classList.toggle('active',x.dataset.mode===arbMode));$("#arbiterRule").textContent=arbMode==='arb'?'规则：固定优先级 CPU > DMA > I/O':'仲裁器停用：所有请求直接驱动总线';renderArb()}));
+  function clearGrant(){clearInterval(arbTimer);arbTimer=null;$("#busOccupantFill").style.width='0%';$("#busOwnerText").textContent='当前空闲';$$('[data-device]').forEach(c=>c.classList.remove('granted'))}
+  function grantOne(d){
+    clearGrant();const card=$(`[data-device="${d}"]`);card.classList.add('granted');card.classList.remove('requesting');$("#busOwnerText").textContent=`已授权：${names[d]}`;$("#arbStatus").className='arb-status';$("#arbStatus").textContent=`仲裁器选择 ${names[d]} 占用总线，其余请求继续等待。传输完成后将释放总线。`;
+    let p=0;arbTimer=setInterval(()=>{p+=4;$("#busOccupantFill").style.width=p+'%';if(p>=100){clearInterval(arbTimer);arbTimer=null;requests.delete(d);setTimeout(()=>{clearGrant();renderArb();$("#arbStatus").textContent=requests.size?'上一设备已释放总线，下一请求可继续仲裁。':'所有请求均已完成，总线恢复空闲。'},280)}},70);
+  }
+  $("#runArb").addEventListener('click',()=>{
+    if(!requests.size){$("#arbStatus").textContent='请先让至少一个设备发起请求。';return}
+    if(arbMode==='arb'){grantOne([...requests].sort((a,b)=>priority[b]-priority[a])[0])}
+    else{
+      clearGrant();const list=[...requests];list.forEach(d=>$(`[data-device="${d}"]`).classList.add('granted'));$("#busOwnerText").textContent=list.length>1?'信号冲突！':`占用：${names[list[0]]}`;$("#busOccupantFill").style.width='100%';$("#arbStatus").className='arb-status collision';$("#arbStatus").textContent=list.length>1?`${list.map(d=>names[d]).join('、')} 同时驱动总线，信号无法可靠判定。这就是共享总线必须仲裁的原因。`:`只有一个请求，暂时没有发生冲突；再增加一个请求即可观察问题。`;
+    }
+  });
+  $("#clearArb").addEventListener('click',()=>{clearInterval(arbDemoTimer);requests.clear();clearGrant();renderArb();$("#arbStatus").className='arb-status';$("#arbStatus").textContent='已清空所有请求。'});
+  $("#demoArb").addEventListener('click',()=>{clearInterval(arbDemoTimer);requests=new Set(['CPU','DMA','IO']);arbMode='noarb';$$('[data-mode]').forEach(x=>x.classList.toggle('active',x.dataset.mode===arbMode));$("#arbiterRule").textContent='仲裁器停用：所有请求直接驱动总线';renderArb();$("#runArb").click();arbDemoTimer=setTimeout(()=>{arbMode='arb';$$('[data-mode]').forEach(x=>x.classList.toggle('active',x.dataset.mode===arbMode));$("#arbiterRule").textContent='规则：固定优先级 CPU > DMA > I/O';clearGrant();renderArb();$("#arbStatus").className='arb-status';$("#arbStatus").textContent='现在重新启用仲裁：同样的三个请求会按优先级依次获得总线。';setTimeout(()=>$("#runArb").click(),900)},2300)});
+  renderArb();
+
+
+  function resetAll(){
+    stopGuide();
+    stopTx();
+    setStage(0);
+    setScenario('readMem');
+    requests.clear();
+    arbMode='arb';
+    $$('[data-mode]').forEach(x=>x.classList.toggle('active',x.dataset.mode==='arb'));
+    clearInterval(arbDemoTimer);
+    clearGrant();
+    renderArb();
+    $("#arbiterRule").textContent='规则：固定优先级 CPU > DMA > I/O';
+    $("#arbStatus").className='arb-status';
+    $("#arbStatus").textContent='当前没有设备请求总线。可同时点亮多个请求，再点击“处理请求”。';
+  }
+  $("#resetAll").addEventListener('click',resetAll);
+
+  document.addEventListener('keydown',e=>{
+    const tag=e.target && e.target.tagName?e.target.tagName.toLowerCase():'';
+    if(['input','button','select','textarea'].includes(tag)||e.target.isContentEditable)return;
+    if(e.code==='Space'){e.preventDefault();if(guideIndex===0)txNext();else if(guideIndex<1)setStage(guideIndex+1)}
+    if(e.key==='ArrowRight'&&guideIndex<1)setStage(guideIndex+1);
+    if(e.key==='ArrowLeft'&&guideIndex>0)setStage(guideIndex-1);
+  });
+
+  setStage(0);
+})();
+</script>
+</body>
+</html>
