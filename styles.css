@@ -6681,6 +6681,12 @@ td.stage-cell.current-cycle {
 }
 
 @media (max-width: 760px) {
+  .simulation-card,
+  #simulation .simulation-card {
+    width: 100%;
+    height: auto;
+  }
+
   #simulation .section-heading h2 {
     font-size: 20px;
   }
@@ -7613,6 +7619,9 @@ td.stage-cell.current-cycle {
 }
 
 #simulation .simulation-catalog.active {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 8px;
   overflow: visible;
   padding-bottom: 24px;
 }

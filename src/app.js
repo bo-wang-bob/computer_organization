@@ -444,6 +444,69 @@ U V W X Y Z`;
 
   SIMULATION_FEATURES.push(...EXTENDED_SIMULATION_FEATURES);
 
+  const SIMULATION_CATALOG_ORDER = [
+    ["architecture-flow-sim", "第1章 计算机系统概述", "冯诺依曼信息流"],
+    ["assembly-sim", "第1章 计算机系统概述", "汇编解释"],
+    ["history-timeline-sim", "第1章 计算机系统概述", "计算机发展时间轴"],
+    ["performance-metrics-sim", "第1章 计算机系统概述", "性能指标计算"],
+    ["twos-sim", "第2章 运算方法和运算器", "补码与浮点推演"],
+    ["number-format-sim", "第2章 运算方法和运算器", "机器数表示转换"],
+    ["alu-carry-sim", "第2章 运算方法和运算器", "ALU 与进位链"],
+    ["fixed-multiply-sim", "第2章 运算方法和运算器", "定点乘法算法"],
+    ["fixed-division-sim", "第2章 运算方法和运算器", "定点除法算法"],
+    ["float-process-sim", "第2章 运算方法和运算器", "浮点表示与加减"],
+    ["memory-access-sim", "第3章 存储系统", "存储读写"],
+    ["memory-expansion-sim", "第3章 存储系统", "存储扩展"],
+    ["memory-hierarchy-sim", "第3章 存储系统", "存储层次与主存结构"],
+    ["memory-cell-sim", "第3章 存储系统", "SRAM / DRAM 单元"],
+    ["cache-sim", "第3章 存储系统", "缓存仿真"],
+    ["cache-write-sim", "第3章 存储系统", "Cache 写策略"],
+    ["cache-locality-sim", "第3章 存储系统", "Cache 局部性"],
+    ["virtual-sim", "第3章 存储系统", "虚存仿真"],
+    ["tlb-access-sim", "第3章 存储系统", "TLB 与缺页流程"],
+    ["instruction-format-sim", "第4章 指令系统", "指令格式拆解"],
+    ["instruction-class-sim", "第4章 指令系统", "指令类型与数据流"],
+    ["addressing-mode-sim", "第4章 指令系统", "寻址方式 EA 计算"],
+    ["datapath-sim", "第5章 中央处理器", "CPU 数据通路"],
+    ["cpu-cycle-sim", "第5章 中央处理器", "指令周期"],
+    ["hardwire-sim", "第5章 中央处理器", "硬布线控制"],
+    ["control-expression-sim", "第5章 中央处理器", "时序表达式"],
+    ["control-mode-sim", "第5章 中央处理器", "控制方式对比"],
+    ["microinstruction-format-sim", "第5章 中央处理器", "微指令格式设计"],
+    ["microprogram-sim", "第5章 中央处理器", "微程序控制"],
+    ["bus-transaction-sim", "第6章 总线系统", "总线事务"],
+    ["bus-structure-sim", "第6章 总线系统", "总线结构对比"],
+    ["bus-arbitration-sim", "第6章 总线系统", "总线仲裁"],
+    ["display-device-sim", "第7章 外围设备", "显示设备扫描"],
+    ["disk-access-sim", "第7章 外围设备", "磁盘访问过程"],
+    ["raid-ssd-sim", "第7章 外围设备", "RAID / SSD 原理"],
+    ["keyboard-sim", "第8章 输入输出系统", "键盘矩阵扫描"],
+    ["io-overview-sim", "第8章 输入输出系统", "I/O 系统总览"],
+    ["polling-io-sim", "第8章 输入输出系统", "程序查询方式"],
+    ["interrupt-io-sim", "第8章 输入输出系统", "程序中断方式"],
+    ["dma-transfer-sim", "第8章 输入输出系统", "DMA 传送"],
+    ["channel-io-sim", "第8章 输入输出系统", "通道方式"],
+    ["pipeline-sim", "第9章 流水处理器", "五级流水线"],
+    ["pipeline-performance-sim", "第9章 流水处理器", "流水线性能"],
+  ];
+
+  const simulationCatalogMeta = new Map(
+    SIMULATION_CATALOG_ORDER.map(([id, chapter, title], index) => [id, { chapter, title, index }])
+  );
+
+  SIMULATION_FEATURES.sort((left, right) => {
+    const leftOrder = simulationCatalogMeta.get(left.id)?.index ?? Number.MAX_SAFE_INTEGER;
+    const rightOrder = simulationCatalogMeta.get(right.id)?.index ?? Number.MAX_SAFE_INTEGER;
+    return leftOrder - rightOrder;
+  });
+
+  SIMULATION_FEATURES.forEach((feature) => {
+    const meta = simulationCatalogMeta.get(feature.id);
+    if (!meta) return;
+    feature.category = meta.chapter;
+    feature.title = `${meta.chapter.split(" ")[0]}-${meta.title}`;
+  });
+
   const EXTENDED_SIMULATION_DEFS = {
     "architecture-flow-sim": {
       title: "冯诺依曼信息流与软件执行层次",
