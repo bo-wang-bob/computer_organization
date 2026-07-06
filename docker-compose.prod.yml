@@ -1,0 +1,31 @@
+name: comporg-agent-prod
+
+services:
+  comporg-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: comporg-agent:prod
+    container_name: comporg-agent-prod
+    restart: unless-stopped
+    ports:
+      - target: 8000
+        published: "${APP_PORT:-80}"
+        host_ip: 0.0.0.0
+        protocol: tcp
+    environment:
+      PYTHONPATH: /app
+      PYTHONUNBUFFERED: "1"
+      APIKEYS: "${APIKEYS:?set APIKEYS in .env}"
+      DEEPSEEK_BASE_URL: "${DEEPSEEK_BASE_URL:-https://api.deepseek.com}"
+      DEEPSEEK_MODEL: "${DEEPSEEK_MODEL:-deepseek-v4-pro}"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=5).read()"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
