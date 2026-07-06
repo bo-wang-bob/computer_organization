@@ -9486,7 +9486,7 @@ DMA,3,1100
       } else if (applyExtendedDemoInputs(plan.targetPanel, inputs)) {
         // Extended simulations share a generated parameter form and a common runner.
       }
-      setDemoStatus(`${plan.usedFallback ? "已使用本地规则生成" : "已使用 DeepSeek 生成"}：${plan.title || "课堂演示"}`, plan.usedFallback ? "warn" : "good");
+      setDemoStatus(`已使用 DeepSeek 生成：${plan.title || "课堂演示"}`, "good");
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (error) {
       setSection("dashboard");
@@ -9503,10 +9503,13 @@ DMA,3,1100
 
     setDemoStatus("正在生成课堂演示...", "warn");
     try {
-      const plan = await apiPost("/api/agent/demo-plan", {
+      const targetPanel = $("#demoPrompt").dataset.demoTarget || "";
+      const payload = {
         message: prompt,
         useLLM: true,
-      });
+      };
+      if (targetPanel) payload.targetPanel = targetPanel;
+      const plan = await apiPost("/api/agent/demo-plan", payload);
       applyDemoPlan(plan);
     } catch (error) {
       setDemoStatus(`生成失败：${error.message}`, "error");
@@ -9571,11 +9574,15 @@ DMA,3,1100
         setSimulationPanel(button.dataset.simCard);
       });
     });
+    $("#demoPrompt").addEventListener("input", () => {
+      $("#demoPrompt").dataset.demoTarget = "";
+    });
     $("#demoGenerate").addEventListener("click", runDemoPlanner);
     $all(".demo-example").forEach((button) => {
       button.addEventListener("click", () => {
-        $("#demoPrompt").value = button.dataset.demoPrompt || "";
-        runDemoPlanner();
+        const prompt = $("#demoPrompt");
+        prompt.value = button.dataset.demoPrompt || "";
+        prompt.dataset.demoTarget = button.dataset.demoTarget || "";
       });
     });
     $("#askButton").addEventListener("click", runQuestionAnswer);

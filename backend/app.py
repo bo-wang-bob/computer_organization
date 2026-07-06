@@ -55,6 +55,7 @@ class AgentChatRequest(BaseModel):
 class DemoPlanRequest(BaseModel):
     message: str = Field(..., min_length=1)
     useLLM: bool = True
+    targetPanel: str | None = None
 
 
 class TwosComplementRequest(BaseModel):

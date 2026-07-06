@@ -802,6 +802,31 @@ def default_demo_plan(kind: str, message: str = "", *, reason: str | None = None
     return unsupported_demo_plan(reason)
 
 
+PANEL_DEFAULT_DEMO_KINDS = {
+    "twos-sim": "fixed",
+    "cache-sim": "cache",
+    "virtual-sim": "virtual",
+    "memory-access-sim": "memory_access",
+    "memory-expansion-sim": "memory_expansion",
+    "hardwire-sim": "hardwire",
+    "control-expression-sim": "control_expression",
+    "bus-transaction-sim": "bus_transaction",
+    "bus-arbitration-sim": "bus_arbitration",
+    "keyboard-sim": "keyboard",
+    "pipeline-sim": "pipeline",
+    "datapath-sim": "datapath",
+    "assembly-sim": "assembly",
+}
+
+
+def default_demo_plan_for_panel(panel_id: str, message: str = "", *, reason: str | None = None) -> dict[str, Any]:
+    kind = PANEL_DEFAULT_DEMO_KINDS.get(panel_id, panel_id)
+    return default_demo_plan(kind, message, reason=reason)
+
+
+FIXED_BUS_ARBITRATION_DEVICES = "CPU,4,1010\nDMA,3,1100\n网卡,2,0111\n硬盘,1,1001"
+
+
 def unsupported_demo_plan(reason: str | None = None) -> dict[str, Any]:
     return {
         "supported": False,
@@ -1024,7 +1049,7 @@ def fallback_demo_plan(message: str) -> dict[str, Any]:
     return unsupported_demo_plan()
 
 
-def build_demo_plan_messages(message: str) -> list[dict[str, str]]:
+def build_demo_plan_messages(message: str, forced_target_panel: str | None = None) -> list[dict[str, str]]:
     panel_list = "、".join(sorted(SUPPORTED_DEMO_PANELS))
     extended_input_specs = "；".join(
         f"{panel_id}: {', '.join(inputs)}"
@@ -1054,12 +1079,18 @@ def build_demo_plan_messages(message: str) -> list[dict[str, str]]:
         "keyboard-sim 的 inputs 使用 layout、key、debounce。"
         "如果用户给出具体数值、地址、位数、算法或程序，尽量使用用户给出的值；缺少的值补充一个合理随机例子。"
     )
+    forced_prompt = (
+        f"\nFixed targetPanel: {forced_target_panel}. Return this exact targetPanel and generate inputs only for it."
+        if forced_target_panel
+        else ""
+    )
     user_prompt = (
         f"教师输入：{message}\n"
         "请生成一个适合课堂立即演示的例子。"
         "示例要短小、稳定、能突出知识点。"
         f"不支持时 reason 写：{UNSUPPORTED_DEMO_MESSAGE}"
     )
+    user_prompt += forced_prompt
     return [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}]
 
 
@@ -1074,12 +1105,14 @@ def parse_json_object(content: str) -> dict[str, Any]:
     return json.loads(text[start : end + 1])
 
 
-def normalize_demo_plan(plan: dict[str, Any], message: str) -> dict[str, Any]:
+def normalize_demo_plan(plan: dict[str, Any], message: str, forced_target_panel: str | None = None) -> dict[str, Any]:
     if not isinstance(plan, dict):
         raise ValueError("演示计划格式错误")
 
-    supported = plan.get("supported") is True
-    target_panel = plan.get("targetPanel")
+    if forced_target_panel and forced_target_panel not in SUPPORTED_DEMO_PANELS:
+        raise ValueError("固定的仿真模块不存在")
+    supported = plan.get("supported") is True or bool(forced_target_panel)
+    target_panel = forced_target_panel or plan.get("targetPanel")
     if not supported:
         return unsupported_demo_plan(str(plan.get("reason") or UNSUPPORTED_DEMO_MESSAGE))
     if target_panel not in SUPPORTED_DEMO_PANELS:
@@ -1180,7 +1213,7 @@ def normalize_demo_plan(plan: dict[str, Any], message: str) -> dict[str, Any]:
         defaults = default_demo_plan("bus_arbitration", message)["inputs"]
         normalized_inputs = {
             "mode": inputs.get("mode") or defaults["mode"],
-            "devices": inputs.get("devices") or defaults["devices"],
+            "devices": FIXED_BUS_ARBITRATION_DEVICES,
             "requests": inputs.get("requests") or defaults["requests"],
             "counterStart": inputs.get("counterStart", defaults["counterStart"]),
             "priorityRule": inputs.get("priorityRule") or defaults["priorityRule"],
@@ -1322,6 +1355,9 @@ def validate_demo_plan(plan: dict[str, Any]) -> dict[str, Any]:
 
 def plan_demo(payload: dict[str, Any], client: ChatClient | None = None) -> dict[str, Any]:
     message = str(payload.get("message") or "").strip()
+    forced_target_panel = str(payload.get("targetPanel") or "").strip() or None
+    if forced_target_panel and forced_target_panel not in SUPPORTED_DEMO_PANELS:
+        raise ValueError("targetPanel points to an unknown simulation panel")
     if not message:
         raise ValueError("message 不能为空")
 
@@ -1333,7 +1369,11 @@ def plan_demo(payload: dict[str, Any], client: ChatClient | None = None) -> dict
         "usedFallback": False,
     }
 
-    fallback = fallback_demo_plan(message)
+    fallback = (
+        default_demo_plan_for_panel(forced_target_panel, message, reason="Fixed targetPanel fallback")
+        if forced_target_panel
+        else fallback_demo_plan(message)
+    )
     if payload.get("useLLM", True) is False:
         result.update(validate_demo_plan(fallback))
         result["usedFallback"] = True
@@ -1341,8 +1381,8 @@ def plan_demo(payload: dict[str, Any], client: ChatClient | None = None) -> dict
 
     chat_client = client or DeepSeekClient(config)
     try:
-        response = chat_client.chat(build_demo_plan_messages(message), temperature=0.2, max_tokens=900)
-        plan = normalize_demo_plan(parse_json_object(response["content"]), message)
+        response = chat_client.chat(build_demo_plan_messages(message, forced_target_panel), temperature=0.2, max_tokens=900)
+        plan = normalize_demo_plan(parse_json_object(response["content"]), message, forced_target_panel)
         if (
             fallback.get("supported")
             and fallback.get("targetPanel") in EXTENDED_DEMO_DEFAULT_INPUTS

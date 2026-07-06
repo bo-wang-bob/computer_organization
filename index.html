@@ -50,15 +50,15 @@
                 <button id="demoGenerate" class="primary-button">生成并演示</button>
               </div>
               <div class="demo-examples" aria-label="课堂演示示例">
-                <button class="secondary-button demo-example" data-demo-prompt="演示 8 位补码 127 + 1 溢出">补码溢出</button>
-                <button class="secondary-button demo-example" data-demo-prompt="演示 IEEE 754 对阶过程">IEEE 754</button>
-                <button class="secondary-button demo-example" data-demo-prompt="演示 Cache 直接映射冲突">Cache 冲突</button>
-                <button class="secondary-button demo-example" data-demo-prompt="演示虚拟存储 LRU 页面置换">虚存置换</button>
-                <button class="secondary-button demo-example" data-demo-prompt="演示存储器写入 0x2A 数据 0x5C 的过程">存储读写</button>
-                <button class="secondary-button demo-example" data-demo-prompt="演示存储器位扩展">存储扩展</button>
-                <button class="secondary-button demo-example" data-demo-prompt="演示 load-use 冒险">流水线冒险</button>
-                <button class="secondary-button demo-example" data-demo-prompt="演示 lw 指令的数据通路">数据通路</button>
-                <button class="secondary-button demo-example" data-demo-prompt="演示汇编程序逐步执行">汇编执行</button>
+                <button class="secondary-button demo-example" data-demo-target="architecture-flow-sim" data-demo-prompt="演示冯诺依曼体系信息流，请生成一个包含程序、数据、存储器、CPU 和 I/O 的合理例子和参数。">冯诺依曼体系</button>
+                <button class="secondary-button demo-example" data-demo-target="twos-sim" data-demo-prompt="演示 8 位补码加法溢出检测，请生成一个合理的加法例子和参数。">补码溢出</button>
+                <button class="secondary-button demo-example" data-demo-target="cache-sim" data-demo-prompt="演示 Cache 直接映射冲突，请生成一组会发生命中和冲突替换的访问地址。">Cache 直接映射</button>
+                <button class="secondary-button demo-example" data-demo-target="addressing-mode-sim" data-demo-prompt="演示寻址方式有效地址 EA 计算，请生成立即、直接、间接或变址寻址中的一个合理例子和参数。">寻址方式 EA</button>
+                <button class="secondary-button demo-example" data-demo-target="cpu-cycle-sim" data-demo-prompt="演示一条 LOAD 指令的指令周期，请生成合理的寄存器、地址和中断检查参数。">指令周期</button>
+                <button class="secondary-button demo-example" data-demo-target="bus-arbitration-sim" data-demo-prompt="演示总线仲裁过程，请生成多个主设备同时请求总线的例子和仲裁参数。">总线仲裁</button>
+                <button class="secondary-button demo-example" data-demo-target="disk-access-sim" data-demo-prompt="演示磁盘访问时间计算，请生成当前柱面、目标柱面、转速和传输量参数。">磁盘访问</button>
+                <button class="secondary-button demo-example" data-demo-target="dma-transfer-sim" data-demo-prompt="演示 DMA 传送过程，请生成传送字节数、总线周期和传送方式参数。">DMA 传送</button>
+                <button class="secondary-button demo-example" data-demo-target="pipeline-sim" data-demo-prompt="演示五级流水线 load-use 冒险，请生成一段合理的指令序列和转发参数。">五级流水线</button>
               </div>
               <div id="demoStatus" class="demo-status empty-state">当前支持：补码/定点、IEEE 754、Cache、虚拟存储、存储读写、存储扩展、流水线、CPU 数据通路、汇编解释。</div>
             </div>
