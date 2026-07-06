@@ -3367,13 +3367,38 @@ DMA,3,1100
   }
 
   function renderIoOverviewDomain(result, step, index) {
+    const timeline = ["选择编址", "设备选址", "数据传送", "联络完成"];
     const body = `
       <div class="io-overview-stage">
-        <div class="io-cpu ${index >= 0 ? "active" : ""}">CPU</div>
-        <div class="io-address ${isActiveStep(step, "addr", "select") ? "active" : ""}">地址/端口译码</div>
-        <div class="io-wire ${isActiveStep(step, "transfer") ? "active" : ""}"><span></span><span></span><span></span><span></span></div>
-        <div class="handshake-box ${isActiveStep(step, "handshake") ? "active" : ""}">Ready / ACK</div>
-        <div class="io-device ${isActiveStep(step, "device") ? "active" : ""}">外设</div>
+        <div class="io-overview-flow">
+          <div class="io-overview-node io-cpu ${isActiveStep(step, "cpu") ? "active" : ""}">
+            <strong>CPU</strong>
+            <span>发起 I/O 请求</span>
+          </div>
+          <div class="io-overview-link ${index === 0 ? "active" : ""}"><span>选择空间</span></div>
+          <div class="io-overview-node io-address ${isActiveStep(step, "addr", "select") ? "active" : ""}">
+            <strong>地址/端口译码</strong>
+            <span>选中接口</span>
+          </div>
+          <div class="io-overview-link ${index === 1 ? "active" : ""}"><span>设备响应</span></div>
+          <div class="io-overview-node io-wire ${isActiveStep(step, "transfer") ? "active" : ""}">
+            <strong>传送线路</strong>
+            <div class="io-wire-lanes"><span></span><span></span><span></span><span></span></div>
+          </div>
+          <div class="io-overview-link ${index === 2 ? "active" : ""}"><span>传数据</span></div>
+          <div class="io-overview-node handshake-box ${isActiveStep(step, "handshake") ? "active" : ""}">
+            <strong>Ready / ACK</strong>
+            <span>速度匹配</span>
+          </div>
+          <div class="io-overview-link ${index === 3 ? "active" : ""}"><span>完成</span></div>
+          <div class="io-overview-node io-device ${isActiveStep(step, "device") ? "active" : ""}">
+            <strong>外设</strong>
+            <span>数据源/目的</span>
+          </div>
+        </div>
+        <div class="io-overview-timeline">
+          ${timeline.map((label, itemIndex) => `<span class="${itemIndex === index ? "active" : itemIndex < index ? "done" : ""}"><i>${itemIndex + 1}</i>${label}</span>`).join("")}
+        </div>
       </div>
     `;
     return renderDomainFrame("io-overview-domain", "I/O 编址与联络动画", "CPU 通过地址译码选中设备，再按串/并行和联络方式传送数据。", body, result.metrics);
@@ -3381,54 +3406,187 @@ DMA,3,1100
 
   function renderPollingDomain(result, step, index) {
     const count = Number.parseInt(metricValue(result, "查询次数", "1"), 10) || 1;
+    const shownPolls = Math.min(count, 8);
+    const ready = index + 1 >= count;
+    const timeline = ["查询状态", "Ready 判定", "继续轮询", "搬运数据"];
+    const timelineActiveIndex = isActiveStep(step, "data") ? 3 : ready ? 1 : index === 0 ? 0 : 2;
     const body = `
       <div class="polling-stage">
-        <div class="poll-cpu active">CPU 查询循环</div>
-        <div class="poll-loop ${index < count ? "active" : ""}">${Array.from({ length: Math.min(count, 8) }, (_, i) => `<span class="${i <= index ? "active" : ""}">${i + 1}</span>`).join("")}</div>
-        <div class="status-register ${isActiveStep(step, "status", "device") ? "active" : ""}">Ready=${index + 1 >= count ? "1" : "0"}</div>
-        <div class="data-register ${isActiveStep(step, "data") ? "active" : ""}">数据寄存器</div>
+        <div class="polling-flow">
+          <div class="polling-node poll-cpu active">
+            <strong>CPU</strong>
+            <span>查询状态位</span>
+          </div>
+          <div class="polling-link ${!ready ? "active" : ""}"><span>读状态</span></div>
+          <div class="polling-node poll-loop ${index < count ? "active" : ""}">
+            <strong>查询循环</strong>
+            <div class="poll-dots">${Array.from({ length: shownPolls }, (_, i) => `<span class="${i <= index ? "active" : ""}">${i + 1}</span>`).join("")}</div>
+          </div>
+          <div class="polling-link ${isActiveStep(step, "status", "device") ? "active" : ""}"><span>检测</span></div>
+          <div class="polling-node status-register ${isActiveStep(step, "status", "device") ? "active" : ""}">
+            <strong>状态寄存器</strong>
+            <span>Ready=${ready ? "1" : "0"}</span>
+          </div>
+          <div class="polling-link ${isActiveStep(step, "data") ? "active" : ""}"><span>${ready ? "就绪" : "忙等"}</span></div>
+          <div class="polling-node data-register ${isActiveStep(step, "data") ? "active" : ""}">
+            <strong>数据寄存器</strong>
+            <span>${ready ? "搬运数据" : "等待就绪"}</span>
+          </div>
+        </div>
+        <div class="polling-return ${!ready ? "active" : ""}">
+          <span>Ready=0</span>
+          <i></i>
+          <b>CPU 返回循环继续查询</b>
+        </div>
+        <div class="polling-timeline">
+          ${timeline.map((label, itemIndex) => {
+            return `<span class="${itemIndex === timelineActiveIndex ? "active" : itemIndex < timelineActiveIndex ? "done" : ""}"><i>${itemIndex + 1}</i>${label}</span>`;
+          }).join("")}
+        </div>
       </div>
     `;
     return renderDomainFrame("polling-domain", "程序查询忙等动画", "CPU 一次次读取状态寄存器，直到 Ready=1 才搬运数据。", body, result.metrics);
   }
 
   function renderInterruptDomain(result, step, index) {
+    const timeline = ["IRQ 请求", "判优屏蔽", "CPU 响应", "保存现场", "取向量", "执行 ISR"];
     const body = `
       <div class="interrupt-stage">
-        <div class="irq-device ${index >= 0 ? "active" : ""}">外设 IRQ</div>
-        <div class="irq-line ${index >= 0 ? "active" : ""}"></div>
-        <div class="irq-cpu ${isActiveStep(step, "cpu") ? "active" : ""}">CPU</div>
-        <div class="stack-frame ${isActiveStep(step, "stack") ? "active" : ""}"><span>PC</span><span>PSW</span><span>REG</span></div>
-        <div class="vector-table ${isActiveStep(step, "vector") ? "active" : ""}">向量表</div>
-        <div class="isr-box ${isActiveStep(step, "isr") ? "active" : ""}">ISR</div>
+        <div class="interrupt-flow">
+          <div class="interrupt-node irq-device ${isActiveStep(step, "device") ? "active" : ""}">
+            <strong>外设 IRQ</strong>
+            <span>请求服务</span>
+          </div>
+          <div class="interrupt-link ${index === 0 ? "active" : ""}"><span>IRQ=1</span></div>
+          <div class="interrupt-node interrupt-mask ${isActiveStep(step, "mask") ? "active" : ""}">
+            <strong>判优/屏蔽</strong>
+            <span>允许响应</span>
+          </div>
+          <div class="interrupt-link ${index === 1 ? "active" : ""}"><span>通过</span></div>
+          <div class="interrupt-node irq-cpu ${isActiveStep(step, "cpu") ? "active" : ""}">
+            <strong>CPU</strong>
+            <span>完成当前指令</span>
+          </div>
+          <div class="interrupt-link ${index === 2 || index === 3 ? "active" : ""}"><span>响应</span></div>
+          <div class="interrupt-node stack-frame ${isActiveStep(step, "stack") ? "active" : ""}">
+            <strong>保存现场</strong>
+            <div class="stack-fields"><span>PC</span><span>PSW</span><span>REG</span></div>
+          </div>
+          <div class="interrupt-link ${index === 4 ? "active" : ""}"><span>查入口</span></div>
+          <div class="interrupt-node vector-table ${isActiveStep(step, "vector") ? "active" : ""}">
+            <strong>向量表</strong>
+            <span>ISR 地址</span>
+          </div>
+          <div class="interrupt-link ${index === 5 ? "active" : ""}"><span>跳转</span></div>
+          <div class="interrupt-node isr-box ${isActiveStep(step, "isr") ? "active" : ""}">
+            <strong>ISR</strong>
+            <span>处理并返回</span>
+          </div>
+        </div>
+        <div class="interrupt-return ${index >= 5 ? "active" : ""}">
+          <span>恢复现场</span>
+          <i></i>
+          <b>返回断点继续执行</b>
+        </div>
+        <div class="interrupt-timeline">
+          ${timeline.map((label, itemIndex) => `<span class="${itemIndex === index ? "active" : itemIndex < index ? "done" : ""}"><i>${itemIndex + 1}</i>${label}</span>`).join("")}
+        </div>
       </div>
     `;
     return renderDomainFrame("interrupt-domain", "中断响应动画", "外设发 IRQ，CPU 保存现场、取向量并跳转到中断服务程序。", body, result.metrics);
   }
 
   function renderDmaDomain(result, step, index) {
+    const timeline = ["预处理", "请求总线", "数据传送", "更新计数", "结束中断"];
     const body = `
       <div class="dma-stage">
-        <div class="dma-cpu ${index === 0 || isActiveStep(step, "cpu") ? "active" : ""}">CPU</div>
-        <div class="dma-controller ${isActiveStep(step, "dma") ? "active" : ""}">DMA<br>地址/计数</div>
-        <div class="dma-bus ${isActiveStep(step, "bus") ? "active" : ""}">系统总线</div>
-        <div class="dma-memory ${isActiveStep(step, "memory") ? "active" : ""}">主存缓冲区</div>
-        <div class="dma-device ${isActiveStep(step, "device") ? "active" : ""}">I/O 设备</div>
-        <div class="dma-irq ${isActiveStep(step, "irq") ? "active" : ""}">结束中断</div>
+        <div class="dma-flow">
+          <div class="dma-node dma-cpu ${index === 0 || isActiveStep(step, "cpu") ? "active" : ""}">
+            <strong>CPU</strong>
+            <span>初始化参数</span>
+          </div>
+          <div class="dma-link ${index === 0 ? "active" : ""}"><span>设置地址/计数</span></div>
+          <div class="dma-node dma-controller ${isActiveStep(step, "dma") ? "active" : ""}">
+            <strong>DMA 控制器</strong>
+            <span>地址/计数</span>
+          </div>
+          <div class="dma-link ${index === 1 ? "active" : ""}"><span>请求总线</span></div>
+          <div class="dma-node dma-bus ${isActiveStep(step, "bus") ? "active" : ""}">
+            <strong>系统总线</strong>
+            <span>接管传送</span>
+          </div>
+          <div class="dma-link ${index === 2 || index === 3 ? "active" : ""}"><span>搬运数据</span></div>
+          <div class="dma-transfer-pair">
+            <div class="dma-node dma-device ${isActiveStep(step, "device") ? "active" : ""}">
+              <strong>I/O 设备</strong>
+              <span>数据源/目的</span>
+            </div>
+            <div class="dma-data-link ${isActiveStep(step, "bus", "memory", "device") ? "active" : ""}">数据块</div>
+            <div class="dma-node dma-memory ${isActiveStep(step, "memory") ? "active" : ""}">
+              <strong>主存缓冲区</strong>
+              <span>读写数据</span>
+            </div>
+          </div>
+        </div>
+        <div class="dma-irq-return ${isActiveStep(step, "irq") ? "active" : ""}">
+          <span>结束中断</span>
+          <i></i>
+          <b>释放总线并通知 CPU</b>
+        </div>
+        <div class="dma-timeline">
+          ${timeline.map((label, itemIndex) => `<span class="${itemIndex === index ? "active" : itemIndex < index ? "done" : ""}"><i>${itemIndex + 1}</i>${label}</span>`).join("")}
+        </div>
       </div>
     `;
     return renderDomainFrame("dma-domain", "DMA 块传送动画", "CPU 初始化后，DMA 控制器接管总线在设备和主存间搬运数据块。", body, result.metrics);
   }
 
   function renderChannelDomain(result, step, index) {
+    const timeline = ["准备程序", "启动通道", "读取 CCW", "设备传送", "结束中断"];
     const body = `
       <div class="channel-stage">
-        <div class="channel-cpu ${isActiveStep(step, "cpu") ? "active" : ""}">CPU</div>
-        <div class="ccw-list ${isActiveStep(step, "ccw") ? "active" : ""}"><span>READ</span><span>ADDR</span><span>COUNT</span><span>DEV</span></div>
-        <div class="channel-processor ${isActiveStep(step, "channel") ? "active" : ""}">通道处理器</div>
-        <div class="device-controller ${isActiveStep(step, "controller") ? "active" : ""}">设备控制器</div>
-        <div class="channel-memory ${isActiveStep(step, "memory") ? "active" : ""}">主存缓冲区</div>
-        <div class="channel-irq ${isActiveStep(step, "irq") ? "active" : ""}">结束中断</div>
+        <div class="channel-flow">
+          <div class="channel-node channel-cpu ${isActiveStep(step, "cpu") ? "active" : ""}">
+            <strong>CPU</strong>
+            <span>启动 I/O</span>
+          </div>
+          <div class="channel-link ${index === 0 || index === 1 ? "active" : ""}">
+            <span>准备并启动</span>
+          </div>
+          <div class="channel-node ccw-list ${isActiveStep(step, "ccw") ? "active" : ""}">
+            <strong>通道程序</strong>
+            <div class="ccw-fields"><span>READ</span><span>ADDR</span><span>COUNT</span><span>DEV</span></div>
+          </div>
+          <div class="channel-link ${index === 2 ? "active" : ""}">
+            <span>取 CCW</span>
+          </div>
+          <div class="channel-node channel-processor ${isActiveStep(step, "channel") ? "active" : ""}">
+            <strong>通道处理器</strong>
+            <span>译码与调度</span>
+          </div>
+          <div class="channel-link ${index === 3 ? "active" : ""}">
+            <span>控制传送</span>
+          </div>
+          <div class="channel-transfer-pair">
+            <div class="channel-node device-controller ${isActiveStep(step, "controller") ? "active" : ""}">
+              <strong>设备控制器</strong>
+              <span>驱动外设</span>
+            </div>
+            <div class="channel-data-link ${isActiveStep(step, "controller", "memory") ? "active" : ""}">数据块</div>
+            <div class="channel-node channel-memory ${isActiveStep(step, "memory") ? "active" : ""}">
+              <strong>主存缓冲区</strong>
+              <span>读写数据</span>
+            </div>
+          </div>
+        </div>
+        <div class="channel-irq-return ${isActiveStep(step, "irq") ? "active" : ""}">
+          <span>结束中断</span>
+          <i></i>
+          <b>通知 CPU 检查状态字</b>
+        </div>
+        <div class="channel-timeline">
+          ${timeline.map((label, itemIndex) => `<span class="${itemIndex === index ? "active" : itemIndex < index ? "done" : ""}"><i>${itemIndex + 1}</i>${label}</span>`).join("")}
+        </div>
       </div>
     `;
     return renderDomainFrame("channel-domain", "通道程序执行动画", "CPU 启动通道后，通道读取通道指令并独立协调控制器和主存。", body, result.metrics);
