@@ -26,6 +26,106 @@ class AgentProfile:
     system_prompt: str
 
 
+EXTENDED_DEMO_DEFAULT_INPUTS: dict[str, dict[str, Any]] = {
+    "architecture-flow-sim": {"program": "add"},
+    "history-timeline-sim": {"stage": "vlsi"},
+    "performance-metrics-sim": {"instructions": "200000000", "cpi": "1.8", "clockGhz": "2.5", "flopsPerInst": "0.25"},
+    "number-format-sim": {"value": "-13", "bits": "8"},
+    "alu-carry-sim": {"a": "45", "b": "27", "op": "add", "bits": "8"},
+    "fixed-multiply-sim": {"multiplicand": "-7", "multiplier": "6", "method": "booth", "bits": "8"},
+    "fixed-division-sim": {"dividend": "45", "divisor": "6", "method": "restoring", "bits": "8"},
+    "float-process-sim": {"a": "12.75", "b": "-3.5", "operation": "add"},
+    "memory-hierarchy-sim": {"workingSetMb": "64", "cacheKb": "256", "locality": "85", "operation": "read"},
+    "memory-cell-sim": {"kind": "dram", "operation": "read", "row": "5", "col": "3"},
+    "cache-write-sim": {"policy": "write-back", "missPolicy": "write-allocate", "hit": "miss", "address": "0x2A"},
+    "cache-locality-sim": {"pattern": "loop", "accesses": "16", "blockBytes": "16", "cacheLines": "4"},
+    "tlb-access-sim": {"virtualAddress": "2052", "pageSize": "1024", "tlb": "miss", "present": "fault"},
+    "instruction-format-sim": {"format": "r", "opcode": "ADD"},
+    "instruction-class-sim": {"kind": "transfer"},
+    "addressing-mode-sim": {"mode": "indexed", "address": "120", "register": "40", "pc": "1000"},
+    "cpu-cycle-sim": {"instruction": "load", "indirect": "no", "interrupt": "yes"},
+    "control-mode-sim": {"mode": "combined"},
+    "microinstruction-format-sim": {"format": "horizontal", "signals": "18", "groups": "4", "next": "conditional"},
+    "microprogram-sim": {"instruction": "load", "format": "horizontal"},
+    "bus-structure-sim": {"structure": "single", "transaction": "memory-read"},
+    "display-device-sim": {"mode": "graphic", "width": "800", "height": "600", "depth": "24"},
+    "disk-access-sim": {"currentCylinder": "20", "targetCylinder": "135", "rpm": "7200", "transferKb": "64"},
+    "raid-ssd-sim": {"mode": "raid5"},
+    "io-overview-sim": {"addressing": "isolated", "transfer": "serial", "handshake": "async"},
+    "polling-io-sim": {"readyAfter": "4", "pollCost": "80", "transferCost": "120"},
+    "interrupt-io-sim": {"priority": "keyboard", "nested": "yes"},
+    "dma-transfer-sim": {"bytes": "4096", "wordBytes": "4", "mode": "cycle-steal"},
+    "channel-io-sim": {"program": "read-block"},
+    "pipeline-performance-sim": {"instructions": "8", "ifDelay": "2", "idDelay": "1", "exDelay": "3", "memDelay": "2", "wbDelay": "1"},
+}
+
+EXTENDED_DEMO_TITLES: dict[str, str] = {
+    "architecture-flow-sim": "冯诺依曼信息流演示",
+    "history-timeline-sim": "计算机发展时间轴演示",
+    "performance-metrics-sim": "性能指标计算演示",
+    "number-format-sim": "机器数表示转换演示",
+    "alu-carry-sim": "ALU 与进位链演示",
+    "fixed-multiply-sim": "定点乘法算法演示",
+    "fixed-division-sim": "定点除法算法演示",
+    "float-process-sim": "浮点表示与加减演示",
+    "memory-hierarchy-sim": "存储层次与主存结构演示",
+    "memory-cell-sim": "SRAM / DRAM 单元演示",
+    "cache-write-sim": "Cache 写策略演示",
+    "cache-locality-sim": "Cache 局部性演示",
+    "tlb-access-sim": "TLB 与缺页流程演示",
+    "instruction-format-sim": "指令格式拆解演示",
+    "instruction-class-sim": "指令类型与数据流演示",
+    "addressing-mode-sim": "寻址方式 EA 计算演示",
+    "cpu-cycle-sim": "指令周期演示",
+    "control-mode-sim": "控制方式对比演示",
+    "microinstruction-format-sim": "微指令格式设计演示",
+    "microprogram-sim": "微程序控制演示",
+    "bus-structure-sim": "总线结构对比演示",
+    "display-device-sim": "显示设备扫描演示",
+    "disk-access-sim": "磁盘访问过程演示",
+    "raid-ssd-sim": "RAID / SSD 原理演示",
+    "io-overview-sim": "I/O 系统总览演示",
+    "polling-io-sim": "程序查询方式演示",
+    "interrupt-io-sim": "程序中断方式演示",
+    "dma-transfer-sim": "DMA 传送演示",
+    "channel-io-sim": "通道方式演示",
+    "pipeline-performance-sim": "流水线性能演示",
+}
+
+EXTENDED_DEMO_KEYWORDS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("architecture-flow-sim", ("冯诺依曼", "五大部件", "存储程序", "信息流", "architecture flow", "von neumann")),
+    ("history-timeline-sim", ("发展时间轴", "计算机发展", "电子管", "晶体管", "集成电路", "vlsi", "timeline")),
+    ("performance-metrics-sim", ("性能指标", "cpu 时间", "mips", "吞吐率", "cpi", "performance metrics")),
+    ("number-format-sim", ("机器数", "原码", "反码", "移码", "表示转换", "number format")),
+    ("alu-carry-sim", ("alu", "进位链", "全加器", "cla", "标志位", "carry chain")),
+    ("fixed-multiply-sim", ("定点乘法算法", "booth", "移位加", "原码一位乘", "fixed multiply")),
+    ("fixed-division-sim", ("定点除法算法", "恢复余数", "不恢复余数", "fixed division")),
+    ("float-process-sim", ("浮点表示与加减", "对阶", "尾数", "规格化", "舍入", "float process")),
+    ("memory-hierarchy-sim", ("存储层次", "主存结构", "mar/mdr", "memory hierarchy")),
+    ("memory-cell-sim", ("sram", "dram", "存储单元", "刷新", "memory cell")),
+    ("cache-write-sim", ("cache 写", "写策略", "写回", "写直达", "写分配", "dirty", "write-back", "write-through")),
+    ("cache-locality-sim", ("局部性", "时间局部性", "空间局部性", "访问模式", "cache locality")),
+    ("tlb-access-sim", ("tlb", "快表", "缺页流程", "页表访问")),
+    ("instruction-format-sim", ("指令格式", "操作码", "r 型", "i 型", "cisc", "instruction format")),
+    ("instruction-class-sim", ("指令类型", "数据流", "数据传送", "算术逻辑", "instruction class")),
+    ("addressing-mode-sim", ("寻址方式", "有效地址", "ea 计算", "立即寻址", "变址", "基址", "addressing")),
+    ("cpu-cycle-sim", ("指令周期", "取指", "间址", "中断周期", "instruction cycle")),
+    ("control-mode-sim", ("控制方式", "同步控制", "异步控制", "联合控制", "control mode")),
+    ("microinstruction-format-sim", ("微指令格式", "水平型", "垂直型", "控制字段", "microinstruction")),
+    ("microprogram-sim", ("微程序", "控制存储器", "微地址", "microprogram")),
+    ("bus-structure-sim", ("总线结构", "单总线", "双总线", "三总线", "bus structure")),
+    ("display-device-sim", ("显示设备", "显示扫描", "显存", "帧缓冲", "display device")),
+    ("disk-access-sim", ("磁盘访问", "柱面", "磁道", "旋转延迟", "寻道", "disk access")),
+    ("raid-ssd-sim", ("raid", "ssd", "条带", "镜像", "校验", "ftl")),
+    ("io-overview-sim", ("i/o 系统", "io 系统", "接口总览", "统一编址", "独立编址", "io overview")),
+    ("polling-io-sim", ("程序查询", "轮询", "查询方式", "polling")),
+    ("interrupt-io-sim", ("程序中断", "中断方式", "中断向量", "现场保护", "interrupt io")),
+    ("dma-transfer-sim", ("dma", "周期窃取", "突发传送", "dma transfer")),
+    ("channel-io-sim", ("通道方式", "通道程序", "通道指令", "channel io")),
+    ("pipeline-performance-sim", ("流水线性能", "加速比", "效率", "瓶颈段", "时空图", "pipeline performance")),
+)
+
+
 SUPPORTED_DEMO_PANELS = {
     "twos-sim",
     "cache-sim",
@@ -41,6 +141,7 @@ SUPPORTED_DEMO_PANELS = {
     "bus-arbitration-sim",
     "keyboard-sim",
 }
+SUPPORTED_DEMO_PANELS |= set(EXTENDED_DEMO_DEFAULT_INPUTS)
 UNSUPPORTED_DEMO_MESSAGE = (
     "暂不支持该功能仿真。当前可演示：补码/定点、IEEE 754、Cache、虚拟存储、"
     "存储读写、存储扩展、流水线、CPU 数据通路、汇编解释、硬布线控制、"
@@ -316,6 +417,246 @@ def memory_expansion_inputs(message: str) -> dict[str, Any]:
     }
 
 
+def extended_demo_inputs(panel_id: str, message: str) -> dict[str, Any]:
+    inputs = dict(EXTENDED_DEMO_DEFAULT_INPUTS.get(panel_id, {}))
+    lowered = core.normalize(message)
+    numbers = extract_numbers(message)
+    ints = extract_ints(message)
+    hex_tokens = extract_hex_tokens(message)
+
+    def set_numbers(*fields: str) -> None:
+        for field, value in zip(fields, numbers):
+            if field not in inputs:
+                continue
+            inputs[field] = str(int(value)) if float(value).is_integer() else str(value)
+
+    def set_ints(*fields: str) -> None:
+        for field, value in zip(fields, ints):
+            if field in inputs:
+                inputs[field] = str(value)
+
+    def set_bits(default: str = "8") -> None:
+        if "bits" in inputs:
+            inputs["bits"] = str(find_bit_width(message, int(default)))
+
+    if panel_id == "architecture-flow-sim":
+        if any(keyword in lowered for keyword in ["load", "lw", "取数", "访存"]):
+            inputs["program"] = "load"
+        elif any(keyword in lowered for keyword in ["io", "i/o", "输入", "输出", "外设"]):
+            inputs["program"] = "io"
+    elif panel_id == "history-timeline-sim":
+        if any(keyword in lowered for keyword in ["电子管", "tube"]):
+            inputs["stage"] = "tube"
+        elif any(keyword in lowered for keyword in ["晶体管", "transistor"]):
+            inputs["stage"] = "transistor"
+        elif any(keyword in lowered for keyword in ["集成电路", "ic"]):
+            inputs["stage"] = "ic"
+    elif panel_id == "performance-metrics-sim":
+        set_numbers("instructions", "cpi", "clockGhz", "flopsPerInst")
+    elif panel_id == "number-format-sim":
+        if numbers:
+            inputs["value"] = str(int(numbers[-1])) if float(numbers[-1]).is_integer() else str(numbers[-1])
+        set_bits("8")
+    elif panel_id == "alu-carry-sim":
+        set_numbers("a", "b")
+        set_bits("8")
+        if any(keyword in lowered for keyword in ["sub", "subtract", "减"]):
+            inputs["op"] = "sub"
+        elif "and" in lowered or "与" in message:
+            inputs["op"] = "and"
+        elif "or" in lowered or "或" in message:
+            inputs["op"] = "or"
+    elif panel_id == "fixed-multiply-sim":
+        set_numbers("multiplicand", "multiplier")
+        set_bits("8")
+        if any(keyword in lowered for keyword in ["shift", "移位加"]):
+            inputs["method"] = "shift-add"
+        elif "原码" in message or "sign" in lowered:
+            inputs["method"] = "sign-magnitude"
+    elif panel_id == "fixed-division-sim":
+        set_numbers("dividend", "divisor")
+        set_bits("8")
+        if any(keyword in lowered for keyword in ["non", "不恢复"]):
+            inputs["method"] = "non-restoring"
+    elif panel_id == "float-process-sim":
+        if len(numbers) >= 2:
+            inputs["a"] = str(numbers[0])
+            inputs["b"] = str(numbers[1])
+        if any(keyword in lowered for keyword in ["sub", "subtract", "minus", "减"]):
+            inputs["operation"] = "sub"
+        elif any(keyword in lowered for keyword in ["repr", "表示", "拆解"]):
+            inputs["operation"] = "repr"
+    elif panel_id == "memory-hierarchy-sim":
+        set_ints("workingSetMb", "cacheKb", "locality")
+        if any(keyword in lowered for keyword in ["write", "写"]):
+            inputs["operation"] = "write"
+    elif panel_id == "memory-cell-sim":
+        set_ints("row", "col")
+        if "sram" in lowered:
+            inputs["kind"] = "sram"
+        if any(keyword in lowered for keyword in ["write", "写"]):
+            inputs["operation"] = "write"
+        elif any(keyword in lowered for keyword in ["refresh", "刷新"]):
+            inputs["operation"] = "refresh"
+    elif panel_id == "cache-write-sim":
+        if hex_tokens:
+            inputs["address"] = hex_tokens[0]
+        if any(keyword in lowered for keyword in ["through", "直达"]):
+            inputs["policy"] = "write-through"
+        if any(keyword in lowered for keyword in ["no-write", "非写分配"]):
+            inputs["missPolicy"] = "no-write-allocate"
+        if any(keyword in lowered for keyword in ["hit", "命中"]):
+            inputs["hit"] = "hit"
+    elif panel_id == "cache-locality-sim":
+        set_ints("accesses", "blockBytes", "cacheLines")
+        if any(keyword in lowered for keyword in ["sequential", "顺序"]):
+            inputs["pattern"] = "sequential"
+        elif any(keyword in lowered for keyword in ["stride", "步长"]):
+            inputs["pattern"] = "stride"
+        elif any(keyword in lowered for keyword in ["random", "随机"]):
+            inputs["pattern"] = "random"
+    elif panel_id == "tlb-access-sim":
+        set_ints("virtualAddress", "pageSize")
+        if any(keyword in lowered for keyword in ["hit", "命中"]):
+            inputs["tlb"] = "hit"
+        if any(keyword in lowered for keyword in ["present", "在内存"]):
+            inputs["present"] = "present"
+    elif panel_id == "instruction-format-sim":
+        if any(keyword in lowered for keyword in ["i-type", "立即数", "addi", "load"]):
+            inputs["format"] = "i"
+        elif any(keyword in lowered for keyword in ["s-type", "store", "sw"]):
+            inputs["format"] = "s"
+        elif any(keyword in lowered for keyword in ["b-type", "branch", "beq"]):
+            inputs["format"] = "b"
+        elif "cisc" in lowered:
+            inputs["format"] = "cisc"
+        for token in re.findall(r"\b[A-Z]{2,8}\b", message):
+            inputs["opcode"] = token
+            break
+    elif panel_id == "instruction-class-sim":
+        if any(keyword in lowered for keyword in ["alu", "算术", "逻辑"]):
+            inputs["kind"] = "alu"
+        elif any(keyword in lowered for keyword in ["shift", "移位"]):
+            inputs["kind"] = "shift"
+        elif any(keyword in lowered for keyword in ["branch", "jump", "转移"]):
+            inputs["kind"] = "branch"
+        elif any(keyword in lowered for keyword in ["io", "i/o", "输入", "输出"]):
+            inputs["kind"] = "io"
+    elif panel_id == "addressing-mode-sim":
+        set_ints("address", "register", "pc")
+        for keyword, value in [
+            ("immediate", "immediate"),
+            ("立即", "immediate"),
+            ("direct", "direct"),
+            ("直接", "direct"),
+            ("indirect", "indirect"),
+            ("间接", "indirect"),
+            ("register", "register"),
+            ("寄存器", "register"),
+            ("indexed", "indexed"),
+            ("变址", "indexed"),
+            ("base", "base"),
+            ("基址", "base"),
+            ("relative", "relative"),
+            ("相对", "relative"),
+        ]:
+            if keyword in lowered or keyword in message:
+                inputs["mode"] = value
+                break
+    elif panel_id == "cpu-cycle-sim":
+        if any(keyword in lowered for keyword in ["store", "sw", "写存"]):
+            inputs["instruction"] = "store"
+        elif any(keyword in lowered for keyword in ["jump", "jmp", "转移"]):
+            inputs["instruction"] = "jump"
+        elif any(keyword in lowered for keyword in ["add", "加"]):
+            inputs["instruction"] = "add"
+        if "间址" in message or "indirect" in lowered:
+            inputs["indirect"] = "yes"
+        if any(keyword in lowered for keyword in ["no interrupt", "无中断"]):
+            inputs["interrupt"] = "no"
+    elif panel_id == "control-mode-sim":
+        if any(keyword in lowered for keyword in ["sync", "同步"]):
+            inputs["mode"] = "sync"
+        elif any(keyword in lowered for keyword in ["async", "异步"]):
+            inputs["mode"] = "async"
+        elif any(keyword in lowered for keyword in ["hard", "硬布线"]):
+            inputs["mode"] = "hardwired"
+        elif any(keyword in lowered for keyword in ["micro", "微程序"]):
+            inputs["mode"] = "microprogram"
+    elif panel_id == "microinstruction-format-sim":
+        set_ints("signals", "groups")
+        if any(keyword in lowered for keyword in ["vertical", "垂直"]):
+            inputs["format"] = "vertical"
+        elif any(keyword in lowered for keyword in ["hybrid", "混合"]):
+            inputs["format"] = "hybrid"
+        if any(keyword in lowered for keyword in ["mapped", "映射"]):
+            inputs["next"] = "mapped"
+        elif any(keyword in lowered for keyword in ["sequential", "顺序"]):
+            inputs["next"] = "sequential"
+    elif panel_id == "microprogram-sim":
+        if any(keyword in lowered for keyword in ["add", "加"]):
+            inputs["instruction"] = "add"
+        elif any(keyword in lowered for keyword in ["store", "sw", "写存"]):
+            inputs["instruction"] = "store"
+        if any(keyword in lowered for keyword in ["vertical", "垂直"]):
+            inputs["format"] = "vertical"
+    elif panel_id == "bus-structure-sim":
+        if any(keyword in lowered for keyword in ["dual", "双"]):
+            inputs["structure"] = "dual"
+        elif any(keyword in lowered for keyword in ["triple", "三"]):
+            inputs["structure"] = "triple"
+        if any(keyword in lowered for keyword in ["io", "i/o", "外设"]):
+            inputs["transaction"] = "io-read"
+        elif "dma" in lowered:
+            inputs["transaction"] = "dma"
+    elif panel_id == "display-device-sim":
+        set_ints("width", "height", "depth")
+        if any(keyword in lowered for keyword in ["char", "字符"]):
+            inputs["mode"] = "char"
+        elif "oled" in lowered:
+            inputs["mode"] = "oled"
+    elif panel_id == "disk-access-sim":
+        set_ints("currentCylinder", "targetCylinder", "rpm", "transferKb")
+    elif panel_id == "raid-ssd-sim":
+        for mode in ["raid0", "raid1", "raid5", "ssd"]:
+            if mode in lowered:
+                inputs["mode"] = mode
+                break
+    elif panel_id == "io-overview-sim":
+        if any(keyword in lowered for keyword in ["unified", "统一"]):
+            inputs["addressing"] = "unified"
+        if any(keyword in lowered for keyword in ["parallel", "并行"]):
+            inputs["transfer"] = "parallel"
+        if any(keyword in lowered for keyword in ["sync", "同步"]):
+            inputs["handshake"] = "sync"
+        elif any(keyword in lowered for keyword in ["immediate", "立即"]):
+            inputs["handshake"] = "immediate"
+    elif panel_id == "polling-io-sim":
+        set_ints("readyAfter", "pollCost", "transferCost")
+    elif panel_id == "interrupt-io-sim":
+        if any(keyword in lowered for keyword in ["timer", "定时"]):
+            inputs["priority"] = "timer"
+        elif any(keyword in lowered for keyword in ["disk", "磁盘"]):
+            inputs["priority"] = "disk"
+        if any(keyword in lowered for keyword in ["no nested", "不嵌套"]):
+            inputs["nested"] = "no"
+    elif panel_id == "dma-transfer-sim":
+        set_ints("bytes", "wordBytes")
+        if any(keyword in lowered for keyword in ["burst", "突发"]):
+            inputs["mode"] = "burst"
+        elif any(keyword in lowered for keyword in ["transparent", "透明"]):
+            inputs["mode"] = "transparent"
+    elif panel_id == "channel-io-sim":
+        if any(keyword in lowered for keyword in ["print", "打印"]):
+            inputs["program"] = "print"
+        elif any(keyword in lowered for keyword in ["network", "网卡"]):
+            inputs["program"] = "network"
+    elif panel_id == "pipeline-performance-sim":
+        set_ints("instructions", "ifDelay", "idDelay", "exDelay", "memDelay", "wbDelay")
+
+    return inputs
+
+
 def default_demo_plan(kind: str, message: str = "", *, reason: str | None = None) -> dict[str, Any]:
     lowered = core.normalize(message)
     if kind == "fixed":
@@ -449,6 +790,14 @@ def default_demo_plan(kind: str, message: str = "", *, reason: str | None = None
             "title": "汇编逐步执行演示",
             "inputs": {"program": assembly_demo_program(message)},
             "reason": reason or "检测到汇编执行、寄存器变化或内存写入相关表达。",
+        }
+    if kind in EXTENDED_DEMO_DEFAULT_INPUTS:
+        return {
+            "supported": True,
+            "targetPanel": kind,
+            "title": EXTENDED_DEMO_TITLES.get(kind, "扩展仿真演示"),
+            "inputs": extended_demo_inputs(kind, message),
+            "reason": reason or f"检测到 {EXTENDED_DEMO_TITLES.get(kind, kind)} 相关表达。",
         }
     return unsupported_demo_plan(reason)
 
@@ -636,6 +985,9 @@ def classify_intent(message: str, agent_id: str | None = None) -> str:
 
 def fallback_demo_plan(message: str) -> dict[str, Any]:
     lowered = core.normalize(message)
+    for panel_id, keywords in EXTENDED_DEMO_KEYWORDS:
+        if any(keyword in lowered or keyword in message for keyword in keywords):
+            return default_demo_plan(panel_id, message)
     if any(keyword in lowered for keyword in ["ieee", "754", "float", "浮点", "对阶", "规格化", "尾数", "阶码"]):
         return default_demo_plan("ieee754", message)
     if any(keyword in lowered for keyword in ["补码", "定点", "溢出", "乘法", "除法", "two", "complement", "fixed"]):
@@ -673,7 +1025,14 @@ def fallback_demo_plan(message: str) -> dict[str, Any]:
 
 
 def build_demo_plan_messages(message: str) -> list[dict[str, str]]:
+    panel_list = "、".join(sorted(SUPPORTED_DEMO_PANELS))
+    extended_input_specs = "；".join(
+        f"{panel_id}: {', '.join(inputs)}"
+        for panel_id, inputs in EXTENDED_DEMO_DEFAULT_INPUTS.items()
+    )
     system_prompt = (
+        f"可用 targetPanel 完整列表：{panel_list}。"
+        f"扩展仿真 inputs 字段：{extended_input_specs}。"
         "你是计算机组成原理教师课堂演示平台的意图规划器。"
         "你的任务是把教师的自然语言输入映射到已有仿真模块，并生成可直接运行的课堂演示参数。"
         "只能使用以下 targetPanel：twos-sim、cache-sim、virtual-sim、memory-access-sim、memory-expansion-sim、pipeline-sim、datapath-sim、assembly-sim、hardwire-sim、control-expression-sim、bus-transaction-sim、bus-arbitration-sim、keyboard-sim。"
@@ -842,6 +1201,12 @@ def normalize_demo_plan(plan: dict[str, Any], message: str) -> dict[str, Any]:
     elif target_panel == "datapath-sim":
         defaults = default_demo_plan("datapath", message)["inputs"]
         normalized_inputs = {"program": str(inputs.get("program") or defaults["program"])}
+    elif target_panel in EXTENDED_DEMO_DEFAULT_INPUTS:
+        defaults = default_demo_plan(target_panel, message)["inputs"]
+        normalized_inputs = {
+            key: str(inputs.get(key, default_value))
+            for key, default_value in defaults.items()
+        }
     else:
         defaults = default_demo_plan("assembly", message)["inputs"]
         normalized_inputs = {
@@ -947,6 +1312,11 @@ def validate_demo_plan(plan: dict[str, Any]) -> dict[str, Any]:
             "tool": "execute_assembly",
             "stepCount": len(preview["steps"]),
         }
+    elif target_panel in EXTENDED_DEMO_DEFAULT_INPUTS:
+        plan["simulationPreview"] = {
+            "tool": "frontend_extended_simulation",
+            "panelId": target_panel,
+        }
     return plan
 
 
@@ -973,6 +1343,15 @@ def plan_demo(payload: dict[str, Any], client: ChatClient | None = None) -> dict
     try:
         response = chat_client.chat(build_demo_plan_messages(message), temperature=0.2, max_tokens=900)
         plan = normalize_demo_plan(parse_json_object(response["content"]), message)
+        if (
+            fallback.get("supported")
+            and fallback.get("targetPanel") in EXTENDED_DEMO_DEFAULT_INPUTS
+            and plan.get("targetPanel") != fallback.get("targetPanel")
+        ):
+            result.update(validate_demo_plan(fallback))
+            result["usedFallback"] = True
+            result["model"] = response.get("model", config.model)
+            return result
         if not plan.get("supported") and fallback.get("supported"):
             result.update(validate_demo_plan(fallback))
             result["usedFallback"] = True

@@ -9629,3 +9629,56 @@ td.stage-cell.current-cycle {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+#simulation .simulation-catalog.active {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 18px;
+}
+
+#simulation .simulation-chapter-group {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+#simulation .simulation-chapter-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  color: var(--teal);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+#simulation .simulation-chapter-divider::before,
+#simulation .simulation-chapter-divider::after {
+  content: "";
+  flex: 1 1 40px;
+  min-width: 28px;
+  height: 1px;
+  background: var(--line);
+}
+
+#simulation .simulation-chapter-divider span {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+#simulation .simulation-chapter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 8px;
+  min-width: 0;
+}
+
+@media (max-width: 560px) {
+  #simulation .simulation-chapter-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+#simulation .sim-tabs {
+  display: none !important;
+}

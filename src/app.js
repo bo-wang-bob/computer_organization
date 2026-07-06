@@ -504,7 +504,7 @@ U V W X Y Z`;
     const meta = simulationCatalogMeta.get(feature.id);
     if (!meta) return;
     feature.category = meta.chapter;
-    feature.title = `${meta.chapter.split(" ")[0]}-${meta.title}`;
+    feature.title = meta.title;
   });
 
   const EXTENDED_SIMULATION_DEFS = {
@@ -1605,15 +1605,42 @@ U V W X Y Z`;
       tabBar.insertAdjacentHTML("afterend", `<div id="simulationCatalog" class="simulation-catalog" aria-label="仿真功能总览"></div>`);
       catalog = $("#simulationCatalog");
     }
-    catalog.innerHTML = SIMULATION_FEATURES.map(
-      (feature) => `
-        <button class="simulation-card" data-sim-card="${escapeHtml(feature.id)}">
-          <span>${escapeHtml(feature.category)}</span>
-          <strong>${escapeHtml(feature.title)}</strong>
-          <em>${escapeHtml(feature.desc)}</em>
-        </button>
-      `
-    ).join("");
+    const groupLookup = new Map();
+    const groups = [];
+    SIMULATION_FEATURES.forEach((feature) => {
+      const chapter = feature.category || "其他";
+      if (!groupLookup.has(chapter)) {
+        const group = { chapter, features: [] };
+        groupLookup.set(chapter, group);
+        groups.push(group);
+      }
+      groupLookup.get(chapter).features.push(feature);
+    });
+
+    catalog.innerHTML = groups
+      .map(
+        (group, index) => `
+          <section class="simulation-chapter-group" aria-label="${escapeHtml(group.chapter)}">
+            <div class="simulation-chapter-divider">
+              <span>${escapeHtml(group.chapter)}</span>
+            </div>
+            <div class="simulation-chapter-grid">
+              ${group.features
+                .map(
+                  (feature) => `
+                    <button class="simulation-card" data-sim-card="${escapeHtml(feature.id)}">
+                      <span>${escapeHtml(feature.category)}</span>
+                      <strong>${escapeHtml(feature.title)}</strong>
+                      <em>${escapeHtml(feature.desc)}</em>
+                    </button>
+                  `
+                )
+                .join("")}
+            </div>
+          </section>
+        `
+      )
+      .join("");
   }
 
   function installImportedSimulationPanels() {
@@ -1913,7 +1940,7 @@ DMA,3,1100
     );
     const demoStatus = $("#demoStatus");
     if (demoStatus && demoStatus.classList.contains("empty-state")) {
-      demoStatus.textContent = "当前支持：补码/定点、IEEE 754、Cache、虚拟存储、存储读写、存储扩展、流水线、CPU 数据通路、汇编解释、硬布线控制、时序表达式、总线事务、总线仲裁、键盘扫描。";
+      demoStatus.textContent = "当前支持：知识仿真目录中的全部功能。输入功能名、知识点或关键参数后，会自动跳转到对应仿真并填入演示参数。";
     }
     renderSimulationCatalog();
   }
@@ -9353,6 +9380,19 @@ DMA,3,1100
     }
   }
 
+  function applyExtendedDemoInputs(panelId, inputs) {
+    const panel = document.getElementById(panelId);
+    if (!panel || !EXTENDED_SIMULATION_DEFS[panelId]) return false;
+    panel.querySelectorAll("[data-extended-input]").forEach((input) => {
+      const key = input.dataset.extendedInput;
+      if (inputs[key] !== undefined && inputs[key] !== null) {
+        input.value = inputs[key];
+      }
+    });
+    runExtendedSimulation(panelId);
+    return true;
+  }
+
   function applyDemoPlan(plan) {
     if (!plan || !plan.supported) {
       setSection("dashboard");
@@ -9443,6 +9483,8 @@ DMA,3,1100
       } else if (plan.targetPanel === "assembly-sim") {
         setInputValue("#assemblyCode", inputs.program);
         loadAssembly();
+      } else if (applyExtendedDemoInputs(plan.targetPanel, inputs)) {
+        // Extended simulations share a generated parameter form and a common runner.
       }
       setDemoStatus(`${plan.usedFallback ? "已使用本地规则生成" : "已使用 DeepSeek 生成"}：${plan.title || "课堂演示"}`, plan.usedFallback ? "warn" : "good");
       window.scrollTo({ top: 0, behavior: "smooth" });
