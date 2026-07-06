@@ -2552,14 +2552,25 @@ DMA,3,1100
   }
 
   function renderAluDomain(result, step, index) {
-    const rows = result.table?.rows || [];
+    const trace = result.aluTrace || (result.table?.rows || []).map((row) => ({
+      bit: row[0],
+      ai: row[1],
+      bi: row[2],
+      cin: row[3],
+      si: row[4],
+      cout: row[5],
+    }));
+    const traceIndex = typeof step.traceIndex === "number"
+      ? step.traceIndex
+      : Math.min(Math.max(index - 2, -1), trace.length);
     const body = `
       <div class="alu-array">
-        ${rows.map((row, i) => `
-          <div class="full-adder-cell ${i <= index ? "active" : ""}">
-            <strong>${escapeHtml(row[0])}</strong>
-            <span>A=${escapeHtml(row[1])} B=${escapeHtml(row[2])}</span>
-            <em>Cin ${escapeHtml(row[3])} -> S ${escapeHtml(row[4])}</em>
+        ${trace.map((row, i) => `
+          <div class="full-adder-cell ${i === traceIndex ? "active" : i < traceIndex ? "done" : ""}">
+            <strong>${escapeHtml(row.bit)}</strong>
+            <span>A=${escapeHtml(row.ai)} B=${escapeHtml(row.bi)}</span>
+            <em>Cin ${escapeHtml(row.cin)} -> S ${escapeHtml(row.si)}</em>
+            <small>Cout ${escapeHtml(row.cout)}</small>
           </div>
         `).join("")}
       </div>
@@ -2628,36 +2639,113 @@ DMA,3,1100
   }
 
   function renderDivisionDomain(result, step, index) {
-    const rows = result.table?.rows || [];
-    const row = rows[Math.min(index, rows.length - 1)] || [];
+    const trace = result.divisionTrace || [];
+    const traceIndex = typeof step.traceIndex === "number"
+      ? step.traceIndex
+      : Math.min(Math.max(index - 1, -1), trace.length - 1);
+    const activeTrace = traceIndex >= 0 ? trace[traceIndex] : null;
+    const currentR = activeTrace?.afterR ?? result.initialR ?? "0";
+    const currentQ = activeTrace?.quotientRegister || result.initialQ || binary(0, result.divisionBits || 8);
+    const currentBit = activeTrace ? `${activeTrace.bit} = ${activeTrace.incomingBit}` : "等待装入";
+    const currentOperation = activeTrace?.operation || "等待试算";
+    const currentDecision = activeTrace?.decision || "按高位到低位逐轮生成商位";
     const body = `
-      <div class="divider-unit">
-        <div class="divider-register ${index >= 0 ? "active" : ""}"><strong>R 余数</strong><span>${escapeHtml(row[4] || metricValue(result, "余数"))}</span></div>
-        <div class="divider-symbol">÷</div>
-        <div class="divider-register ${index >= 1 ? "active" : ""}"><strong>M 除数</strong><span>${escapeHtml(row[1] || "M")}</span></div>
-        <div class="divider-symbol">→</div>
-        <div class="divider-register ${index >= 3 ? "active" : ""}"><strong>Q 商</strong><span>${escapeHtml(metricValue(result, "商"))}</span></div>
+      <div class="division-register-grid">
+        <div class="divider-register ${activeTrace ? "active" : ""}">
+          <strong>R 余数寄存器</strong>
+          <span>${escapeHtml(String(currentR))}</span>
+          <em>${escapeHtml(activeTrace?.shiftDetail || "初值为 0")}</em>
+        </div>
+        <div class="divider-register active">
+          <strong>M 除数</strong>
+          <span>${escapeHtml(result.divisorRegister || metricValue(result, "除数") || "M")}</span>
+          <em>${escapeHtml(result.divisorDecimal || "")}</em>
+        </div>
+        <div class="divider-register ${activeTrace ? "active" : ""}">
+          <strong>Q 商寄存器</strong>
+          <span>${escapeHtml(currentQ)}</span>
+          <em>${escapeHtml(activeTrace?.quotientDetail || "逐位写入商位")}</em>
+        </div>
+        <div class="divider-register ${activeTrace ? "active" : ""}">
+          <strong>引入被除数位</strong>
+          <span>${escapeHtml(currentBit)}</span>
+          <em>${escapeHtml(activeTrace?.round || "")}</em>
+        </div>
+        <div class="divider-register ${activeTrace ? "active" : ""}">
+          <strong>本轮试算</strong>
+          <span>${escapeHtml(currentOperation)}</span>
+          <em>${escapeHtml(activeTrace?.trialDetail || "")}</em>
+        </div>
+        <div class="divider-register ${traceIndex >= trace.length - 1 ? "active" : ""}">
+          <strong>判别 / 校正</strong>
+          <span>${escapeHtml(currentDecision)}</span>
+          <em>${escapeHtml(activeTrace?.correction || "")}</em>
+        </div>
       </div>
-      <div class="division-tape">${rows.slice(0, 8).map((item, i) => `<span class="${i === Math.min(index, rows.length - 1) ? "active" : ""}">${escapeHtml(item[0])}: 商位 ${escapeHtml(item[3])}</span>`).join("")}</div>
+      <div class="division-tape">${trace.map((item, i) => `<span class="${i === traceIndex ? "active" : i < traceIndex ? "done" : ""}"><strong>${escapeHtml(item.bit)}</strong><em>${escapeHtml(item.qbit === "-" ? item.decision : `商位 ${item.qbit}`)}</em></span>`).join("")}</div>
     `;
     return renderDomainFrame("division-domain", "定点除法试减动画", "余数左移、试减除数、生成商位，必要时恢复或校正余数。", body, result.metrics);
   }
 
   function renderFloatDomain(result, step, index) {
     const rows = result.table?.rows || [];
+    const trace = result.floatTrace || {};
+    const activeSet = new Set(step.active || []);
+    const activeClass = (id) => activeSet.has(id) ? "active" : "";
+    const field = (name) => trace.fields?.[name] || {};
+    const activeRow = step.activeRow || trace.activeRow || "";
     const body = `
+      <div class="float-field-grid">
+        ${["a", "b", "result"].map((name) => {
+          const item = field(name);
+          return `
+          <div class="float-operand-card ${activeClass(name)}">
+            <strong>${escapeHtml(item.label || name.toUpperCase())}</strong>
+            <span>S ${escapeHtml(String(item.sign ?? "-"))}</span>
+            <span>E ${escapeHtml(item.exponentBits || "-")}</span>
+            <span>M ${escapeHtml(compactSvgText(item.fractionBits || "-", 18))}</span>
+            <em>${escapeHtml(item.valueText || "")}</em>
+          </div>
+          `;
+        }).join("")}
+      </div>
+      <div class="float-pipeline">
+        <div class="float-stage-card ${activeClass("align")}">
+          <strong>对阶</strong>
+          <span>${escapeHtml(trace.align?.title || "比较阶码")}</span>
+          <em>${escapeHtml(trace.align?.detail || "")}</em>
+        </div>
+        <div class="float-stage-card ${activeClass("mantissa")}">
+          <strong>尾数运算</strong>
+          <span>${escapeHtml(trace.mantissa?.title || "等待运算")}</span>
+          <em>${escapeHtml(trace.mantissa?.detail || "")}</em>
+        </div>
+        <div class="float-stage-card ${activeClass("normalize")}">
+          <strong>规格化 / 舍入</strong>
+          <span>${escapeHtml(trace.normalize?.title || "等待规格化")}</span>
+          <em>${escapeHtml(trace.normalize?.detail || "")}</em>
+        </div>
+        <div class="float-stage-card ${activeClass("result")}">
+          <strong>写回</strong>
+          <span>${escapeHtml(trace.writeback?.title || "结果字段")}</span>
+          <em>${escapeHtml(trace.writeback?.detail || "")}</em>
+        </div>
+      </div>
+      <div class="float-operation-board">
+        <span class="${activeClass("align")}"><strong>大阶尾数</strong>${escapeHtml(trace.align?.large || "-")}</span>
+        <span class="${activeClass("align")}"><strong>小阶右移</strong>${escapeHtml(trace.align?.small || "-")}</span>
+        <span class="${activeClass("mantissa")}"><strong>运算式</strong>${escapeHtml(trace.mantissa?.expression || "-")}</span>
+        <span class="${activeClass("normalize")}"><strong>结果尾数</strong>${escapeHtml(trace.normalize?.mantissa || "-")}</span>
+      </div>
       <div class="float-word">
-        ${rows.map((row, i) => `
-          <div class="float-field-row ${i === Math.min(index, rows.length - 1) ? "active" : ""}">
+        ${rows.map((row) => `
+          <div class="float-field-row ${row[0] === activeRow ? "active" : ""}">
             <strong>${escapeHtml(row[0])}</strong>
             <span>${escapeHtml(compactSvgText(row[1], 16))}</span>
             <span>${escapeHtml(compactSvgText(row[2], 16))}</span>
             <span>${escapeHtml(compactSvgText(row[3], 16))}</span>
           </div>
         `).join("")}
-      </div>
-      <div class="mantissa-align ${index >= 1 ? "active" : ""}">
-        <span>大阶尾数</span><i style="--shift:${Math.min(80, index * 18)}%"></i><span>小阶尾数右移对齐</span>
       </div>
     `;
     return renderDomainFrame("float-domain", "IEEE 754 字段与对阶动画", "符号、阶码、尾数被拆开，对阶后进行尾数加减和规格化。", body, result.metrics);
@@ -2673,29 +2761,86 @@ DMA,3,1100
           </div>
         `).join("")}
       </div>
-      <div class="memory-request-line"><i style="--x:${Math.min(88, 18 + index * 18)}%"></i><span>访存请求沿层次下探，命中后返回数据</span></div>
     `;
     return renderDomainFrame("memory-hierarchy-domain", "存储层次访问动画", "请求先查 Cache，未命中再访问主存/辅存，平均访问时间随命中率变化。", body, result.metrics);
   }
 
   function renderMemoryCellDomain(result, step, index) {
     const isDram = result.metrics?.some((item) => item.value === "1T1C");
+    const nodeDetail = (id) => result.nodes?.find((node) => node.id === id)?.detail || "";
+    const active = (id) => isActiveStep(step, id) ? "active" : "";
+    const rowDetail = nodeDetail("row") || "Row";
+    const colDetail = nodeDetail("col") || "Col";
+    const operation = metricValue(result, "当前操作", "读");
     const body = isDram
       ? `
-        <div class="dram-cell">
-          <div class="word-line ${index >= 0 ? "active" : ""}">RAS 行选</div>
-          <div class="capacitor ${index >= 2 ? "active" : ""}"><i></i><span>电容电荷</span></div>
-          <div class="bit-line ${index >= 1 ? "active" : ""}">CAS 位线</div>
-          <div class="sense-amp ${index >= 2 ? "active" : ""}">读放大器</div>
-          <div class="refresh-loop ${index >= 3 ? "active" : ""}">刷新回写</div>
+        <div class="memory-cell-stage dram-cell">
+          <div class="mem-cell-lane">
+            <div class="mem-cell-card ${active("row")}">
+              <strong>RAS 行译码</strong>
+              <span>${escapeHtml(rowDetail)}</span>
+            </div>
+            <div class="mem-cell-card ${active("col")}">
+              <strong>CAS 列译码</strong>
+              <span>${escapeHtml(colDetail)}</span>
+            </div>
+          </div>
+          <div class="dram-array-panel ${active("cell")}">
+            <div class="dram-array-title">DRAM 存储阵列</div>
+            <div class="dram-row-line ${active("row")}">选中行</div>
+            <div class="dram-cell-grid">
+              ${Array.from({ length: 16 }, (_, cellIndex) => `<span class="${cellIndex === 9 ? "selected" : ""}"></span>`).join("")}
+            </div>
+            <div class="dram-col-line ${active("col")}">选中列</div>
+            <div class="dram-capacitor-symbol ${active("cell")}"><i></i><span>1T1C 电容单元</span></div>
+          </div>
+          <div class="mem-cell-lane">
+            <div class="mem-cell-card ${active("sense")}">
+              <strong>${operation === "写" ? "写驱动器" : "读出放大器"}</strong>
+              <span>${operation === "写" ? "改变电容电荷" : "放大位线电荷差"}</span>
+            </div>
+            <div class="mem-cell-card ${active("refresh")}">
+              <strong>刷新回写</strong>
+              <span>恢复行缓冲内容</span>
+            </div>
+          </div>
         </div>
       `
       : `
-        <div class="sram-cell">
-          <div class="word-line ${index >= 0 ? "active" : ""}">字线 WL</div>
-          <div class="latch ${index >= 1 ? "active" : ""}"><span>Q</span><span>Q̅</span></div>
-          <div class="bitline-pair ${index >= 1 ? "active" : ""}"><span>BL</span><span>BL̅</span></div>
-          <div class="sense-amp ${index >= 1 ? "active" : ""}">读写驱动</div>
+        <div class="memory-cell-stage sram-cell">
+          <div class="mem-cell-lane">
+            <div class="mem-cell-card ${active("row")}">
+              <strong>字线 WL</strong>
+              <span>${escapeHtml(rowDetail)}</span>
+            </div>
+            <div class="mem-cell-card ${active("col")}">
+              <strong>列选择</strong>
+              <span>${escapeHtml(colDetail)}</span>
+            </div>
+          </div>
+          <div class="sram-core-panel ${active("cell")}">
+            <div class="sram-word-line ${active("row")}">WL 打开</div>
+            <div class="sram-bitline-pair ${active("col")}">
+              <span>BL</span>
+              <span>BL̅</span>
+            </div>
+            <div class="sram-latch-core ${active("cell")}">
+              <span>Q</span>
+              <i></i>
+              <span>Q̅</span>
+            </div>
+            <div class="sram-cell-note">6T 交叉耦合锁存</div>
+          </div>
+          <div class="mem-cell-lane">
+            <div class="mem-cell-card ${active("sense")}">
+              <strong>${operation === "写" ? "写驱动器" : "读出放大器"}</strong>
+              <span>${operation === "写" ? "强制 Q/Q̅ 状态" : "比较 BL / BL̅ 电平"}</span>
+            </div>
+            <div class="mem-cell-card ${active("cell")}">
+              <strong>静态保持</strong>
+              <span>供电存在即可保持</span>
+            </div>
+          </div>
         </div>
       `;
     return renderDomainFrame("memory-cell-domain", isDram ? "DRAM 行列选通动画" : "SRAM 锁存单元动画", isDram ? "电容经 RAS/CAS 选通读出，读后需要恢复刷新。" : "交叉耦合锁存器通过字线和互补位线读写。", body, result.metrics);
@@ -2709,9 +2854,7 @@ DMA,3,1100
           <span>V=1</span><span>Tag</span><span>Data</span><span class="${isActiveStep(step, "dirty") ? "dirty active" : "dirty"}">D</span>
         </div>
         <div class="main-memory ${isActiveStep(step, "memory") ? "active" : ""}">主存块</div>
-        <div class="write-arrow ${index >= 1 ? "active" : ""}"></div>
       </div>
-      ${renderStatePills(result.metrics.map((item) => ({ label: item.label, value: item.value, active: true })))}
     `;
     return renderDomainFrame("cache-write-domain", "Cache 写策略状态动画", "写命中/未命中会改变 Cache 行、dirty bit 和主存同步状态。", body, result.metrics);
   }
@@ -2733,13 +2876,49 @@ DMA,3,1100
   }
 
   function renderTlbDomain(result, step, index) {
+    const nodeDetail = (id) => result.nodes?.find((node) => node.id === id)?.detail || "";
+    const active = (...ids) => ids.some((id) => isActiveStep(step, id)) ? "active" : "";
+    const page = metricValue(result, "页号");
+    const offset = metricValue(result, "页内偏移");
+    const frame = metricValue(result, "页框号");
+    const physical = metricValue(result, "物理地址");
     const body = `
-      <div class="tlb-stage">
-        <div class="address-split ${index >= 0 ? "active" : ""}"><strong>虚拟地址</strong><span>VPN=${escapeHtml(metricValue(result, "页号"))}</span><span>Offset=${escapeHtml(metricValue(result, "页内偏移"))}</span></div>
-        <div class="tlb-box ${isActiveStep(step, "tlb") ? "active" : ""}">TLB</div>
-        <div class="page-table-box ${isActiveStep(step, "pt") ? "active" : ""}">页表</div>
-        <div class="disk-page ${isActiveStep(step, "disk", "fault") ? "active" : ""}">辅存调页</div>
-        <div class="physical-address ${isActiveStep(step, "pa") ? "active" : ""}">PA=${escapeHtml(metricValue(result, "物理地址"))}</div>
+      <div class="tlb-flow-stage">
+        <div class="tlb-address-card ${active("va")}">
+          <strong>虚拟地址拆分</strong>
+          <span>VPN = ${escapeHtml(page)}</span>
+          <span>Offset = ${escapeHtml(offset)}</span>
+        </div>
+        <div class="tlb-lookup-row">
+          <div class="tlb-flow-card ${active("tlb")}">
+            <strong>TLB 快表</strong>
+            <span>${escapeHtml(nodeDetail("tlb"))}</span>
+          </div>
+          <div class="tlb-flow-card ${active("pt")}">
+            <strong>页表查询</strong>
+            <span>${escapeHtml(nodeDetail("pt"))}</span>
+          </div>
+          <div class="tlb-flow-card ${active("fault", "disk")}">
+            <strong>缺页 / 辅存</strong>
+            <span>${escapeHtml(nodeDetail("fault"))}</span>
+            <em>${escapeHtml(nodeDetail("disk"))}</em>
+          </div>
+        </div>
+        <div class="tlb-compose-row ${active("pa")}">
+          <div class="tlb-compose-card">
+            <strong>页框号</strong>
+            <span>${escapeHtml(frame)}</span>
+          </div>
+          <div class="tlb-compose-op">× 页大小 +</div>
+          <div class="tlb-compose-card">
+            <strong>页内偏移</strong>
+            <span>${escapeHtml(offset)}</span>
+          </div>
+          <div class="tlb-compose-card result">
+            <strong>物理地址</strong>
+            <span>${escapeHtml(physical)}</span>
+          </div>
+        </div>
       </div>
     `;
     return renderDomainFrame("tlb-domain", "TLB 与缺页访问动画", "虚拟地址拆分后查询 TLB/页表，缺页时调页并重新形成物理地址。", body, result.metrics);
@@ -2757,25 +2936,106 @@ DMA,3,1100
   }
 
   function renderInstructionClassDomain(result, step, index) {
+    const active = (...ids) => (isActiveStep(step, ...ids) ? "active" : "");
+    const pathActive = index >= 1 ? "active" : "";
+    const writeActive = index >= 2 ? "active" : "";
+    const node = (id, title, detail, extra = "") => `
+      <div class="instruction-flow-node ${extra} ${active(id)}">
+        <strong>${escapeHtml(title)}</strong>
+        <span>${escapeHtml(detail)}</span>
+      </div>
+    `;
     const body = `
-      <div class="datapath-map">
-        ${["control", "reg", "alu", "shifter", "mem", "pc", "io", "flags"].map((id) => `
-          <div class="datapath-node ${isActiveStep(step, id) ? "active" : ""} ${id}">${escapeHtml({ control: "控制器", reg: "寄存器", alu: "ALU", shifter: "移位器", mem: "存储器", pc: "PC", io: "I/O", flags: "标志位" }[id])}</div>
-        `).join("")}
-        <div class="datapath-bus ${index >= 1 ? "active" : ""}"></div>
+      <div class="instruction-flow-map">
+        <div class="instruction-flow-top">
+          ${node("control", "控制器", "译码 opcode，发出部件选通信号", "control")}
+          <div class="instruction-kind-chip">
+            <strong>${escapeHtml(metricValue(result, "指令类型"))}</strong>
+            <span>当前激活：${escapeHtml(metricValue(result, "主要部件"))}</span>
+          </div>
+        </div>
+        <div class="instruction-control-bus ${pathActive}">
+          <span>控制信号</span>
+          <i></i><i></i><i></i><i></i>
+        </div>
+        <div class="instruction-flow-grid">
+          <div class="instruction-flow-group source">
+            <em>取指 / 源操作数</em>
+            ${node("pc", "PC", "顺序取指或转移目标")}
+            ${node("reg", "寄存器组", "读源操作数，也接收写回")}
+          </div>
+          <div class="instruction-flow-link ${pathActive}">地址 / 数据</div>
+          <div class="instruction-flow-group execute">
+            <em>执行与访问部件</em>
+            <div class="instruction-execute-grid">
+              ${node("alu", "ALU", "算术逻辑或地址计算")}
+              ${node("shifter", "移位器", "逻辑 / 算术移位")}
+              ${node("mem", "存储器", "load / store 数据访问")}
+              ${node("io", "I/O 接口", "端口与状态寄存器访问")}
+            </div>
+          </div>
+          <div class="instruction-flow-link ${writeActive}">结果 / 状态</div>
+          <div class="instruction-flow-group commit">
+            <em>写回 / 更新</em>
+            ${node("reg", "写回寄存器", "保存执行结果")}
+            ${node("flags", "标志位", "更新 Z / C / V / N")}
+          </div>
+        </div>
+        <div class="instruction-main-bus ${active("bus", "reg", "mem", "io")}">
+          <strong>主数据总线</strong>
+          <span>在寄存器、存储器和 I/O 之间传送地址与数据</span>
+        </div>
       </div>
     `;
     return renderDomainFrame("instruction-class-domain", "指令类型数据通路动画", "不同类型指令激活不同的数据通路部件和控制信号。", body, result.metrics);
   }
 
   function renderAddressingDomain(result, step, index) {
+    const flow = result.addressingFlow || {};
+    const active = (...ids) => (isActiveStep(step, ...ids) ? "active" : "");
+    const sourceClass = (id) => `${flow.sources?.includes(id) ? "participates" : "idle"} ${active(id)}`;
+    const source = (id, title, value, detail) => `
+      <div class="ea-flow-card ${sourceClass(id)}">
+        <strong>${escapeHtml(title)}</strong>
+        <span>${escapeHtml(String(value ?? "-"))}</span>
+        <em>${escapeHtml(detail)}</em>
+      </div>
+    `;
     const body = `
-      <div class="ea-calculator">
-        <div class="ea-source ${index >= 0 ? "active" : ""}">A<br>${escapeHtml(metricValue(result, "A"))}</div>
-        <div class="ea-source ${index >= 1 ? "active" : ""}">R/PC<br>${escapeHtml(metricValue(result, "R/PC"))}</div>
-        <div class="ea-operator ${index >= 2 ? "active" : ""}">EA 形成器</div>
-        <div class="ea-memory ${index >= 2 ? "active" : ""}">主存访问</div>
-        <div class="ea-result ${index >= 3 ? "active" : ""}">EA=${escapeHtml(metricValue(result, "EA"))}</div>
+      <div class="ea-flow-map">
+        <div class="ea-mode-card ${active("mode", "instr")}">
+          <strong>${escapeHtml(flow.modeLabel || "寻址方式")}</strong>
+          <span>${escapeHtml(flow.modeHint || "根据寻址方式选择参与计算的地址来源。")}</span>
+        </div>
+        <div class="ea-flow-grid">
+          <div class="ea-source-group">
+            <em>地址来源</em>
+            ${source("instr", "指令地址字段 A", flow.a ?? metricValue(result, "A"), "形式地址 / 位移量")}
+            ${source("reg", "寄存器 R / X / BR", flow.r ?? "-", "基址、变址或寄存器内容")}
+            ${source("pc", "PC", flow.pc ?? "-", "相对寻址的基准地址")}
+            ${source("memory", "主存 M[A]", flow.memA ?? "-", "间接寻址先读出的地址")}
+          </div>
+          <div class="ea-flow-arrow ${index >= 1 ? "active" : ""}">选择来源</div>
+          <div class="ea-calc-panel ${active("calc", "ea")}">
+            <strong>EA 形成器</strong>
+            <span>${escapeHtml(flow.formula || result.formula || "-")}</span>
+            <em>${escapeHtml(flow.calcDetail || "把参与来源送入地址加法器或地址选择器。")}</em>
+          </div>
+          <div class="ea-flow-arrow ${index >= 2 ? "active" : ""}">形成结果</div>
+          <div class="ea-result-group">
+            <em>输出</em>
+            <div class="ea-flow-card result ${active("ea")}">
+              <strong>有效地址 EA</strong>
+              <span>${escapeHtml(metricValue(result, "EA"))}</span>
+              <em>${escapeHtml(flow.eaDetail || "供访存阶段使用")}</em>
+            </div>
+            <div class="ea-flow-card operand ${active("operand")}">
+              <strong>操作数位置</strong>
+              <span>${escapeHtml(flow.operand || "-")}</span>
+              <em>${escapeHtml(flow.operandDetail || "最终用于执行阶段")}</em>
+            </div>
+          </div>
+        </div>
       </div>
     `;
     return renderDomainFrame("addressing-domain", "有效地址计算动画", "根据寻址方式选择 A、寄存器、PC 或主存内容形成操作数地址。", body, result.metrics);
@@ -2794,12 +3054,63 @@ DMA,3,1100
   }
 
   function renderControlModeDomain(result, step, index) {
+    const flow = result.controlFlow || {};
+    const active = (...ids) => (isActiveStep(step, ...ids) ? "active" : "");
+    const pathActive = index >= 1 ? "active" : "";
+    const signalActive = index >= 2 ? "active" : "";
+    const actionActive = index >= 3 ? "active" : "";
+    const node = (id, title, value, detail, extra = "") => `
+      <div class="control-flow-card ${extra} ${active(id)}">
+        <strong>${escapeHtml(title)}</strong>
+        <span>${escapeHtml(value)}</span>
+        <em>${escapeHtml(detail)}</em>
+      </div>
+    `;
     const body = `
-      <div class="control-mode-stage">
-        <div class="waveform ${index >= 0 ? "active" : ""}"><span>CLK</span><i></i><i></i><i></i><i></i></div>
-        <div class="decoder-block ${index >= 1 ? "active" : ""}">译码/状态</div>
-        <div class="logic-block ${index >= 2 ? "active" : ""}">控制信号形成</div>
-        <div class="datapath-block ${index >= 3 ? "active" : ""}">数据通路动作</div>
+      <div class="control-flow-map">
+        <div class="control-mode-summary ${active("clock")}">
+          <strong>${escapeHtml(metricValue(result, "方式"))}</strong>
+          <span>${escapeHtml(flow.summary || "选择控制方式后，观察控制信号如何按节拍驱动数据通路。")}</span>
+        </div>
+        <div class="control-flow-grid">
+          <div class="control-flow-group timing">
+            <em>节拍来源</em>
+            <div class="control-wave-card ${active("clock")}">
+              <div class="control-wave-header">
+                <strong>${escapeHtml(flow.timingLabel || "时钟/握手")}</strong>
+                <span>${escapeHtml(flow.timingValue || result.formula || "-")}</span>
+              </div>
+              <div class="control-waveform ${flow.timingKind || "clock"}">
+                <i></i><i></i><i></i><i></i>
+              </div>
+              <p>${escapeHtml(flow.timingDetail || "节拍决定控制信号何时有效。")}</p>
+            </div>
+          </div>
+          <div class="control-flow-link ${pathActive}">状态输入</div>
+          <div class="control-flow-group decode">
+            <em>译码与条件</em>
+            ${node("decoder", "指令译码", flow.decoderValue || "opcode / flags", flow.decoderDetail || "操作码、条件标志和机器周期共同参与控制。")}
+          </div>
+          <div class="control-flow-link ${signalActive}">生成信号</div>
+          <div class="control-flow-group generate">
+            <em>控制信号形成</em>
+            ${node("logic", flow.generatorTitle || "控制器", flow.generatorValue || "控制信号", flow.generatorDetail || "形成寄存器装入、ALU、访存等微操作信号。")}
+          </div>
+          <div class="control-flow-link ${actionActive}">驱动</div>
+          <div class="control-flow-group datapath">
+            <em>数据通路</em>
+            ${node("datapath", "微操作执行", flow.datapathValue || "寄存器 / ALU / 主存", flow.datapathDetail || "数据通路部件按控制信号完成动作。")}
+          </div>
+        </div>
+        <div class="control-feature-row">
+          <span class="${flow.implementation === "hardwired" ? "active" : ""}"><strong>硬布线逻辑</strong><em>组合逻辑直接产生控制信号</em></span>
+          <span class="${flow.implementation === "microprogram" ? "active" : ""}"><strong>控制存储器</strong><em>微指令序列解释机器指令</em></span>
+          <span class="${flow.timingKind === "clock" || flow.timingKind === "hybrid" ? "active" : ""}"><strong>同步节拍</strong><em>固定机器周期推进</em></span>
+          <span class="${flow.timingKind === "handshake" || flow.timingKind === "hybrid" ? "active" : ""}"><strong>异步握手</strong><em>请求/应答决定下一步</em></span>
+        </div>
+        <div class="control-phase-row">
+          ${(flow.phases || ["选择方式", "译码状态", "产生信号", "驱动通路"]).map((phase, i) => `<span class="${i === index ? "active" : i < index ? "done" : ""}">${escapeHtml(phase)}</span>`).join("")}
+        </div>
       </div>
     `;
     return renderDomainFrame("control-mode-domain", "控制方式时序动画", "同步、异步、联合、硬布线或微程序控制以不同节拍驱动数据通路。", body, result.metrics);
@@ -2823,14 +3134,72 @@ DMA,3,1100
   function renderMicroprogramDomain(result, step, index) {
     const rows = result.table?.rows || [];
     const current = rows[Math.min(index, rows.length - 1)] || [];
+    const [addr = "00", control = "-", next = "00", detail = ""] = current;
+    const commands = String(control)
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
     const body = `
       <div class="microprogram-stage">
-        <div class="control-store">
-          ${rows.map((row, i) => `<div class="${i === index ? "active" : ""}"><strong>µ${escapeHtml(row[0])}</strong><span>${escapeHtml(compactSvgText(row[1], 20))}</span></div>`).join("")}
+        <div class="microprogram-store">
+          <div class="microprogram-store-title">控制存储器 CM</div>
+          ${rows.map((row, i) => `
+            <div class="microprogram-store-row ${i === index ? "active" : ""}">
+              <strong>µ${escapeHtml(row[0])}</strong>
+              <span>${escapeHtml(compactSvgText(row[1], 22))}</span>
+              <em>Next ${escapeHtml(row[2])}</em>
+            </div>
+          `).join("")}
         </div>
-        <div class="mir-register active"><strong>MIR</strong><span>${escapeHtml(current[1] || "-")}</span></div>
-        <div class="car-register active"><strong>CAR</strong><span>${escapeHtml(current[0] || "00")} → ${escapeHtml(current[2] || "00")}</span></div>
-        <div class="datapath-fire ${index >= 1 ? "active" : ""}">微命令驱动数据通路</div>
+        <div class="microprogram-execution">
+          <div class="microprogram-flow-row">
+            <div class="microprogram-register active">
+              <strong>CAR 微地址寄存器</strong>
+              <span>µ${escapeHtml(addr)}</span>
+              <em>用当前微地址选中控制存储器一行</em>
+            </div>
+            <div class="microprogram-arrow active">取微指令</div>
+            <div class="microprogram-register active">
+              <strong>MIR 微指令寄存器</strong>
+              <span>${escapeHtml(compactSvgText(control, 28))}</span>
+              <em>保存本拍读出的控制字段</em>
+            </div>
+            <div class="microprogram-arrow active">译码</div>
+            <div class="microprogram-register active">
+              <strong>字段译码器</strong>
+              <span>${escapeHtml(metricValue(result, "格式"))}</span>
+              <em>把控制字段展开为微命令</em>
+            </div>
+          </div>
+          <div class="microprogram-command-row">
+            <div class="microprogram-field-card active">
+              <strong>控制字段</strong>
+              <span>${escapeHtml(compactSvgText(control, 34))}</span>
+              <em>${escapeHtml(detail)}</em>
+            </div>
+            <div class="microprogram-command-list active">
+              <strong>本拍发出的微命令</strong>
+              <div>
+                ${commands.map((command) => `<span>${escapeHtml(command)}</span>`).join("")}
+              </div>
+            </div>
+            <div class="microprogram-field-card active">
+              <strong>下一微地址字段</strong>
+              <span>µ${escapeHtml(addr)} → µ${escapeHtml(next)}</span>
+              <em>顺序、条件或入口映射决定下一条微指令</em>
+            </div>
+          </div>
+          <div class="microprogram-datapath-row">
+            <div class="microprogram-datapath active">
+              <strong>数据通路执行</strong>
+              <span>${escapeHtml(detail || "执行当前微操作")}</span>
+            </div>
+            <div class="microprogram-next active">
+              <strong>下一拍 CAR</strong>
+              <span>µ${escapeHtml(next)}</span>
+            </div>
+          </div>
+        </div>
       </div>
     `;
     return renderDomainFrame("microprogram-domain", "微程序控制存储器动画", "微地址取出微指令，MIR 译码后产生微命令并形成下一微地址。", body, result.metrics);
@@ -2924,19 +3293,74 @@ DMA,3,1100
   }
 
   function renderRaidSsdDomain(result, step, index) {
-    const mode = metricValue(result, "模式");
-    const ssd = mode === "SSD";
+    const flow = result.raidSsdFlow || {};
+    const mode = flow.modeLabel || metricValue(result, "模式");
+    const ssd = flow.kind === "ssd" || mode === "SSD";
+    const active = (...ids) => (ids.some((id) => isActiveStep(step, id)) ? "active" : "");
     const body = ssd
       ? `
-        <div class="ssd-stage">
-          ${[0, 1, 2].map((block) => `<div class="ssd-block ${block <= index ? "active" : ""}"><strong>Block ${block}</strong>${[0, 1, 2, 3].map((page) => `<span class="${page <= index ? "written" : ""}">P${page}</span>`).join("")}</div>`).join("")}
-          <div class="ftl-map ${index >= 1 ? "active" : ""}">FTL 逻辑页 → 物理页</div>
+        <div class="ssd-flow-stage">
+          <div class="ssd-host-card ${active("ftl")}">
+            <strong>主机写入</strong>
+            <span>${escapeHtml(flow.hostWrite || "LPN 7 写入数据 A'")}</span>
+            <em>主机只看到逻辑页地址</em>
+          </div>
+          <div class="ssd-flow-arrow ${index >= 1 ? "active" : ""}">FTL 映射</div>
+          <div class="ssd-ftl-panel ${active("ftl", "page")}">
+            <strong>FTL 映射表</strong>
+            ${(flow.ftlRows || []).map((row) => `
+              <div class="${row.active ? "active" : ""}">
+                <span>${escapeHtml(row.logical)}</span>
+                <span>${escapeHtml(row.physical)}</span>
+                <em>${escapeHtml(row.state)}</em>
+              </div>
+            `).join("")}
+          </div>
+          <div class="ssd-flash-panel ${active("page", "block")}">
+            <strong>闪存块 / 页</strong>
+            <div class="ssd-block-grid">
+              ${(flow.blocks || []).map((block) => `
+                <div class="ssd-block-card ${block.active ? "active" : ""}">
+                  <b>${escapeHtml(block.name)}</b>
+                  ${block.pages.map((page) => `<span class="${escapeHtml(page.state)}">${escapeHtml(page.label)}</span>`).join("")}
+                </div>
+              `).join("")}
+            </div>
+          </div>
+          <div class="ssd-gc-panel ${active("block")}">
+            <strong>垃圾回收 / 块擦除</strong>
+            <span>${escapeHtml(flow.gc || "迁移仍有效页，整块擦除后重新变为空闲块。")}</span>
+          </div>
         </div>
       `
       : `
-        <div class="raid-stage">
-          ${[0, 1, 2, 3].map((disk) => `<div class="raid-disk ${disk <= index ? "active" : ""}"><strong>Disk ${disk}</strong><span>D${disk}</span><span>${mode === "RAID5" && disk === 3 ? "P" : mode === "RAID1" ? "镜像" : "条带"}</span></div>`).join("")}
-          <div class="raid-rebuild ${index >= 3 ? "active" : ""}">冗余恢复</div>
+        <div class="raid-flow-stage">
+          <div class="raid-host-row">
+            <strong>主机连续数据</strong>
+            ${(flow.hostBlocks || ["D0", "D1", "D2", "D3"]).map((block, blockIndex) => `<span class="${blockIndex <= index ? "active" : ""}">${escapeHtml(block)}</span>`).join("")}
+          </div>
+          <div class="raid-disk-row">
+            ${(flow.disks || []).map((disk) => `
+              <div class="raid-disk-card ${disk.failed && index >= 3 ? "failed" : ""} ${disk.active ? "active" : ""}">
+                <strong>${escapeHtml(disk.name)}</strong>
+                ${disk.blocks.map((block) => `<span class="${escapeHtml(block.type)} ${block.active ? "active" : ""}">${escapeHtml(block.label)}</span>`).join("")}
+              </div>
+            `).join("")}
+          </div>
+          <div class="raid-explain-row">
+            <div class="raid-rule-card ${active("stripe")}">
+              <strong>条带写入</strong>
+              <span>${escapeHtml(flow.stripeRule || "连续数据块按条带分散到多块磁盘。")}</span>
+            </div>
+            <div class="raid-rule-card ${active("mirror", "parity")}">
+              <strong>冗余信息</strong>
+              <span>${escapeHtml(flow.redundancy || "镜像或校验块用于故障恢复。")}</span>
+            </div>
+            <div class="raid-rule-card ${active("rebuild")}">
+              <strong>故障恢复</strong>
+              <span>${escapeHtml(flow.rebuild || "单盘故障时由冗余信息恢复缺失块。")}</span>
+            </div>
+          </div>
         </div>
       `;
     return renderDomainFrame("raid-domain", ssd ? "SSD 页块擦写动画" : "RAID 条带/冗余动画", ssd ? "页写入、块擦除、FTL 映射和磨损均衡逐步变化。" : "数据条带写入成员盘，镜像或校验信息支持恢复。", body, result.metrics);
@@ -3392,16 +3816,40 @@ DMA,3,1100
     const overflow = op === "add" || op === "sub"
       ? ((signedA >= 0 && signedB >= 0 && signedResult < 0) || (signedA < 0 && signedB < 0 && signedResult >= 0))
       : false;
-    const rows = [];
+    const traceRows = [];
     let carry = op === "sub" ? 1 : 0;
-    for (let pos = 0; pos < Math.min(bits, 8); pos += 1) {
+    for (let pos = 0; pos < bits; pos += 1) {
       const ai = (a >> pos) & 1;
       const bi = op === "sub" ? ((~bRaw >> pos) & 1) : (bRaw >> pos) & 1;
       const sum = op === "add" || op === "sub" ? ai + bi + carry : op === "and" ? ai & bi : ai | bi;
       const nextCarry = op === "add" || op === "sub" ? (sum >= 2 ? 1 : 0) : 0;
-      rows.unshift([`b${pos}`, String(ai), String(bi), String(carry), String(sum & 1), String(nextCarry)]);
+      traceRows.push({
+        bit: `b${pos}`,
+        ai: String(ai),
+        bi: String(bi),
+        cin: String(carry),
+        si: String(sum & 1),
+        cout: String(nextCarry),
+      });
       carry = nextCarry;
     }
+    const rows = traceRows
+      .slice()
+      .reverse()
+      .map((row) => [row.bit, row.ai, row.bi, row.cin, row.si, row.cout]);
+    const aluSteps = [
+      { title: "装入操作数", detail: `A=${binary(a, bits)}，B=${binary(bRaw, bits)}。`, active: ["a", "b"], traceIndex: -1 },
+      { title: "选择 ALU 功能", detail: op === "sub" ? "减法先把 B 取反加 1，再进入加法器。" : `当前执行 ${op.toUpperCase()}。`, active: ["adder"], traceIndex: -1 },
+      ...traceRows.map((row, bitIndex) => ({
+        title: `处理 ${row.bit}`,
+        detail: op === "add" || op === "sub"
+          ? `${row.bit}: ${row.ai} + ${row.bi} + Cin ${row.cin} 得到 S=${row.si}，Cout=${row.cout}。`
+          : `${row.bit}: A=${row.ai}，B=${row.bi}，执行 ${op.toUpperCase()} 得到 S=${row.si}。`,
+        active: ["adder", "cla"],
+        traceIndex: bitIndex,
+      })),
+      { title: "写入标志位", detail: `结果 ${signedResult}，Z=${result === 0 ? 1 : 0}，C=${carryOut}，V=${overflow ? 1 : 0}。`, active: ["flags"], traceIndex: traceRows.length },
+    ];
     return extendedResult({
       formula: op === "sub" ? "A - B = A + (~B + 1)" : op === "add" ? "Si = Ai xor Bi xor Ci；Ci+1 = Gi + Pi·Ci" : "逻辑运算不产生算术进位",
       nodes: [
@@ -3411,12 +3859,7 @@ DMA,3,1100
         { id: "cla", title: "CLA", detail: "用 G/P 加速进位" },
         { id: "flags", title: "标志位", detail: `Z=${result === 0 ? 1 : 0}, C=${carryOut}, V=${overflow ? 1 : 0}` },
       ],
-      steps: [
-        { title: "装入操作数", detail: `A=${binary(a, bits)}，B=${binary(bRaw, bits)}。`, active: ["a", "b"] },
-        { title: "选择 ALU 功能", detail: op === "sub" ? "减法先把 B 取反加 1，再进入加法器。" : `当前执行 ${op.toUpperCase()}。`, active: ["adder"] },
-        { title: "逐位产生结果", detail: `低位进位向高位传播，结果为 ${binary(result, bits)}。`, active: ["adder", "cla"] },
-        { title: "写入标志位", detail: `结果 ${signedResult}，Z=${result === 0 ? 1 : 0}，C=${carryOut}，V=${overflow ? 1 : 0}。`, active: ["flags"] },
-      ],
+      steps: aluSteps,
       metrics: [
         { label: "结果", value: binary(result, bits) },
         { label: "有符号值", value: String(signedResult) },
@@ -3424,6 +3867,7 @@ DMA,3,1100
         { label: "OF", value: overflow ? "1" : "0" },
       ],
       table: { headers: ["位", "Ai", "Bi", "Cin", "Si", "Cout"], rows },
+      aluTrace: traceRows,
     });
   }
 
@@ -3623,33 +4067,120 @@ DMA,3,1100
     if (divisorInput === 0) {
       throw new Error("除数不能为 0");
     }
-    const mask = 2 ** bits - 1;
-    const dividendMagnitude = Math.abs(dividendInput) & mask;
-    const divisorMagnitude = Math.max(1, Math.abs(divisorInput) & mask);
+    const widthValue = (width) => 2 ** width;
+    const bitAt = (value, pos) => Math.floor(value / (2 ** pos)) % 2;
+    const dividendMagnitude = Math.abs(dividendInput) % widthValue(bits);
+    const divisorMagnitude = Math.max(1, Math.abs(divisorInput) % widthValue(bits));
     const quotientSign = Math.sign(dividendInput || 1) * Math.sign(divisorInput || 1);
     let remainder = 0;
     let quotientMagnitude = 0;
     const rows = [];
+    const trace = [];
+    const methodLabel = method === "non-restoring" ? "不恢复余数法" : "恢复余数法";
 
-    for (let pos = bits - 1; pos >= Math.max(0, bits - 8); pos -= 1) {
-      remainder = (remainder << 1) | ((dividendMagnitude >> pos) & 1);
-      const before = remainder;
-      const trial = remainder - divisorMagnitude;
-      if (trial >= 0) {
-        remainder = trial;
-        quotientMagnitude |= 1 << pos;
-        rows.push([`b${pos}`, `${before} - ${divisorMagnitude}`, "够减", "1", String(remainder)]);
-      } else if (method === "restoring") {
-        rows.push([`b${pos}`, `${before} - ${divisorMagnitude}`, "不够减，恢复余数", "0", String(remainder)]);
+    for (let pos = bits - 1; pos >= 0; pos -= 1) {
+      const incomingBit = bitAt(dividendMagnitude, pos);
+      const beforeR = remainder;
+      const shiftedR = remainder * 2 + incomingBit;
+      let trial = 0;
+      let afterR = 0;
+      let qbit = 0;
+      let operation = "";
+      let decision = "";
+      let correction = "";
+
+      if (method === "restoring") {
+        trial = shiftedR - divisorMagnitude;
+        operation = `${shiftedR} - ${divisorMagnitude} = ${trial}`;
+        if (trial >= 0) {
+          afterR = trial;
+          qbit = 1;
+          decision = "够减，商 1";
+          correction = "保留试减后的余数";
+        } else {
+          afterR = shiftedR;
+          qbit = 0;
+          decision = "不够减，商 0";
+          correction = `恢复余数为 ${afterR}`;
+        }
       } else {
-        rows.push([`b${pos}`, `${before} - ${divisorMagnitude}`, "保留负判据，下轮改加", "0", String(remainder)]);
+        const subtract = shiftedR >= 0;
+        trial = subtract ? shiftedR - divisorMagnitude : shiftedR + divisorMagnitude;
+        operation = `${shiftedR} ${subtract ? "-" : "+"} ${divisorMagnitude} = ${trial}`;
+        afterR = trial;
+        qbit = trial >= 0 ? 1 : 0;
+        decision = trial >= 0 ? "余数非负，商 1" : "余数为负，商 0";
+        correction = trial >= 0 ? "下一轮继续试减除数" : "下一轮左移后改加除数";
       }
+
+      if (qbit === 1) quotientMagnitude += 2 ** pos;
+      const item = {
+        round: `处理 b${pos}`,
+        bit: `b${pos}`,
+        incomingBit: String(incomingBit),
+        beforeR: String(beforeR),
+        shiftedR: String(shiftedR),
+        operation,
+        trialDetail: `R: ${beforeR} 左移引入 ${incomingBit} -> ${shiftedR}`,
+        qbit: String(qbit),
+        afterR: String(afterR),
+        quotientRegister: binary(quotientMagnitude, bits),
+        quotientDetail: `Q${pos}=${qbit}`,
+        decision,
+        correction,
+        shiftDetail: `R <- ${beforeR}×2 + ${incomingBit} = ${shiftedR}`,
+      };
+      trace.push(item);
+      rows.push([item.round, item.shiftDetail, item.operation, item.qbit, item.afterR, item.quotientRegister]);
+      remainder = afterR;
     }
 
-    const quotient = quotientSign < 0 ? -Math.trunc(dividendMagnitude / divisorMagnitude) : Math.trunc(dividendMagnitude / divisorMagnitude);
-    const finalRemainder = dividendMagnitude % divisorMagnitude;
-    const quotientBits = ((Math.abs(quotient) % (2 ** bits)) + (2 ** bits)) % (2 ** bits);
-    const methodLabel = method === "non-restoring" ? "不恢复余数法" : "恢复余数法";
+    if (method === "non-restoring" && remainder < 0) {
+      const beforeR = remainder;
+      remainder += divisorMagnitude;
+      const item = {
+        round: "末尾校正",
+        bit: "校正",
+        incomingBit: "-",
+        beforeR: String(beforeR),
+        shiftedR: String(beforeR),
+        operation: `${beforeR} + ${divisorMagnitude} = ${remainder}`,
+        trialDetail: "不恢复余数法结束时余数为负",
+        qbit: "-",
+        afterR: String(remainder),
+        quotientRegister: binary(quotientMagnitude, bits),
+        quotientDetail: "商不再改变",
+        decision: "负余数加回除数",
+        correction: "得到最终非负余数",
+        shiftDetail: "末尾校正",
+      };
+      trace.push(item);
+      rows.push([item.round, item.shiftDetail, item.operation, item.qbit, item.afterR, item.quotientRegister]);
+    }
+
+    const quotient = quotientSign < 0 ? -quotientMagnitude : quotientMagnitude;
+    const finalRemainder = dividendInput < 0 ? -remainder : remainder;
+    const quotientBits = Math.abs(quotient).toString(2).padStart(bits, "0").slice(-bits);
+    const steps = [
+      {
+        title: "装入被除数和除数",
+        detail: `被除数幅值 ${dividendMagnitude}，除数幅值 ${divisorMagnitude}，R 清零，Q 等待写入。`,
+        active: ["dividend", "divisor"],
+        traceIndex: -1,
+      },
+      ...trace.map((item, traceIndex) => ({
+        title: item.qbit === "-" ? "校正最终余数" : `${item.round}：写商 ${item.qbit}`,
+        detail: `${item.shiftDetail}；${item.operation}；${item.decision}。`,
+        active: item.qbit === "-" ? ["remainder", "subtract"] : ["dividend", "remainder", "subtract", "quotient"],
+        traceIndex,
+      })),
+      {
+        title: "完成符号修正",
+        detail: `商为 ${quotient}，余数为 ${finalRemainder}。`,
+        active: ["quotient", "remainder"],
+        traceIndex: trace.length - 1,
+      },
+    ];
 
     return extendedResult({
       formula: method === "non-restoring"
@@ -3660,24 +4191,21 @@ DMA,3,1100
         { id: "divisor", title: "除数", detail: `${divisorInput} (${binary(divisorMagnitude, bits)})` },
         { id: "remainder", title: "余数寄存器", detail: String(finalRemainder) },
         { id: "subtract", title: "试减/校正", detail: methodLabel },
-        { id: "quotient", title: "商寄存器", detail: `${quotient} (${binary(quotientBits, bits)})` },
+        { id: "quotient", title: "商寄存器", detail: `${quotient} (${quotientBits})` },
       ],
-      steps: [
-        { title: "装入被除数和除数", detail: `被除数绝对值 ${dividendMagnitude}，除数绝对值 ${divisorMagnitude}。`, active: ["dividend", "divisor"] },
-        { title: "余数左移并引入下一位", detail: "每轮把被除数高位送入余数寄存器，为试减做准备。", active: ["dividend", "remainder"] },
-        { title: "试减除数", detail: "余数减除数，结果符号决定本轮商位。", active: ["remainder", "subtract"] },
-        { title: "生成商位", detail: method === "restoring" ? "够减则商 1，不够减则恢复余数并商 0。" : "根据余数正负决定下一轮加/减除数并形成商位。", active: ["subtract", "quotient"] },
-        { title: "完成符号修正", detail: `商为 ${quotient}，余数为 ${finalRemainder}。`, active: ["quotient", "remainder"] },
-      ],
+      steps,
       metrics: [
         { label: "算法", value: methodLabel },
         { label: "商", value: String(quotient) },
         { label: "余数", value: String(finalRemainder) },
       ],
-      table: { headers: ["处理位", "试算", "判别", "商位", "余数"], rows },
-      notes: [
-        { title: "课堂提示", detail: "表格展示前 8 轮，高位优先观察商位生成" },
-      ],
+      table: { headers: ["轮次", "左移引入", "试算", "商位", "余数", "Q"], rows },
+      divisionTrace: trace,
+      divisionBits: bits,
+      initialR: "0",
+      initialQ: binary(0, bits),
+      divisorRegister: String(divisorMagnitude),
+      divisorDecimal: divisorInput < 0 ? `原除数 ${divisorInput}` : "",
     });
   }
 
@@ -3715,6 +4243,69 @@ DMA,3,1100
     const expDiff = Math.abs(fa.exponentValue - fb.exponentValue);
     const opLabel = operation === "repr" ? "字段拆解" : operation === "sub" ? "A - B" : "A + B";
     const resultBits = `${fr.sign} ${binary(fr.exponentRaw, 8)} ${binary(fr.fraction, 23)}`;
+    const fieldView = (label, value, field) => ({
+      label,
+      sign: field.sign,
+      exponentBits: binary(field.exponentRaw, 8),
+      fractionBits: binary(field.fraction, 23),
+      valueText: `${Number.isFinite(value) ? Number(value).toPrecision(8) : String(value)} / ${field.category}`,
+    });
+    const significandOf = (field) => {
+      if (field.exponentRaw === 0xff) return 0;
+      return field.exponentRaw === 0 ? field.fraction : 2 ** 23 + field.fraction;
+    };
+    const mantissaText = (field) => {
+      if (field.exponentRaw === 0xff) return field.fraction === 0 ? "Infinity" : "NaN";
+      return `${field.exponentRaw === 0 ? "0" : "1"}.${binary(field.fraction, 23)}`;
+    };
+    const shiftRightText = (value, shift) => {
+      if (shift <= 0) return binary(value, 24);
+      if (shift > 30) return "0".repeat(24);
+      return binary(Math.floor(value / (2 ** shift)), 24);
+    };
+    const operands = [
+      { label: "A", value: a, field: fa, sig: significandOf(fa) },
+      { label: operation === "sub" ? "-B" : "B", value: effectiveB, field: fb, sig: significandOf(fb) },
+    ];
+    const finiteOperands = operands.every((item) => item.field.exponentRaw !== 0xff);
+    const large = operands[0].field.exponentValue >= operands[1].field.exponentValue ? operands[0] : operands[1];
+    const small = large === operands[0] ? operands[1] : operands[0];
+    const alignedSmall = finiteOperands ? (expDiff > 30 ? 0 : Math.floor(small.sig / (2 ** expDiff))) : 0;
+    const largeSigned = large.field.sign ? -large.sig : large.sig;
+    const smallSigned = small.field.sign ? -alignedSmall : alignedSmall;
+    const rawMantissa = operation === "repr" ? operands[0].sig : largeSigned + smallSigned;
+    const mantissaVerb = operation === "repr"
+      ? "只拆解字段，不执行尾数运算"
+      : fa.sign === fb.sign
+        ? "同号尾数相加"
+        : "异号尾数相减，结果取绝对值较大一方符号";
+    const floatTrace = {
+      fields: {
+        a: fieldView("A", a, fa),
+        b: fieldView(operation === "sub" ? "有效 B = -B" : "B", effectiveB, fb),
+        result: fieldView("Result", result, fr),
+      },
+      align: {
+        title: `阶差 ${expDiff}`,
+        detail: operation === "repr" ? "只观察 A 的 IEEE 754 字段。" : `${small.label} 的尾数右移 ${expDiff} 位，对齐到 ${large.label} 的阶码 ${large.field.exponentValue}。`,
+        large: `${large.label}: ${mantissaText(large.field)} × 2^${large.field.exponentValue}`,
+        small: operation === "repr" ? "-" : `${small.label}: ${binary(small.sig, 24)} >> ${expDiff} = ${shiftRightText(small.sig, expDiff)}`,
+      },
+      mantissa: {
+        title: mantissaVerb,
+        detail: operation === "repr" ? mantissaText(fa) : `带符号尾数计算结果为 ${rawMantissa}。`,
+        expression: operation === "repr" ? `${mantissaText(fa)} × 2^${fa.exponentValue}` : `${largeSigned} ${smallSigned >= 0 ? "+" : "-"} ${Math.abs(smallSigned)} = ${rawMantissa}`,
+      },
+      normalize: {
+        title: fr.category,
+        detail: `结果阶码 ${binary(fr.exponentRaw, 8)}，尾数字段 ${binary(fr.fraction, 23)}。`,
+        mantissa: `${mantissaText(fr)} × 2^${fr.exponentValue}`,
+      },
+      writeback: {
+        title: resultBits,
+        detail: `约等于 ${Number.isFinite(result) ? result.toPrecision(8) : String(result)}`,
+      },
+    };
 
     return extendedResult({
       formula: "IEEE 754 单精度 = 符号位 S + 8 位阶码 E(偏置 127) + 23 位尾数字段 M",
@@ -3727,11 +4318,11 @@ DMA,3,1100
         { id: "result", title: "结果字段", detail: resultBits },
       ],
       steps: [
-        { title: "拆解 IEEE 754 字段", detail: `A 和 B 都拆成符号位、偏置阶码和尾数字段。`, active: ["a", "b"] },
-        { title: "比较阶码并对阶", detail: `两个阶码对应真值指数分别为 ${fa.exponentValue} 和 ${fb.exponentValue}，阶差 ${expDiff}。`, active: ["align"] },
-        { title: "执行尾数加减", detail: operation === "repr" ? "当前只观察表示，不进入尾数加减。" : `${opLabel}：对阶后按符号决定尾数相加或相减。`, active: ["mantissa"] },
-        { title: "规格化和舍入", detail: `结果归一化为 ${fr.category} 数，阶码字段 ${binary(fr.exponentRaw, 8)}。`, active: ["normalize"] },
-        { title: "写回结果", detail: `结果约为 ${Number.isFinite(result) ? result.toPrecision(8) : String(result)}，字段为 ${resultBits}。`, active: ["result"] },
+        { title: "拆解 IEEE 754 字段", detail: `A 和有效 B 都拆成符号位、偏置阶码和尾数字段。`, active: ["a", "b"], activeRow: "符号 S" },
+        { title: "比较阶码并对阶", detail: floatTrace.align.detail, active: ["align"], activeRow: "阶码 E" },
+        { title: "执行尾数加减", detail: operation === "repr" ? "当前只观察表示，不进入尾数加减。" : `${opLabel}：${mantissaVerb}。`, active: ["mantissa"], activeRow: "尾数字段 M" },
+        { title: "规格化和舍入", detail: `结果归一化为 ${fr.category} 数，阶码字段 ${binary(fr.exponentRaw, 8)}。`, active: ["normalize"], activeRow: "类别" },
+        { title: "写回结果", detail: `结果约为 ${Number.isFinite(result) ? result.toPrecision(8) : String(result)}，字段为 ${resultBits}。`, active: ["result"], activeRow: "结果字段" },
       ],
       metrics: [
         { label: "操作", value: opLabel },
@@ -3745,11 +4336,10 @@ DMA,3,1100
           ["阶码 E", binary(fa.exponentRaw, 8), binary(fb.exponentRaw, 8), binary(fr.exponentRaw, 8)],
           ["尾数字段 M", binary(fa.fraction, 23), binary(fb.fraction, 23), binary(fr.fraction, 23)],
           ["类别", fa.category, fb.category, fr.category],
+          ["结果字段", "", "", resultBits],
         ],
       },
-      notes: [
-        { title: "特殊值", detail: "0、非规格化、无穷大和 NaN 会在类别栏标出" },
-      ],
+      floatTrace,
     });
   }
 
@@ -4061,29 +4651,86 @@ DMA,3,1100
     const memA = a + 256;
     let ea = a;
     let formula = "EA = A";
-    let operand = `M[${ea}]`;
+    let operand = "";
+    const modeMeta = {
+      immediate: ["立即寻址", "A 字段本身就是操作数，不形成有效地址。"],
+      direct: ["直接寻址", "A 字段直接作为有效地址。"],
+      indirect: ["间接寻址", "先访问 M[A]，取出的内容才是有效地址。"],
+      register: ["寄存器寻址", "操作数在寄存器中，不访问主存形成 EA。"],
+      "reg-indirect": ["寄存器间接", "寄存器内容作为有效地址。"],
+      indexed: ["变址寻址", "形式地址 A 与变址寄存器 X 相加形成 EA。"],
+      base: ["基址寻址", "基址寄存器 BR 与位移 A 相加形成 EA。"],
+      relative: ["相对寻址", "PC 与位移 A 相加形成 EA。"],
+    };
+    let sources = ["instr"];
+    let noEa = false;
     if (mode === "immediate") {
       operand = `#${a}`;
       formula = "操作数 = A，不访问存储器取操作数";
+      noEa = true;
     } else if (mode === "indirect") {
       ea = memA;
       formula = "EA = M[A]";
+      sources = ["instr", "memory"];
     } else if (mode === "register") {
       operand = `R=${r}`;
       formula = "操作数在寄存器中，无 EA";
+      sources = ["reg"];
+      noEa = true;
     } else if (mode === "reg-indirect") {
       ea = r;
       formula = "EA = R";
+      sources = ["reg"];
     } else if (mode === "indexed") {
       ea = a + r;
       formula = "EA = A + X";
+      sources = ["instr", "reg"];
     } else if (mode === "base") {
       ea = r + a;
       formula = "EA = BR + A";
+      sources = ["instr", "reg"];
     } else if (mode === "relative") {
       ea = pc + a;
       formula = "EA = PC + A";
+      sources = ["instr", "pc"];
     }
+    if (!operand) {
+      operand = `M[${ea}]`;
+    }
+    const modeLabel = modeMeta[mode]?.[0] || mode;
+    const modeHint = modeMeta[mode]?.[1] || "根据寻址方式选择参与计算的地址来源。";
+    const hasRegisterLike = sources.includes("reg");
+    const hasPc = sources.includes("pc");
+    const hasMemory = sources.includes("memory");
+    const sourceLabelMap = {
+      instr: "A",
+      reg: "R/X/BR",
+      pc: "PC",
+      memory: "M[A]",
+    };
+    const sourceNames = sources.map((id) => sourceLabelMap[id] || id).join(", ");
+    const eaText = noEa ? "-" : String(ea);
+    const calcDetail = noEa
+      ? "该寻址方式绕过 EA 加法器，直接得到操作数。"
+      : `参与来源：${sourceNames}，计算结果为 ${ea}。`;
+    const operandDetail = noEa ? "直接送入执行部件" : "按 EA 访问主存取得操作数";
+    const addressingFlow = {
+      mode,
+      modeLabel,
+      modeHint,
+      formula,
+      sources,
+      a,
+      r,
+      pc,
+      memA,
+      ea: eaText,
+      operand,
+      noEa,
+      calcDetail,
+      eaDetail: noEa ? "无需形成 EA" : "地址计算完成",
+      operandDetail,
+    };
     return extendedResult({
       formula,
       nodes: [
@@ -4091,20 +4738,31 @@ DMA,3,1100
         { id: "reg", title: "寄存器 R/X/BR", detail: String(r) },
         { id: "pc", title: "PC", detail: String(pc) },
         { id: "memory", title: "主存", detail: `M[A]=${memA}` },
-        { id: "ea", title: "有效地址 EA", detail: mode === "immediate" || mode === "register" ? "不需要" : String(ea) },
+        { id: "ea", title: "有效地址 EA", detail: noEa ? "不需要" : String(ea) },
         { id: "operand", title: "操作数", detail: operand },
       ],
       steps: [
-        { title: "读出寻址方式字段", detail: `当前采用 ${mode}。`, active: ["instr"] },
-        { title: "取参与计算的寄存器/PC", detail: "根据寻址方式选择 R、X、BR 或 PC。", active: ["reg", "pc"] },
-        { title: "计算有效地址", detail: `${formula}，得到 ${mode === "immediate" || mode === "register" ? "无 EA" : ea}。`, active: ["ea", "memory"] },
+        { title: "读出寻址方式字段", detail: `当前采用 ${modeLabel}。`, active: ["mode", "instr"] },
+        {
+          title: "选择参与计算的来源",
+          detail: hasRegisterLike || hasPc || hasMemory
+            ? `选中 ${sourceNames} 作为地址来源。`
+            : "只使用指令中的 A 字段。",
+          active: sources,
+        },
+        {
+          title: noEa ? "绕过 EA 形成器" : "计算有效地址",
+          detail: noEa ? `${formula}。` : `${formula}，得到 ${ea}。`,
+          active: noEa ? ["operand", ...sources] : ["calc", "ea", ...sources],
+        },
         { title: "取得操作数", detail: `最终操作数位置：${operand}。`, active: ["operand"] },
       ],
       metrics: [
         { label: "A", value: String(a) },
         { label: "R/PC", value: `${r} / ${pc}` },
-        { label: "EA", value: mode === "immediate" || mode === "register" ? "-" : String(ea) },
+        { label: "EA", value: eaText },
       ],
+      addressingFlow,
     });
   }
 
@@ -4156,6 +4814,77 @@ DMA,3,1100
       hardwired: ["硬布线控制", "用组合逻辑直接由指令、状态和节拍生成控制信号，速度快但修改困难。", "C=f(Im,Bj,Tk)"],
       microprogram: ["微程序控制", "控制信号存放在控制存储器中，通过微指令序列解释机器指令。", "控制存储器"],
     }[mode];
+    const flowProfiles = {
+      sync: {
+        timingKind: "clock",
+        implementation: "timing",
+        timingLabel: "统一 CLK",
+        timingValue: "T0 / T1 / T2 / T3",
+        timingDetail: "各部件在固定节拍边沿接收控制信号。",
+        generatorTitle: "节拍发生器 + 控制逻辑",
+        generatorValue: "固定时序控制",
+        generatorDetail: "每个机器周期内按预定节拍发出微操作信号。",
+        summary: "同步控制用统一时钟安排所有微操作，结构规整但弹性较低。",
+      },
+      async: {
+        timingKind: "handshake",
+        implementation: "timing",
+        timingLabel: "请求 / 应答",
+        timingValue: "REQ -> ACK",
+        timingDetail: "前一部件完成并返回 ACK 后，下一步才开始。",
+        generatorTitle: "握手控制器",
+        generatorValue: "完成信号触发",
+        generatorDetail: "控制器等待各部件完成信号，按实际耗时推进。",
+        summary: "异步控制用握手信号适配不同部件速度，结构更灵活但更复杂。",
+      },
+      combined: {
+        timingKind: "hybrid",
+        implementation: "timing",
+        timingLabel: "CLK + ACK",
+        timingValue: "同步段 / 异步段",
+        timingDetail: "公共阶段按时钟推进，慢速或变长阶段等待应答。",
+        generatorTitle: "联合控制器",
+        generatorValue: "同步节拍 + 异步许可",
+        generatorDetail: "稳定阶段保持固定节拍，速度差异大的阶段改用握手。",
+        summary: "联合控制把同步的规整和异步的弹性结合起来。",
+      },
+      hardwired: {
+        timingKind: "clock",
+        implementation: "hardwired",
+        timingLabel: "机器周期节拍",
+        timingValue: "Im / Bj / Tk",
+        timingDetail: "操作码、状态条件和节拍共同作为组合逻辑输入。",
+        generatorTitle: "硬布线控制逻辑",
+        generatorValue: "C = f(Im, Bj, Tk)",
+        generatorDetail: "门电路直接生成控制信号，速度快但修改成本高。",
+        summary: "硬布线控制把控制规律固化为组合逻辑，适合追求速度的控制器。",
+      },
+      microprogram: {
+        timingKind: "clock",
+        implementation: "microprogram",
+        timingLabel: "微地址节拍",
+        timingValue: "CMAR -> CMDR",
+        timingDetail: "微地址逐拍读取控制存储器中的微指令。",
+        generatorTitle: "微程序控制器",
+        generatorValue: "微指令控制字段",
+        generatorDetail: "微指令字段展开成微命令，便于修改和扩展。",
+        summary: "微程序控制把控制信号编码到控制存储器，灵活性高但速度通常低于硬布线。",
+      },
+    };
+    const flow = flowProfiles[mode] || flowProfiles.combined;
+    const controlFlow = {
+      ...flow,
+      mode,
+      phases: ["选择方式", "译码状态", "产生信号", "驱动通路"],
+      decoderValue: mode === "microprogram" ? "IR -> 微程序入口" : "opcode + flags",
+      decoderDetail: mode === "hardwired"
+        ? "译码输出 Im、条件 Bj 和节拍 Tk 送入组合逻辑。"
+        : mode === "microprogram"
+          ? "机器指令译码后映射到控制存储器入口地址。"
+          : "操作码、状态标志、机器周期和节拍共同参与控制。",
+      datapathValue: "寄存器装入 / ALU / 访存",
+      datapathDetail: "寄存器装入、ALU 运算、访存读写等微操作被依次触发。",
+    };
     return extendedResult({
       formula: info[2],
       nodes: [
@@ -4175,6 +4904,7 @@ DMA,3,1100
         { label: "速度", value: mode === "hardwired" ? "高" : mode === "microprogram" ? "中" : "视场景而定" },
         { label: "可修改性", value: mode === "microprogram" ? "高" : mode === "hardwired" ? "低" : "中" },
       ],
+      controlFlow,
     });
   }
 
@@ -4231,9 +4961,6 @@ DMA,3,1100
         { label: "微指令字长", value: `${wordBits} bit` },
       ],
       table: { headers: ["字段", "宽度", "作用"], rows },
-      notes: [
-        { title: "设计取舍", detail: "水平型速度快但字长长，垂直型字长短但译码开销更高" },
-      ],
     });
   }
 
@@ -4391,6 +5118,94 @@ DMA,3,1100
       raid5: ["RAID5", "数据和奇偶校验分布在多盘，任一单盘故障可由异或恢复。", ["stripe", "parity", "rebuild"]],
       ssd: ["SSD", "以页为读写单位、块为擦除单位，通过 FTL 和磨损均衡管理闪存。", ["page", "block", "ftl"]],
     }[mode];
+    const raidFlows = {
+      raid0: {
+        kind: "raid",
+        modeLabel: "RAID0",
+        hostBlocks: ["D0", "D1", "D2", "D3", "D4", "D5"],
+        stripeRule: "条带 0：D0/D1/D2 分别写入 Disk 0/1/2；条带 1 继续轮转。",
+        redundancy: "无镜像、无校验，所有磁盘容量都用于数据。",
+        rebuild: "任一成员盘故障会丢失所在条带，无法由阵列恢复。",
+        disks: [
+          { name: "Disk 0", active: true, blocks: [{ label: "D0", type: "data", active: true }, { label: "D3", type: "data", active: true }] },
+          { name: "Disk 1", active: true, blocks: [{ label: "D1", type: "data", active: true }, { label: "D4", type: "data", active: true }] },
+          { name: "Disk 2", active: true, failed: true, blocks: [{ label: "D2", type: "data", active: true }, { label: "D5", type: "data", active: true }] },
+          { name: "Disk 3", active: false, blocks: [{ label: "空闲", type: "empty" }, { label: "未用", type: "empty" }] },
+        ],
+      },
+      raid1: {
+        kind: "raid",
+        modeLabel: "RAID1",
+        hostBlocks: ["D0", "D1", "D2", "D3"],
+        stripeRule: "主盘写入数据块，镜像盘同步写入同一份数据。",
+        redundancy: "Disk 1 保存 Disk 0 的完整镜像，读请求可从任一盘返回。",
+        rebuild: "Disk 0 故障时，Disk 1 的镜像块可直接提供数据并复制到新盘。",
+        disks: [
+          { name: "Disk 0", active: true, failed: true, blocks: [{ label: "D0", type: "data", active: true }, { label: "D1", type: "data", active: true }] },
+          { name: "Disk 1", active: true, blocks: [{ label: "D0 副本", type: "mirror", active: true }, { label: "D1 副本", type: "mirror", active: true }] },
+          { name: "Disk 2", active: false, blocks: [{ label: "备用盘", type: "empty" }, { label: "等待重建", type: "empty" }] },
+          { name: "Disk 3", active: false, blocks: [{ label: "未用", type: "empty" }, { label: "未用", type: "empty" }] },
+        ],
+      },
+      raid5: {
+        kind: "raid",
+        modeLabel: "RAID5",
+        hostBlocks: ["D0", "D1", "D2", "D3", "D4", "D5"],
+        stripeRule: "每个条带包含多个数据块和一个校验块，校验块轮流分布在不同磁盘。",
+        redundancy: "P0 = D0 xor D1 xor D2；缺失任一块都可由剩余数据和 P0 异或恢复。",
+        rebuild: "示例：Disk 2 故障，D2 = P0 xor D0 xor D1，在新盘中重建。",
+        disks: [
+          { name: "Disk 0", active: true, blocks: [{ label: "D0", type: "data", active: true }, { label: "D3", type: "data" }] },
+          { name: "Disk 1", active: true, blocks: [{ label: "D1", type: "data", active: true }, { label: "P1", type: "parity" }] },
+          { name: "Disk 2", active: true, failed: true, blocks: [{ label: "D2", type: "data lost", active: true }, { label: "D4", type: "data" }] },
+          { name: "Disk 3", active: true, blocks: [{ label: "P0", type: "parity", active: true }, { label: "D5", type: "data" }] },
+        ],
+      },
+    };
+    const ssdFlow = {
+      kind: "ssd",
+      modeLabel: "SSD",
+      hostWrite: "LPN 7 写入新数据 A'",
+      ftlRows: [
+        { logical: "LPN 7", physical: "Block 1 / Page 2", state: "新映射", active: true },
+        { logical: "旧 LPN 7", physical: "Block 0 / Page 1", state: "标记失效" },
+        { logical: "LPN 8", physical: "Block 0 / Page 2", state: "仍有效" },
+      ],
+      blocks: [
+        {
+          name: "Block 0",
+          active: true,
+          pages: [
+            { label: "P0 有效", state: "valid" },
+            { label: "P1 旧页", state: "invalid" },
+            { label: "P2 有效", state: "valid" },
+            { label: "P3 空闲", state: "free" },
+          ],
+        },
+        {
+          name: "Block 1",
+          active: true,
+          pages: [
+            { label: "P0 空闲", state: "free" },
+            { label: "P1 空闲", state: "free" },
+            { label: "P2 新写入", state: "written" },
+            { label: "P3 空闲", state: "free" },
+          ],
+        },
+        {
+          name: "Block 2",
+          active: false,
+          pages: [
+            { label: "P0 擦后", state: "erased" },
+            { label: "P1 擦后", state: "erased" },
+            { label: "P2 擦后", state: "erased" },
+            { label: "P3 擦后", state: "erased" },
+          ],
+        },
+      ],
+      gc: "旧页不能原地覆盖；有效页搬迁后，整块擦除再作为空闲块使用。",
+    };
+    const raidSsdFlow = mode === "ssd" ? ssdFlow : raidFlows[mode];
     return extendedResult({
       formula: mode === "raid5" ? "Parity = D0 xor D1 xor D2" : mode === "ssd" ? "写前擦除：页写入、块擦除、FTL 映射" : "并行磁盘组织提高性能或可靠性",
       nodes: [
@@ -4422,6 +5237,7 @@ DMA,3,1100
         { label: "性能", value: mode === "raid0" ? "高" : mode === "raid1" ? "读高/写中" : mode === "raid5" ? "读高/写有校验开销" : "随机读快" },
         { label: "可靠性", value: mode === "raid0" ? "低" : mode === "ssd" ? "依赖磨损管理" : "可容忍单盘故障" },
       ],
+      raidSsdFlow,
     });
   }
 
