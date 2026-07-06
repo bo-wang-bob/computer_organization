@@ -18,7 +18,7 @@ services:
       PYTHONUNBUFFERED: "1"
       APIKEYS: "${APIKEYS:?set APIKEYS in .env}"
       DEEPSEEK_BASE_URL: "${DEEPSEEK_BASE_URL:-https://api.deepseek.com}"
-      DEEPSEEK_MODEL: "${DEEPSEEK_MODEL:-deepseek-v4-pro}"
+      DEEPSEEK_MODEL: "${DEEPSEEK_MODEL:-deepseek-v4-flash}"
     healthcheck:
       test:
         - CMD
