@@ -729,7 +729,11 @@ def simulate_cache_system(params: dict[str, Any]) -> dict[str, Any]:
                     "tag": tag,
                     "offset": offset,
                     "hit": True,
-                    "action": f"命中：第 {set_index} 组第 {hit_line['way']} 路。",
+                    "action": (
+                        f"命中：Cache 行 {set_index} 中保存的正是主存块 {block_number}，直接访问。"
+                        if mapping == "direct"
+                        else f"命中：第 {set_index} 组第 {hit_line['way']} 路。"
+                    ),
                 }
             )
             continue
@@ -759,9 +763,18 @@ def simulate_cache_system(params: dict[str, Any]) -> dict[str, Any]:
                 "hit": False,
                 "evicted": evicted,
                 "action": (
-                    f"未命中：按 {replacement.upper()} 替换第 {set_index} 组第 {evicted['way']} 路。"
+                    (
+                        f"未命中：行 {set_index} 原有的主存块 {evicted['block']} 被主存块 {block_number} 换出"
+                        "（直接映射只有唯一候选行，不需要替换算法）。"
+                        if mapping == "direct"
+                        else f"未命中：按 {replacement.upper()} 替换第 {set_index} 组第 {evicted['way']} 路的主存块 {evicted['block']}。"
+                    )
                     if evicted
-                    else f"未命中：装入第 {set_index} 组第 {target['way']} 路空行。"
+                    else (
+                        f"未命中：Cache 行 {set_index} 为空，装入主存块 {block_number}。"
+                        if mapping == "direct"
+                        else f"未命中：装入第 {set_index} 组第 {target['way']} 路空行。"
+                    )
                 ),
             }
         )
@@ -857,6 +870,31 @@ def simulate_page_replacement(references_value: Any, frame_count_value: Any, pol
     events = []
     faults = 0
 
+    def snapshot_frame_meta() -> list[dict[str, Any]]:
+        return [
+            {
+                "frame": frame["frame"],
+                "page": frame["page"],
+                "loadedAt": frame["loadedAt"],
+                "lastUsed": frame["lastUsed"],
+                "frequency": frame["frequency"],
+            }
+            for frame in frames
+        ]
+
+    def describe_victim(target: dict[str, Any], index: int) -> str:
+        if policy == "fifo":
+            return f"按 FIFO：页 {target['page']} 在第 {target['loadedAt']} 次访问时装入，是最早进入内存的页。"
+        if policy == "lfu":
+            return f"按 LFU：页 {target['page']} 只被使用过 {target['frequency']} 次，是使用次数最少的页。"
+        if policy == "opt":
+            future = references[index + 1 :]
+            next_use = future.index(target["page"]) if target["page"] in future else -1
+            if next_use == -1:
+                return f"按 OPT：页 {target['page']} 在后续序列中不再出现，将来最不需要。"
+            return f"按 OPT：页 {target['page']} 要到第 {index + 1 + next_use + 1} 次访问才再次用到，是将来最晚使用的页。"
+        return f"按 LRU：页 {target['page']} 上次使用是第 {target['lastUsed']} 次访问，是最久未使用的页。"
+
     for index, page in enumerate(references):
         clock = index + 1
         hit = next((frame for frame in frames if frame["page"] == page), None)
@@ -870,6 +908,7 @@ def simulate_page_replacement(references_value: Any, frame_count_value: Any, pol
                     "hit": True,
                     "frame": hit["frame"],
                     "snapshot": [frame["page"] for frame in frames],
+                    "frameMeta": snapshot_frame_meta(),
                     "action": f"页 {page} 命中页框 {hit['frame']}。",
                 }
             )
@@ -879,6 +918,7 @@ def simulate_page_replacement(references_value: Any, frame_count_value: Any, pol
         empty = next((frame for frame in frames if frame["page"] is None), None)
         target = empty or choose_page_victim(frames, policy, index, references)
         evicted = target["page"]
+        victim_reason = None if evicted is None else describe_victim(target, index)
         target.update({"page": page, "loadedAt": clock, "lastUsed": clock, "frequency": 1})
         events.append(
             {
@@ -887,7 +927,9 @@ def simulate_page_replacement(references_value: Any, frame_count_value: Any, pol
                 "hit": False,
                 "frame": target["frame"],
                 "evicted": evicted,
+                "victimReason": victim_reason,
                 "snapshot": [frame["page"] for frame in frames],
+                "frameMeta": snapshot_frame_meta(),
                 "action": (
                     f"缺页：页 {page} 装入空页框 {target['frame']}。"
                     if evicted is None

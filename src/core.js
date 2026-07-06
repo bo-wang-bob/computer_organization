@@ -698,7 +698,9 @@
           hit: true,
           way: hitLine.way,
           snapshotRows: snapshotCacheRows(sets),
-          action: `命中：第 ${setIndex} 组第 ${hitLine.way} 路。`,
+          action: mapping === "direct"
+            ? `命中：Cache 行 ${setIndex} 中保存的正是主存块 ${blockNumber}，直接访问。`
+            : `命中：第 ${setIndex} 组第 ${hitLine.way} 路。`,
         });
         return;
       }
@@ -727,8 +729,12 @@
         evicted,
         snapshotRows: snapshotCacheRows(sets),
         action: evicted
-          ? `未命中：按 ${replacement.toUpperCase()} 替换第 ${setIndex} 组第 ${evicted.way} 路。`
-          : `未命中：装入第 ${setIndex} 组第 ${target.way} 路空行。`,
+          ? mapping === "direct"
+            ? `未命中：行 ${setIndex} 原有的主存块 ${evicted.block} 被主存块 ${blockNumber} 换出（直接映射只有唯一候选行，不需要替换算法）。`
+            : `未命中：按 ${replacement.toUpperCase()} 替换第 ${setIndex} 组第 ${evicted.way} 路的主存块 ${evicted.block}。`
+          : mapping === "direct"
+            ? `未命中：Cache 行 ${setIndex} 为空，装入主存块 ${blockNumber}。`
+            : `未命中：装入第 ${setIndex} 组第 ${target.way} 路空行。`,
       });
     });
 
@@ -823,6 +829,30 @@
     const events = [];
     let faults = 0;
 
+    const snapshotFrameMeta = () => frames.map((frame) => ({
+      frame: frame.frame,
+      page: frame.page,
+      loadedAt: frame.loadedAt,
+      lastUsed: frame.lastUsed,
+      frequency: frame.frequency,
+    }));
+
+    const describeVictim = (target, index) => {
+      if (policy === "fifo") {
+        return `按 FIFO：页 ${target.page} 在第 ${target.loadedAt} 次访问时装入，是最早进入内存的页。`;
+      }
+      if (policy === "lfu") {
+        return `按 LFU：页 ${target.page} 只被使用过 ${target.frequency} 次，是使用次数最少的页。`;
+      }
+      if (policy === "opt") {
+        const nextUse = references.slice(index + 1).indexOf(target.page);
+        return nextUse === -1
+          ? `按 OPT：页 ${target.page} 在后续序列中不再出现，将来最不需要。`
+          : `按 OPT：页 ${target.page} 要到第 ${index + 1 + nextUse + 1} 次访问才再次用到，是将来最晚使用的页。`;
+      }
+      return `按 LRU：页 ${target.page} 上次使用是第 ${target.lastUsed} 次访问，是最久未使用的页。`;
+    };
+
     references.forEach((page, index) => {
       const clock = index + 1;
       const hit = frames.find((frame) => frame.page === page);
@@ -835,6 +865,7 @@
           hit: true,
           frame: hit.frame,
           snapshot: frames.map((frame) => frame.page),
+          frameMeta: snapshotFrameMeta(),
           action: `页 ${page} 命中页框 ${hit.frame}。`,
         });
         return;
@@ -844,6 +875,7 @@
       const empty = frames.find((frame) => frame.page === null);
       const target = empty || choosePageVictim(frames, policy, index, references);
       const evicted = target.page;
+      const victimReason = evicted === null ? null : describeVictim(target, index);
       Object.assign(target, {
         page,
         loadedAt: clock,
@@ -856,7 +888,9 @@
         hit: false,
         frame: target.frame,
         evicted,
+        victimReason,
         snapshot: frames.map((frame) => frame.page),
+        frameMeta: snapshotFrameMeta(),
         action: evicted === null
           ? `缺页：页 ${page} 装入空页框 ${target.frame}。`
           : `缺页：按 ${policy.toUpperCase()} 置换页 ${evicted}，装入页 ${page}。`,

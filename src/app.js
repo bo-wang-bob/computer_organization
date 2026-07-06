@@ -19,6 +19,11 @@
       cursor: 0,
       timer: null,
     },
+    pipeline: {
+      result: null,
+      cursor: 0,
+      timer: null,
+    },
     vm: {
       result: null,
       cursor: 0,
@@ -77,7 +82,7 @@ U V W X Y Z`;
   const DEFAULT_KEYBOARD_DEBOUNCE_MS = 10;
   const KEYBOARD_SCAN_INTERVAL_MS = 420;
   const DEFAULT_CACHE_CONFIG = Object.freeze({
-    accesses: "0x00 0x04 0x08 0x00 0x10 0x00 0x14 0x04",
+    accesses: "0x25 0x26 0x08 0x04 0x25 0x0B 0x34 0x25",
     addressBits: 6,
     lines: 4,
     blockSize: 4,
@@ -883,6 +888,36 @@ DMA,3,1100
     return `0x${Number(value).toString(16).toUpperCase()}`;
   }
 
+  function formatAddressPadded(value, bits) {
+    const width = Math.max(1, Math.ceil(bits / 4));
+    return `0x${Number(value).toString(16).toUpperCase().padStart(width, "0")}`;
+  }
+
+  function renderBinarySplit(value, bits, segments) {
+    const binary = (Number(value) >>> 0).toString(2).padStart(bits, "0").slice(-bits);
+    let start = 0;
+    const parts = segments
+      .filter((segment) => segment.bits > 0)
+      .map((segment) => {
+        const slice = binary.slice(start, start + segment.bits);
+        start += segment.bits;
+        return `<span class="bit-seg ${segment.className}" title="${escapeHtml(segment.label)}">${slice}</span>`;
+      })
+      .join("");
+    return `<span class="bit-split">${parts}</span>`;
+  }
+
+  function renderBitLegend(segments) {
+    return `
+      <span class="bit-legend">
+        ${segments
+          .filter((segment) => segment.bits > 0)
+          .map((segment) => `<span><i class="bit-dot ${segment.className}"></i>${escapeHtml(segment.label)} ${segment.bits} 位</span>`)
+          .join("")}
+      </span>
+    `;
+  }
+
   function parseMemoryInteger(value, label) {
     const text = String(value || "").trim();
     if (!text) throw new Error(`${label}不能为空`);
@@ -1118,11 +1153,21 @@ DMA,3,1100
     }
     const step = state.memory.steps[state.memory.cursor];
     const isActive = (name) => step.active.includes(name) ? "active" : "";
+    const phaseOrder = state.memory.steps.map((item) => item.phase);
+    const reached = (phase) => {
+      const index = phaseOrder.indexOf(phase);
+      return index !== -1 && index <= state.memory.cursor;
+    };
     const oldValue = config.oldValue ?? state.memory.cells[config.address] ?? 0;
     const resultValue = config.resultValue ?? state.memory.cells[config.address] ?? 0;
     const storedValue = config.operation === "write" && !["cell", "complete"].includes(step.phase) ? oldValue : resultValue;
     const dataBusValue = config.operation === "write" ? config.data : resultValue;
-    const addressBinary = formatBinary(config.address, config.addressBits);
+    const isWrite = config.operation === "write";
+    const decoderReady = reached("decode");
+    const dataBusReady = isWrite ? reached("data") : reached("sense");
+    const mdrReady = reached("data");
+    const controlReady = isWrite ? reached("data") : reached("decode");
+    const pending = `<em class="value-pending">—</em>`;
     const rowBinary = formatBinary(config.wordLine, config.rowBits);
     const columnBinary = formatBinary(config.columnLine, config.columnBits);
     const rowLines = formatAddressLineSlice(config.addressBits - 1, config.columnBits);
@@ -1148,15 +1193,22 @@ DMA,3,1100
           <div class="memory-line-summary">
             <div>
               <strong>完整地址 A${config.addressBits - 1}~A0</strong>
-              <span>${addressBinary}</span>
+              <span>${renderBinarySplit(config.address, config.addressBits, [
+                { bits: config.rowBits, className: "seg-index", label: "行地址（选字线）" },
+                { bits: config.columnBits, className: "seg-offset", label: "列地址（选列线）" },
+              ])}</span>
+              ${renderBitLegend([
+                { bits: config.rowBits, className: "seg-index", label: "行地址" },
+                { bits: config.columnBits, className: "seg-offset", label: "列地址" },
+              ])}
             </div>
             <div>
               <strong>字线 WL${config.wordLine}</strong>
-              <span>${rowLines} = ${rowBinary}，十进制 ${config.wordLine}</span>
+              <span>${rowLines} = <span class="bit-seg seg-index">${rowBinary}</span>，十进制 ${config.wordLine}</span>
             </div>
             <div>
               <strong>列线 CL${config.columnLine}</strong>
-              <span>${columnLines} = ${columnBinary}，十进制 ${config.columnLine}</span>
+              <span>${columnLines} = <span class="bit-seg seg-offset">${columnBinary}</span>，十进制 ${config.columnLine}</span>
             </div>
           </div>
           <div class="memory-machine">
@@ -1164,14 +1216,17 @@ DMA,3,1100
               <strong>CPU</strong>
               <span>${config.operation === "write" ? "发起写入" : "发起读取"}</span>
             </div>
-            <div class="memory-bus ${isActive("address")}"><strong>地址总线</strong><span>${formatBinary(config.address, config.addressBits)}</span></div>
+            <div class="memory-bus ${isActive("address")}"><strong>地址总线</strong><span>${renderBinarySplit(config.address, config.addressBits, [
+              { bits: config.rowBits, className: "seg-index", label: "行地址（选字线）" },
+              { bits: config.columnBits, className: "seg-offset", label: "列地址（选列线）" },
+            ])}</span></div>
             <div class="memory-node ${isActive("mar")}">
               <strong>MAR</strong>
               <span>${formatMemoryValue(config.address, config.addressBits)}</span>
             </div>
             <div class="memory-node ${isActive("decoder")}">
               <strong>地址译码器</strong>
-              <span>WL${config.wordLine} / CL${config.columnLine}</span>
+              <span>${decoderReady ? `WL${config.wordLine} / CL${config.columnLine}` : pending}</span>
             </div>
             <div class="memory-node ${isActive("cell")}">
               <strong>存储阵列</strong>
@@ -1179,12 +1234,12 @@ DMA,3,1100
             </div>
             <div class="memory-node ${isActive("mdr")}">
               <strong>MDR</strong>
-              <span>${formatMemoryValue(dataBusValue, config.dataBits)}</span>
+              <span>${mdrReady ? formatMemoryValue(dataBusValue, config.dataBits) : pending}</span>
             </div>
-            <div class="memory-bus ${isActive("data")}"><strong>数据总线</strong><span>${formatBinary(dataBusValue, config.dataBits)}</span></div>
+            <div class="memory-bus ${isActive("data")}"><strong>数据总线</strong><span>${dataBusReady ? formatBinary(dataBusValue, config.dataBits) : pending}</span></div>
             <div class="memory-node ${isActive("control")}">
               <strong>控制信号</strong>
-              <span>${config.operation === "write" ? "CS=0 / WE=0" : "CS=0 / WE=1"}</span>
+              <span>${controlReady ? (isWrite ? "CS=0 / WE=0" : "CS=0 / WE=1") : pending}</span>
             </div>
           </div>
         </div>
@@ -1674,8 +1729,9 @@ DMA,3,1100
         ${fields
           .filter((field) => field.bits > 0)
           .map((field) => `
-            <div class="bit-field">
+            <div class="bit-field ${field.className || ""}">
               <strong>${escapeHtml(field.label)}</strong>
+              ${field.binary ? `<code class="bit-seg ${field.className || ""}">${field.binary}</code>` : ""}
               <span>${field.bits} 位</span>
               <small>${escapeHtml(field.hint)}</small>
             </div>
@@ -1704,11 +1760,17 @@ DMA,3,1100
               <strong>${result.mapping === "direct" ? `行 ${setIndex}` : `组 ${setIndex}`}</strong>
               <div>
                 ${rows
-                  .map((row) => `
+                  .map((row) => {
+                    const prefix = result.mapping === "direct" ? "" : `Way ${row.way} · `;
+                    const content = row.valid
+                      ? `${prefix}V=1 · Tag=${escapeHtml(row.tag)} · 主存块 ${escapeHtml(row.block)}`
+                      : `${prefix}空行（V=0）`;
+                    return `
                     <span class="${[row.valid ? "filled" : "", selectedEvent && row.set === selectedEvent.setIndex && row.way === selectedEvent.way ? "current" : ""].filter(Boolean).join(" ")}">
-                      ${result.mapping === "direct" ? "Line" : `Way ${row.way}`} · V=${row.valid ? 1 : 0} · Tag=${escapeHtml(row.tag)} · B=${escapeHtml(row.block)}
+                      ${content}
                     </span>
-                  `)
+                  `;
+                  })
                   .join("")}
               </div>
             </div>
@@ -1718,24 +1780,30 @@ DMA,3,1100
     `;
   }
 
+  function cacheBitSegments(result) {
+    return [
+      { bits: result.tagBits, className: "seg-tag", label: "Tag" },
+      { bits: result.indexBits, className: "seg-index", label: "行号 Index" },
+      { bits: result.offsetBits, className: "seg-offset", label: "块内偏移 Offset" },
+    ];
+  }
+
   function renderCacheStructureDiagram(result, selectedEvent = null) {
+    const addressBinary = selectedEvent ? formatBinary(selectedEvent.address, result.addressBits) : "";
+    const tagBinary = addressBinary.slice(0, result.tagBits);
+    const indexBinary = addressBinary.slice(result.tagBits, result.tagBits + result.indexBits);
+    const offsetBinary = addressBinary.slice(result.tagBits + result.indexBits);
+    const segments = cacheBitSegments(result);
     const fields = [
-      { label: "Tag", bits: result.tagBits, hint: selectedEvent ? `Tag=${selectedEvent.tag}` : "与缓存行中保存的标记比较" },
-      { label: "Line Index", bits: result.indexBits, hint: selectedEvent ? `行号=${selectedEvent.setIndex}` : "定位唯一缓存行" },
-      { label: "Block Offset", bits: result.offsetBits, hint: selectedEvent ? `偏移=${selectedEvent.offset}` : "定位块内字节" },
+      { label: "Tag", bits: result.tagBits, className: "seg-tag", binary: tagBinary, hint: selectedEvent ? `Tag=${selectedEvent.tag}，与该行保存的 Tag 比较` : "与缓存行中保存的标记比较" },
+      { label: "Line Index", bits: result.indexBits, className: "seg-index", binary: indexBinary, hint: selectedEvent ? `行号=${selectedEvent.setIndex}，定位唯一缓存行` : "定位唯一缓存行" },
+      { label: "Block Offset", bits: result.offsetBits, className: "seg-offset", binary: offsetBinary, hint: selectedEvent ? `偏移=${selectedEvent.offset}，块内第 ${selectedEvent.offset} 字节` : "定位块内字节" },
     ];
     const placement = selectedEvent
       ? `主存块 ${selectedEvent.blockNumber} mod ${result.lines} = Cache 行 ${selectedEvent.setIndex}。`
       : "Index 只指向唯一 Cache 行，主存块只能放在这一行。";
-    const compare = selectedEvent
-      ? selectedEvent.hit
-        ? `行 ${selectedEvent.setIndex} 的 Tag 相同，访问命中。`
-        : selectedEvent.evicted
-          ? `行 ${selectedEvent.setIndex} 的旧块被新块替换。`
-          : `行 ${selectedEvent.setIndex} 为空，直接装入。`
-      : "只比较被选中行的 Tag。";
     const accessSummary = selectedEvent
-      ? `访问 ${selectedEvent.accessIndex + 1}：${formatAddress(selectedEvent.address)}，${selectedEvent.hit ? "命中" : "未命中"}。${selectedEvent.action}`
+      ? `访问 ${selectedEvent.accessIndex + 1}：${formatAddressPadded(selectedEvent.address, result.addressBits)}，${selectedEvent.hit ? "命中" : "未命中"}。${selectedEvent.action}`
       : "运行后可逐次查看每个地址如何定位到唯一 Cache 行。";
     return `
       <div class="mapping-diagram">
@@ -1743,10 +1811,17 @@ DMA,3,1100
           <strong>直接映射结构图</strong>
           <span>主存块号 mod Cache 行数 = Cache 行号</span>
         </div>
+        ${selectedEvent ? `
+          <div class="binary-split-bar">
+            <strong>${formatAddressPadded(selectedEvent.address, result.addressBits)} =</strong>
+            ${renderBinarySplit(selectedEvent.address, result.addressBits, segments)}
+            ${renderBitLegend(segments)}
+          </div>
+        ` : ""}
         <div class="diagram-flow">
           <div class="diagram-node source-node">
             <strong>CPU 地址</strong>
-            <span>${selectedEvent ? formatAddress(selectedEvent.address) : `${result.addressBits} 位地址`}</span>
+            <span>${selectedEvent ? formatAddressPadded(selectedEvent.address, result.addressBits) : `${result.addressBits} 位地址`}</span>
           </div>
           <div class="diagram-arrow">→</div>
           <div class="diagram-node field-node">
@@ -1761,11 +1836,119 @@ DMA,3,1100
           <div class="diagram-arrow">→</div>
           <div class="diagram-node">
             <strong>Tag 比较</strong>
-            <span>${escapeHtml(compare)}</span>
+            ${selectedEvent ? renderTagCompare(result, selectedEvent) : `<span>只比较被选中行的 Tag。</span>`}
           </div>
         </div>
         <div class="diagram-callout">${escapeHtml(accessSummary)}</div>
-        ${renderCacheSetGrid(result, selectedEvent)}
+        ${result.mapping === "direct" ? renderCacheLineTable(result, selectedEvent) : renderCacheSetGrid(result, selectedEvent)}
+        ${result.mapping === "direct" ? renderCacheBlockMap(result, selectedEvent) : ""}
+      </div>
+    `;
+  }
+
+  function cacheBlockRange(result, block) {
+    const start = block * result.blockSize;
+    return `${formatAddressPadded(start, result.addressBits)}~${formatAddressPadded(start + result.blockSize - 1, result.addressBits)}`;
+  }
+
+  function renderTagCompare(result, selectedEvent) {
+    const prevRows = selectedEvent.accessIndex > 0 ? result.events[selectedEvent.accessIndex - 1].snapshotRows : null;
+    const prevRow = prevRows
+      ? prevRows.find((row) => row.set === selectedEvent.setIndex && row.way === selectedEvent.way)
+      : null;
+    const addressTag = `<code class="bit-seg seg-tag">${formatBinary(selectedEvent.tag, result.tagBits)}</code>`;
+    if (!prevRow || !prevRow.valid) {
+      return `
+        <div class="tag-compare">
+          <span>行内：<em class="value-pending">V=0 空行</em></span>
+          <span class="cmp-op">vs</span>
+          <span>地址 Tag ${addressTag}</span>
+        </div>
+        <small class="cmp-conclusion miss">该行还没有数据，无需比较 ⇒ 未命中（冷未命中），直接装入。</small>
+      `;
+    }
+    const storedTag = `<code class="bit-seg seg-tag">${formatBinary(Number(prevRow.tag), result.tagBits)}</code>`;
+    const equal = Number(prevRow.tag) === Number(selectedEvent.tag);
+    return `
+      <div class="tag-compare">
+        <span>行内 Tag ${storedTag}</span>
+        <span class="cmp-op ${equal ? "eq" : "neq"}">${equal ? "=" : "≠"}</span>
+        <span>地址 Tag ${addressTag}</span>
+      </div>
+      <small class="cmp-conclusion ${equal ? "hit" : "miss"}">${equal
+        ? `Tag 相等且 V=1 ⇒ 命中，行内保存的就是主存块 ${selectedEvent.blockNumber}。`
+        : `Tag 不相等 ⇒ 未命中（冲突：行内目前是主存块 ${escapeHtml(prevRow.block)}，将被换出）。`}</small>
+    `;
+  }
+
+  function renderCacheLineTable(result, selectedEvent) {
+    const rows = selectedEvent && selectedEvent.snapshotRows ? selectedEvent.snapshotRows : result.rows;
+    return `
+      <div class="cache-line-table table-wrap">
+        <table>
+          <thead>
+            <tr><th>Cache 行</th><th>有效位 V</th><th>Tag</th><th>保存的主存块</th><th>对应主存地址</th></tr>
+          </thead>
+          <tbody>
+            ${rows.map((row) => {
+              const isCurrent = selectedEvent && row.set === selectedEvent.setIndex;
+              return `
+                <tr class="${isCurrent ? "current" : ""}">
+                  <th>行 ${row.set}${isCurrent ? " ←" : ""}</th>
+                  <td>${row.valid ? 1 : 0}</td>
+                  <td>${row.valid ? `<code class="bit-seg seg-tag">${formatBinary(Number(row.tag), result.tagBits)}</code>` : "—"}</td>
+                  <td>${row.valid ? `块 ${row.block}` : "空"}</td>
+                  <td>${row.valid ? cacheBlockRange(result, Number(row.block)) : "—"}</td>
+                </tr>
+              `;
+            }).join("")}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  function renderCacheBlockMap(result, selectedEvent) {
+    const totalBlocks = (2 ** result.addressBits) / result.blockSize;
+    if (!selectedEvent || totalBlocks > 32) return "";
+    const rows = selectedEvent.snapshotRows || result.rows;
+    const residentBlocks = new Set(rows.filter((row) => row.valid).map((row) => Number(row.block)));
+    const columns = result.lines;
+    const header = Array.from({ length: columns }, (_, line) =>
+      `<div class="block-map-head ${line === selectedEvent.setIndex ? "current-col" : ""}">行 ${line}</div>`).join("");
+    const cells = [];
+    for (let row = 0; row < totalBlocks / columns; row += 1) {
+      for (let column = 0; column < columns; column += 1) {
+        const block = row * columns + column;
+        const classes = [
+          "block-map-cell",
+          column === selectedEvent.setIndex ? "current-col" : "",
+          block === selectedEvent.blockNumber ? "current" : "",
+          residentBlocks.has(block) ? "resident" : "",
+        ].filter(Boolean).join(" ");
+        cells.push(`
+          <div class="${classes}">
+            <strong>块 ${block}</strong>
+            <span>${cacheBlockRange(result, block)}</span>
+          </div>
+        `);
+      }
+    }
+    return `
+      <div class="block-map">
+        <div class="diagram-title">
+          <strong>主存块 → Cache 行 对应地图</strong>
+          <span>块号 mod ${columns} 相同的块在同一列，只能挤同一行 —— 这就是冲突的来源</span>
+        </div>
+        <div class="block-map-grid" style="grid-template-columns: repeat(${columns}, minmax(0, 1fr));">
+          ${header}
+          ${cells.join("")}
+        </div>
+        <div class="block-map-legend">
+          <span><i class="block-dot current"></i>当前访问的块</span>
+          <span><i class="block-dot resident"></i>已在 Cache 中</span>
+          <span><i class="block-dot current-col"></i>与本次访问同列（同一 Cache 行）</span>
+        </div>
       </div>
     `;
   }
@@ -1807,11 +1990,62 @@ DMA,3,1100
     const selectedEvent = result.events[clamp(state.cache.cursor, 0, result.events.length - 1)];
     const counter = $("#cacheStepCounter");
     if (counter) counter.textContent = `访问 ${selectedEvent.accessIndex + 1} / ${result.events.length}`;
+    const seen = result.events.slice(0, selectedEvent.accessIndex + 1);
+    const hitsSoFar = seen.filter((event) => event.hit).length;
+    const missesSoFar = seen.length - hitsSoFar;
     $("#cacheResult").innerHTML = `
       <div class="${selectedEvent.hit ? "status-good" : "status-warn"}">
-        当前地址 ${formatAddress(selectedEvent.address)}：${selectedEvent.hit ? "命中" : "未命中"}，主存块 ${selectedEvent.blockNumber} → Cache 行 ${selectedEvent.setIndex}。
+        当前地址 ${formatAddressPadded(selectedEvent.address, result.addressBits)}：${selectedEvent.hit ? "命中" : "未命中"}，主存块 ${selectedEvent.blockNumber} → Cache 行 ${selectedEvent.setIndex}。
+      </div>
+      <div class="sim-stats">
+        <span class="stat">进度 ${seen.length} / ${result.events.length}</span>
+        <span class="stat hit">已命中 ${hitsSoFar}</span>
+        <span class="stat miss">已缺失 ${missesSoFar}</span>
+        <span class="stat">当前命中率 ${seen.length ? Math.round((hitsSoFar / seen.length) * 100) : 0}%</span>
+        <span class="stat total">全序列命中率 ${Math.round(result.hitRate * 100)}%（命中 ${result.hits} / 未命中 ${result.misses}）</span>
       </div>
       ${renderCacheStructureDiagram(result, selectedEvent)}
+    `;
+  }
+
+  function renderCacheConfigNote() {
+    const container = $("#cacheConfigNote");
+    if (!container) return;
+    const { addressBits, lines, blockSize } = DEFAULT_CACHE_CONFIG;
+    const totalBytes = 2 ** addressBits;
+    const blockCount = totalBytes / blockSize;
+    const offsetBits = Math.log2(blockSize);
+    const indexBits = Math.log2(lines);
+    const tagBits = addressBits - offsetBits - indexBits;
+    container.innerHTML = `
+      <strong>本仿真的默认配置（固定）</strong>
+      <ul>
+        <li>主存：${addressBits} 位地址，共 ${totalBytes} B（0x00~${formatAddressPadded(totalBytes - 1, addressBits)}），按每块 ${blockSize} B 分成 ${blockCount} 个主存块（块号 0~${blockCount - 1}）。</li>
+        <li>Cache：${lines} 行，每行存 1 个块（${blockSize} B），直接映射：主存块号 mod ${lines} = Cache 行号。</li>
+        <li>地址拆分：Tag ${tagBits} 位 + 行号 ${indexBits} 位 + 块内偏移 ${offsetBits} 位——块大小定偏移位数，行数定行号位数，剩下的都是 Tag。</li>
+      </ul>
+    `;
+  }
+
+  function renderVmConfigNote() {
+    const container = $("#vmConfigNote");
+    if (!container) return;
+    const frames = Number($("#vmFrames")?.value || 3);
+    const pageSize = Number($("#vmPageSize")?.value || 1024);
+    const policy = $("#vmReplacement")?.value || "lru";
+    const policyText = {
+      lru: "LRU：内存满时，换出最久没被访问过的页",
+      fifo: "FIFO：内存满时，换出最早装入内存的页",
+      lfu: "LFU：内存满时，换出被使用次数最少的页",
+      opt: "OPT（理论最优）：换出将来最晚才会用到的页",
+    }[policy] || policy.toUpperCase();
+    container.innerHTML = `
+      <strong>本仿真的默认配置</strong>
+      <ul>
+        <li>物理内存：${frames} 个页框，同一时刻最多容纳 ${frames} 页；页大小 ${pageSize} B。</li>
+        <li>上面输入的序列是“页号”访问序列：0 1 2… 表示程序依次访问这些页。</li>
+        <li>置换算法 ${policyText}。</li>
+      </ul>
     `;
   }
 
@@ -1892,15 +2126,31 @@ DMA,3,1100
     return snapshot.map((page) => (page === null ? "-" : page)).join(" / ");
   }
 
-  function renderFrameGrid(snapshot, activeFrame = null) {
+  function describeFrameBadge(meta, policy, event, references) {
+    if (meta.page === null) return "";
+    if (policy === "fifo") return `装入于第 ${meta.loadedAt} 次访问`;
+    if (policy === "lfu") return `已使用 ${meta.frequency} 次`;
+    if (policy === "opt") {
+      const nextUse = references.slice(event.index + 1).indexOf(meta.page);
+      return nextUse === -1 ? "以后不再使用" : `下次使用：第 ${event.index + 1 + nextUse + 1} 次访问`;
+    }
+    return `上次使用：第 ${meta.lastUsed} 次访问`;
+  }
+
+  function renderFrameGrid(snapshot, activeFrame = null, options = null) {
     return `
       <div class="frame-grid">
-        ${snapshot.map((page, frame) => `
+        ${snapshot.map((page, frame) => {
+          const meta = options && options.frameMeta ? options.frameMeta[frame] : null;
+          const badge = meta ? describeFrameBadge(meta, options.policy, options.event, options.references) : "";
+          return `
           <div class="frame-cell ${frame === activeFrame ? "current" : ""} ${page === null ? "empty" : "filled"}">
             <strong>页框 ${frame}</strong>
             <span>${page === null ? "空" : `页 ${page}`}</span>
+            ${badge ? `<small class="frame-badge">${escapeHtml(badge)}</small>` : ""}
           </div>
-        `).join("")}
+        `;
+        }).join("")}
       </div>
     `;
   }
@@ -1959,10 +2209,15 @@ DMA,3,1100
           <div class="diagram-arrow">→</div>
           <div class="diagram-node field-node">
             <strong>地址拆分</strong>
-            ${renderBitFields([
-              { label: "Page Number", bits: Math.max(1, Math.ceil(Math.log2((selectedEvent ? selectedEvent.page : result.page) + 1 || 1))), hint: `页号 ${selectedEvent ? selectedEvent.page : result.page}` },
-              { label: "Page Offset", bits: Math.log2(result.pageSize), hint: `页大小 ${result.pageSize}B` },
-            ])}
+            ${(() => {
+              const currentPage = selectedEvent ? selectedEvent.page : result.page;
+              const maxPage = Math.max(result.page, ...result.replacement.references);
+              const pageBits = Math.max(1, Math.ceil(Math.log2(maxPage + 1)));
+              return renderBitFields([
+                { label: "Page Number", bits: pageBits, className: "seg-tag", binary: formatBinary(currentPage, pageBits), hint: `页号 ${currentPage}（本例页号统一用 ${pageBits} 位表示）` },
+                { label: "Page Offset", bits: Math.log2(result.pageSize), className: "seg-offset", hint: `页大小 ${result.pageSize}B` },
+              ]);
+            })()}
           </div>
           <div class="diagram-arrow">→</div>
           <div class="diagram-node"><strong>页表 / 页框</strong><span>${selectedEvent ? `页 ${selectedEvent.page} → 页框 ${selectedEvent.frame}` : result.residentFrame === null ? "页不在内存，触发缺页" : `页 ${result.page} → 页框 ${result.residentFrame}`}</span></div>
@@ -1970,7 +2225,14 @@ DMA,3,1100
           <div class="diagram-node ${selectedEvent ? selectedEvent.hit ? "success" : "danger" : result.physicalAddress === null ? "danger" : "success"}"><strong>${selectedEvent ? selectedEvent.hit ? "命中" : "缺页" : result.physicalAddress === null ? "缺页" : "物理地址"}</strong><span>${selectedEvent ? selectedEvent.hit ? "直接访问" : selectedEvent.evicted === null ? "装入空页框" : `替换页 ${selectedEvent.evicted}` : result.physicalAddress === null ? "需要页面置换" : result.physicalAddress}</span></div>
         </div>
         <div class="diagram-callout">${selectedEvent ? `当前访问 ${selectedEvent.index + 1}：页 ${selectedEvent.page}，${selectedEvent.hit ? `命中页框 ${selectedEvent.frame}` : `缺页，装入页框 ${selectedEvent.frame}${selectedEvent.evicted === null ? "" : `，替换页 ${selectedEvent.evicted}`}`}。` : "页面访问序列会逐步改变物理页框中的页面。"}</div>
-        ${renderFrameGrid(selectedEvent ? selectedEvent.snapshot : result.replacement.frames.map((frame) => frame.page), selectedEvent ? selectedEvent.frame : result.residentFrame)}
+        ${selectedEvent && selectedEvent.victimReason ? `<div class="victim-reason">为什么换它？${escapeHtml(selectedEvent.victimReason)}</div>` : ""}
+        ${renderFrameGrid(
+          selectedEvent ? selectedEvent.snapshot : result.replacement.frames.map((frame) => frame.page),
+          selectedEvent ? selectedEvent.frame : result.residentFrame,
+          selectedEvent && selectedEvent.frameMeta
+            ? { frameMeta: selectedEvent.frameMeta, policy: result.replacement.policy, event: selectedEvent, references: result.replacement.references }
+            : null
+        )}
       </div>
     `;
   }
@@ -2043,6 +2305,45 @@ DMA,3,1100
     `;
   }
 
+  function renderVmReplacementTable(replacement, cursor) {
+    const events = replacement.events;
+    const cellClass = (index, extra = "") =>
+      [index === cursor ? "current" : "", index > cursor ? "future" : "", extra].filter(Boolean).join(" ");
+    const header = events
+      .map((event, index) => `<th class="${cellClass(index)}">页 ${event.page}</th>`)
+      .join("");
+    const frameRows = Array.from({ length: replacement.frameCount }, (_, frame) => {
+      const cells = events
+        .map((event, index) => {
+          const page = event.snapshot[frame];
+          const changed = !event.hit && event.frame === frame ? "changed" : "";
+          return `<td class="${cellClass(index, changed)}">${page === null ? "·" : page}</td>`;
+        })
+        .join("");
+      return `<tr><th>页框 ${frame}</th>${cells}</tr>`;
+    }).join("");
+    const resultRow = events
+      .map((event, index) => `<td class="${cellClass(index, event.hit ? "hit" : "miss")}">${event.hit ? "√" : "×"}</td>`)
+      .join("");
+    return `
+      <div class="vm-summary-table">
+        <div class="diagram-title">
+          <strong>置换过程总表</strong>
+          <span>每一列是一次访问后的页框内容；× 表示缺页，√ 表示命中</span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>访问序列</th>${header}</tr></thead>
+            <tbody>
+              ${frameRows}
+              <tr class="vm-result-row"><th>缺页?</th>${resultRow}</tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  }
+
   function renderVirtualMemory(result) {
     if (result.mode === "segmentation") {
       const counter = $("#vmStepCounter");
@@ -2068,11 +2369,21 @@ DMA,3,1100
     const selectedEvent = replacement.events[clamp(state.vm.cursor, 0, replacement.events.length - 1)];
     const counter = $("#vmStepCounter");
     if (counter) counter.textContent = `页面访问 ${selectedEvent.index + 1} / ${replacement.events.length}`;
+    const seen = replacement.events.slice(0, selectedEvent.index + 1);
+    const faultsSoFar = seen.filter((event) => !event.hit).length;
     $("#vmResult").innerHTML = `
       <div class="${selectedEvent.hit ? "status-good" : "status-warn"}">
         当前访问页 ${selectedEvent.page}：${selectedEvent.hit ? `命中页框 ${selectedEvent.frame}` : `缺页，装入页框 ${selectedEvent.frame}${selectedEvent.evicted === null ? "" : `，替换页 ${selectedEvent.evicted}`}`}。
       </div>
+      <div class="sim-stats">
+        <span class="stat">进度 ${seen.length} / ${replacement.events.length}</span>
+        <span class="stat hit">已命中 ${seen.length - faultsSoFar}</span>
+        <span class="stat miss">已缺页 ${faultsSoFar}</span>
+        <span class="stat">当前缺页率 ${seen.length ? Math.round((faultsSoFar / seen.length) * 100) : 0}%</span>
+        <span class="stat total">全序列缺页率 ${Math.round(replacement.faultRate * 100)}%（缺页 ${replacement.faults} / 命中 ${replacement.hits}）</span>
+      </div>
       ${renderVirtualStructureDiagram(result, selectedEvent)}
+      ${renderVmReplacementTable(replacement, selectedEvent.index)}
     `;
   }
 
@@ -2548,15 +2859,25 @@ DMA,3,1100
       return;
     }
 
-    const header = Array.from({ length: result.cycleCount }, (_, index) => `<th>C${index + 1}</th>`).join("");
+    const cursor = clamp(state.pipeline.cursor, 0, result.cycleCount - 1);
+    const counter = $("#pipelineStepCounter");
+    if (counter) counter.textContent = `周期 C${cursor + 1} / C${result.cycleCount}`;
+    const header = Array.from({ length: result.cycleCount }, (_, index) =>
+      `<th class="${index === cursor ? "current-cycle" : index > cursor ? "pending" : ""}">C${index + 1}</th>`).join("");
     const body = result.timeline
       .map((row) => {
         return `
           <tr>
             <td><code>${escapeHtml(row.instruction)}</code></td>
             ${row.cells
-              .map((cell) => {
-                const className = cell === "STALL" ? "stage-cell stall" : cell ? "stage-cell filled" : "stage-cell";
+              .map((cell, index) => {
+                if (index > cursor) {
+                  return `<td class="stage-cell pending"></td>`;
+                }
+                const className = [
+                  cell === "STALL" ? "stage-cell stall" : cell ? "stage-cell filled" : "stage-cell",
+                  index === cursor ? "current-cycle" : "",
+                ].filter(Boolean).join(" ");
                 return `<td class="${className}">${escapeHtml(cell)}</td>`;
               })
               .join("")}
@@ -2566,11 +2887,26 @@ DMA,3,1100
       .join("");
     const hazards = result.hazards.length
       ? result.hazards
-          .map((hazard) => `<div class="status-warn">${escapeHtml(hazard.type)}：${escapeHtml(hazard.description)}</div>`)
+          .map((hazard) => `<div class="status-warn">${escapeHtml(hazard.type)}（${escapeHtml(hazard.dependsOn)} → ${escapeHtml(hazard.instruction)}）：${escapeHtml(hazard.description)}</div>`)
           .join("")
       : `<div class="status-good">未发现需要停顿的相邻 RAW 冒险。</div>`;
 
+    const instructionCount = result.timeline.length;
+    const stallCount = result.timeline.reduce((sum, row) => sum + row.stall, 0);
+    const idealCycles = instructionCount + 4;
+    const other = core.simulatePipeline($("#pipelineCode").value, { forwarding: !result.forwarding });
+    const compareText = result.forwarding
+      ? `关闭转发则需要 ${other.cycleCount} 周期`
+      : `开启转发可减少到 ${other.cycleCount} 周期`;
+
     $("#pipelineResult").innerHTML = `
+      <div class="sim-stats">
+        <span class="stat">指令 ${instructionCount} 条</span>
+        <span class="stat">实际 ${result.cycleCount} 周期</span>
+        <span class="stat ${stallCount ? "miss" : "hit"}">停顿 ${stallCount} 个</span>
+        <span class="stat">无冒险理想 ${idealCycles} 周期</span>
+        <span class="stat total">${compareText}</span>
+      </div>
       <div class="table-wrap">
         <table>
           <thead>
@@ -2587,10 +2923,54 @@ DMA,3,1100
   }
 
   function runPipeline() {
+    stopPipelineAuto();
     const result = core.simulatePipeline($("#pipelineCode").value, {
       forwarding: $("#pipelineForwarding").checked,
     });
+    state.pipeline.result = result;
+    state.pipeline.cursor = 0;
     renderPipeline(result);
+  }
+
+  function stepPipeline(delta) {
+    if (!state.pipeline.result) {
+      runPipeline();
+      return;
+    }
+    stopPipelineAuto();
+    state.pipeline.cursor = clamp(state.pipeline.cursor + delta, 0, state.pipeline.result.cycleCount - 1);
+    renderPipeline(state.pipeline.result);
+  }
+
+  function stopPipelineAuto() {
+    stopStepTimer("pipeline", "#pipelineAuto", "自动演示");
+  }
+
+  function togglePipelineAuto() {
+    if (state.pipeline.timer) {
+      stopPipelineAuto();
+      return;
+    }
+    if (!state.pipeline.result) {
+      runPipeline();
+    }
+    const result = state.pipeline.result;
+    if (!result || result.cycleCount <= 1) return;
+    if (state.pipeline.cursor >= result.cycleCount - 1) {
+      state.pipeline.cursor = 0;
+      renderPipeline(result);
+    }
+    toggleStepTimer(
+      "pipeline",
+      "#pipelineAuto",
+      "自动演示",
+      "暂停",
+      () => {
+        state.pipeline.cursor = clamp(state.pipeline.cursor + 1, 0, result.cycleCount - 1);
+        renderPipeline(result);
+      },
+      () => !state.pipeline.result || state.pipeline.cursor >= state.pipeline.result.cycleCount - 1
+    );
   }
 
   function computeAssemblySnapshot(cursor) {
@@ -2626,10 +3006,17 @@ DMA,3,1100
     const cursor = state.assembly.cursor;
     const snapshot = computeAssemblySnapshot(cursor);
     const steps = execution ? execution.steps : [];
-    $("#assemblyCursor").textContent = steps.length ? `第 ${Math.max(cursor + 1, 0)} / ${steps.length} 步` : "未执行";
+    $("#assemblyCursor").textContent = steps.length
+      ? cursor < 0
+        ? `未开始（共 ${steps.length} 步）`
+        : `第 ${cursor + 1} / ${steps.length} 步`
+      : "未执行";
 
     $("#assemblyLog").innerHTML = steps.length
-      ? steps
+      ? cursor < 0
+        ? `<div class="empty-state">已加载 ${steps.length} 条指令，点击“下一步”开始逐条执行。</div>`
+        : steps
+          .slice(0, cursor + 1)
           .map((step, index) => {
             const className = ["log-item", index === cursor ? "active" : "", step.error ? "error" : ""].filter(Boolean).join(" ");
             const diffs = Object.entries(step.registerDiff)
@@ -2676,7 +3063,7 @@ DMA,3,1100
 
   function loadAssembly() {
     state.assembly.execution = core.executeAssembly($("#assemblyCode").value);
-    state.assembly.cursor = state.assembly.execution.steps.length ? 0 : -1;
+    state.assembly.cursor = -1;
     renderAssembly();
   }
 
@@ -2687,7 +3074,7 @@ DMA,3,1100
       return;
     }
     const next = state.assembly.cursor + delta;
-    state.assembly.cursor = Math.max(0, Math.min(execution.steps.length - 1, next));
+    state.assembly.cursor = Math.max(-1, Math.min(execution.steps.length - 1, next));
     renderAssembly();
   }
 
@@ -4338,6 +4725,7 @@ DMA,3,1100
     const cacheReset = $("#cacheReset");
     if (cacheReset) cacheReset.addEventListener("click", resetCache);
     $("#vmRun").addEventListener("click", runVirtualMemory);
+    $("#vmReplacement").addEventListener("change", renderVmConfigNote);
     $("#vmPrev").addEventListener("click", () => stepVirtualMemory(-1));
     $("#vmNext").addEventListener("click", () => stepVirtualMemory(1));
     const vmAuto = $("#vmAuto");
@@ -4354,6 +4742,9 @@ DMA,3,1100
     $("#expansionPrev").addEventListener("click", () => stepMemoryExpansion(-1));
     $("#expansionNext").addEventListener("click", () => stepMemoryExpansion(1));
     $("#pipelineRun").addEventListener("click", runPipeline);
+    $("#pipelinePrev").addEventListener("click", () => stepPipeline(-1));
+    $("#pipelineNext").addEventListener("click", () => stepPipeline(1));
+    $("#pipelineAuto").addEventListener("click", togglePipelineAuto);
     $("#datapathLoad").addEventListener("click", runDatapath);
     $("#datapathPrev").addEventListener("click", () => stepDatapath(-1));
     $("#datapathNext").addEventListener("click", () => stepDatapath(1));
@@ -4398,6 +4789,8 @@ DMA,3,1100
     renderRecommendedFeatures();
     bindEvents();
     updateMemoryInputHints();
+    renderCacheConfigNote();
+    renderVmConfigNote();
     runTwosComplement();
     runFloat();
     runCache();

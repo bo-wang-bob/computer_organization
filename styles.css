@@ -2659,3 +2659,409 @@ td code {
     min-height: 18px;
   }
 }
+
+/* ---- 仿真通用：二进制分色拆分 ---- */
+.bit-split {
+  display: inline-flex;
+  gap: 2px;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 14px;
+  letter-spacing: 1px;
+}
+
+.bit-seg {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-family: Consolas, "Courier New", monospace;
+  font-weight: 700;
+}
+
+.bit-seg.seg-tag {
+  background: var(--teal-soft);
+  color: #075e57;
+  border: 1px solid #9ed4c9;
+}
+
+.bit-seg.seg-index {
+  background: #e5eafb;
+  color: var(--indigo);
+  border: 1px solid #b9c5ec;
+}
+
+.bit-seg.seg-offset {
+  background: var(--amber-soft);
+  color: var(--amber);
+  border: 1px solid #ecd39b;
+}
+
+.bit-legend {
+  display: inline-flex;
+  gap: 10px;
+  font-size: 11px;
+  color: var(--muted);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.bit-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.bit-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+.bit-dot.seg-tag {
+  background: var(--teal-soft);
+  border: 1px solid #9ed4c9;
+}
+
+.bit-dot.seg-index {
+  background: #e5eafb;
+  border: 1px solid #b9c5ec;
+}
+
+.bit-dot.seg-offset {
+  background: var(--amber-soft);
+  border: 1px solid #ecd39b;
+}
+
+.binary-split-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 8px 10px;
+  margin-bottom: 8px;
+}
+
+.binary-split-bar strong {
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 13px;
+}
+
+.bit-field code.bit-seg {
+  display: inline-block;
+  margin: 3px 0;
+  font-size: 13px;
+  letter-spacing: 1px;
+}
+
+/* ---- 仿真通用：统计条 ---- */
+.sim-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0;
+}
+
+.sim-stats .stat {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  padding: 3px 10px;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.sim-stats .stat.hit {
+  background: var(--green-soft);
+  color: var(--green);
+  border-color: #bcdcbe;
+}
+
+.sim-stats .stat.miss {
+  background: var(--amber-soft);
+  color: var(--amber);
+  border-color: #ecd39b;
+}
+
+.sim-stats .stat.total {
+  background: var(--teal-soft);
+  color: #075e57;
+  border-color: #9ed4c9;
+  font-weight: 700;
+}
+
+/* ---- 虚存置换过程总表 ---- */
+.vm-summary-table {
+  margin-top: 10px;
+}
+
+.vm-summary-table table th,
+.vm-summary-table table td {
+  text-align: center;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 12px;
+  padding: 5px 7px;
+}
+
+.vm-summary-table td.future,
+.vm-summary-table th.future {
+  color: #c2ccd3;
+  background: #fbfcfd;
+}
+
+.vm-summary-table td.current,
+.vm-summary-table th.current {
+  background: #eef4ff;
+  box-shadow: inset 0 0 0 1px var(--indigo);
+}
+
+.vm-summary-table td.changed:not(.future) {
+  font-weight: 700;
+  color: var(--indigo);
+}
+
+.vm-result-row td.hit:not(.future) {
+  color: var(--green);
+  font-weight: 700;
+}
+
+.vm-result-row td.miss:not(.future) {
+  color: var(--red);
+  font-weight: 700;
+}
+
+/* ---- 流水线逐周期推进 ---- */
+.stage-cell.pending {
+  background: #fbfcfd;
+  color: transparent;
+}
+
+th.pending {
+  color: #c2ccd3;
+}
+
+th.current-cycle {
+  background: #eef4ff;
+  color: var(--indigo);
+}
+
+td.stage-cell.current-cycle {
+  box-shadow: inset 0 0 0 2px var(--indigo);
+}
+
+/* ---- 存储读写：未到步骤的值 ---- */
+.value-pending {
+  color: #c2ccd3;
+  font-style: normal;
+  font-weight: 700;
+}
+
+/* ---- 默认配置说明 ---- */
+.sim-config-note {
+  border: 1px dashed #bccbd4;
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 8px 10px;
+  margin: 8px 0;
+  font-size: 12px;
+}
+
+.sim-config-note strong {
+  display: block;
+  font-size: 12px;
+  color: var(--teal);
+  margin-bottom: 4px;
+}
+
+.sim-config-note ul {
+  margin: 0;
+  padding-left: 16px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+/* ---- 缓存：Tag 逐位对比 ---- */
+.tag-compare {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 4px 0;
+  font-size: 12px;
+}
+
+.tag-compare .cmp-op {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.tag-compare .cmp-op.eq {
+  color: var(--green);
+}
+
+.tag-compare .cmp-op.neq {
+  color: var(--red);
+}
+
+.cmp-conclusion {
+  display: block;
+  line-height: 1.5;
+  font-size: 11px;
+}
+
+.cmp-conclusion.hit {
+  color: var(--green);
+}
+
+.cmp-conclusion.miss {
+  color: var(--amber);
+}
+
+/* ---- 缓存：Cache 行表格 ---- */
+.cache-line-table {
+  margin-top: 8px;
+}
+
+.cache-line-table table th,
+.cache-line-table table td {
+  text-align: center;
+  font-size: 12px;
+  padding: 5px 8px;
+}
+
+.cache-line-table tbody tr.current {
+  background: #eef4ff;
+  box-shadow: inset 0 0 0 1px var(--indigo);
+}
+
+.cache-line-table tbody tr.current th {
+  color: var(--indigo);
+}
+
+/* ---- 缓存：主存块对应地图 ---- */
+.block-map {
+  margin-top: 10px;
+}
+
+.block-map-grid {
+  display: grid;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.block-map-head {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  padding: 2px 0;
+  border-radius: 4px;
+}
+
+.block-map-head.current-col {
+  background: #eef4ff;
+  color: var(--indigo);
+}
+
+.block-map-cell {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  padding: 4px 6px;
+  text-align: center;
+}
+
+.block-map-cell strong {
+  display: block;
+  font-size: 11px;
+}
+
+.block-map-cell span {
+  display: block;
+  font-size: 10px;
+  color: var(--muted);
+  font-family: Consolas, "Courier New", monospace;
+}
+
+.block-map-cell.current-col {
+  background: #f4f8ff;
+  border-color: #b9c5ec;
+}
+
+.block-map-cell.resident {
+  background: var(--teal-soft);
+  border-color: #9ed4c9;
+}
+
+.block-map-cell.resident strong {
+  color: #075e57;
+}
+
+.block-map-cell.current {
+  box-shadow: 0 0 0 2px var(--indigo);
+  border-color: var(--indigo);
+}
+
+.block-map-legend {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.block-map-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.block-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.block-dot.current {
+  border: 2px solid var(--indigo);
+}
+
+.block-dot.resident {
+  background: var(--teal-soft);
+  border-color: #9ed4c9;
+}
+
+.block-dot.current-col {
+  background: #f4f8ff;
+  border-color: #b9c5ec;
+}
+
+/* ---- 虚存：换出理由与页框角标 ---- */
+.victim-reason {
+  border-left: 3px solid var(--amber);
+  background: var(--amber-soft);
+  color: #7a5310;
+  border-radius: 0 8px 8px 0;
+  padding: 6px 10px;
+  margin: 8px 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.frame-badge {
+  display: block;
+  margin-top: 3px;
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.frame-cell.current .frame-badge {
+  color: inherit;
+}
