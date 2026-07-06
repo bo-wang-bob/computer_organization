@@ -4,13 +4,13 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>计组教学辅助平台</title>
-    <link rel="stylesheet" href="./styles.css?v=20260705-sim-visual" />
+    <link rel="stylesheet" href="./styles.css?v=20260706-multiply-trace" />
   </head>
-  <body>
+  <body class="sidebar-collapsed">
     <div class="app-shell">
       <aside class="sidebar" aria-label="功能导航">
         <div class="brand">
-          <div class="brand-mark">CO</div>
+          <button id="sidebarToggle" class="brand-mark sidebar-toggle" type="button" aria-label="展开导航" aria-expanded="false" title="展开导航" onclick="document.body.classList.toggle('sidebar-collapsed');this.setAttribute('aria-expanded', String(!document.body.classList.contains('sidebar-collapsed')));this.setAttribute('aria-label', document.body.classList.contains('sidebar-collapsed') ? '展开导航' : '收起导航');this.title = document.body.classList.contains('sidebar-collapsed') ? '展开导航' : '收起导航'">CO</button>
           <div>
             <h1>计组教学辅助平台</h1>
             <p>规则推演 + 教学解释</p>
@@ -601,7 +601,7 @@ lw x4, 0(x0)</textarea>
       </main>
     </div>
 
-    <script src="./src/core.js?v=20260705-sim-visual"></script>
-    <script src="./src/app.js?v=20260705-sim-visual"></script>
+    <script src="./src/core.js?v=20260706-multiply-trace"></script>
+    <script src="./src/app.js?v=20260706-multiply-trace"></script>
   </body>
 </html>
