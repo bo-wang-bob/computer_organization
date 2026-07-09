@@ -31,6 +31,22 @@ class FakeDemoClient:
         }
 
 
+class FakeExtendedDemoClient:
+    def chat(self, messages, **kwargs):
+        self.messages = messages
+        self.kwargs = kwargs
+        return {
+            "content": (
+                '{"supported": true, "targetPanel": "disk-access-sim", '
+                '"title": "Disk access demo", '
+                '"inputs": {"currentCylinder": "10", "targetCylinder": "55", "rpm": "7200", "transferKb": "32"}, '
+                '"reason": "Disk access timing demo."}'
+            ),
+            "model": "deepseek-v4-pro",
+            "usage": {"prompt_tokens": 22, "completion_tokens": 16},
+        }
+
+
 class AgentTest(unittest.TestCase):
     def test_load_llm_config_from_environment(self):
         with patch.dict(
@@ -174,6 +190,42 @@ class AgentTest(unittest.TestCase):
         self.assertTrue(result["supported"])
         self.assertEqual(result["targetPanel"], "keyboard-sim")
         self.assertEqual(result["simulationPreview"]["tool"], "frontend_keyboard_matrix")
+
+    def test_demo_plan_supports_extended_cache_write_panel(self):
+        result = agents.plan_demo({"message": "demo Cache 写策略 write-back dirty bit 0x2A", "useLLM": False})
+
+        self.assertTrue(result["supported"])
+        self.assertEqual(result["targetPanel"], "cache-write-sim")
+        self.assertEqual(result["inputs"]["policy"], "write-back")
+        self.assertEqual(result["inputs"]["address"], "0x2A")
+        self.assertEqual(result["simulationPreview"]["tool"], "frontend_extended_simulation")
+
+    def test_demo_plan_supports_extended_disk_access_panel_with_numbers(self):
+        result = agents.plan_demo({"message": "demo disk access 10 50 7200 64", "useLLM": False})
+
+        self.assertTrue(result["supported"])
+        self.assertEqual(result["targetPanel"], "disk-access-sim")
+        self.assertEqual(result["inputs"]["currentCylinder"], "10")
+        self.assertEqual(result["inputs"]["targetCylinder"], "50")
+        self.assertEqual(result["inputs"]["rpm"], "7200")
+        self.assertEqual(result["inputs"]["transferKb"], "64")
+
+    def test_demo_plan_can_use_fake_deepseek_json_for_extended_panel(self):
+        fake = FakeExtendedDemoClient()
+        result = agents.plan_demo({"message": "demo disk access", "useLLM": True}, client=fake)
+
+        self.assertTrue(result["supported"])
+        self.assertFalse(result["usedFallback"])
+        self.assertEqual(result["targetPanel"], "disk-access-sim")
+        self.assertEqual(result["inputs"]["currentCylinder"], "10")
+        self.assertEqual(result["simulationPreview"]["panelId"], "disk-access-sim")
+
+    def test_demo_plan_prompt_lists_extended_panels(self):
+        messages = agents.build_demo_plan_messages("demo cache write strategy")
+
+        self.assertIn("cache-write-sim", messages[0]["content"])
+        self.assertIn("disk-access-sim", messages[0]["content"])
+        self.assertIn("pipeline-performance-sim", messages[0]["content"])
 
 
 if __name__ == "__main__":

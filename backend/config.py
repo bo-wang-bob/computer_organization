@@ -121,7 +121,7 @@ def load_llm_config(path: Path = DEFAULT_CONFIG_PATH) -> LLMConfig:
         provider="deepseek",
         api_key=api_key or None,
         base_url=str(config_value(local_config, "DEEPSEEK_BASE_URL", "base_url", default="https://api.deepseek.com")),
-        model=str(config_value(local_config, "DEEPSEEK_MODEL", "model", default="deepseek-v4-pro")),
+        model=str(config_value(local_config, "DEEPSEEK_MODEL", "model", default="deepseek-v4-flash")),
         timeout=parse_int(config_value(local_config, "DEEPSEEK_TIMEOUT", "timeout", default=60), 60),
         temperature=parse_float(config_value(local_config, "DEEPSEEK_TEMPERATURE", "temperature", default=0.3), 0.3),
         max_tokens=parse_int(config_value(local_config, "DEEPSEEK_MAX_TOKENS", "max_tokens", default=1400), 1400),

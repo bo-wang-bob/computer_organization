@@ -4,16 +4,16 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>计组教学辅助平台</title>
-    <link rel="stylesheet" href="./styles.css?v=20260705-sim-visual" />
+    <link rel="stylesheet" href="./styles.css?v=20260706-raid-ssd-flow" />
   </head>
-  <body>
+  <body class="sidebar-collapsed">
     <div class="app-shell">
       <aside class="sidebar" aria-label="功能导航">
         <div class="brand">
-          <div class="brand-mark">CO</div>
+          <button id="sidebarToggle" class="brand-mark sidebar-toggle" type="button" aria-label="展开导航" aria-expanded="false" title="展开导航" onclick="document.body.classList.toggle('sidebar-collapsed');this.setAttribute('aria-expanded', String(!document.body.classList.contains('sidebar-collapsed')));this.setAttribute('aria-label', document.body.classList.contains('sidebar-collapsed') ? '展开导航' : '收起导航');this.title = document.body.classList.contains('sidebar-collapsed') ? '展开导航' : '收起导航'">CO</button>
           <div>
             <h1>计组教学辅助平台</h1>
-            <p>规则推演 + 教学解释</p>
+            <p>智能仿真与教学辅助平台</p>
           </div>
         </div>
 
@@ -25,7 +25,7 @@
 
         <div class="sidebar-note">
           <span class="status-dot"></span>
-          <span>当前支持规则工具与 DeepSeek V4 教学辅助。</span>
+          <span>已接入智能推演引擎与 DeepSeek 教学辅助能力。</span>
         </div>
       </aside>
 
@@ -50,15 +50,18 @@
                 <button id="demoGenerate" class="primary-button">生成并演示</button>
               </div>
               <div class="demo-examples" aria-label="课堂演示示例">
-                <button class="secondary-button demo-example" data-demo-prompt="演示 8 位补码 127 + 1 溢出">补码溢出</button>
-                <button class="secondary-button demo-example" data-demo-prompt="演示 IEEE 754 对阶过程">IEEE 754</button>
-                <button class="secondary-button demo-example" data-demo-prompt="演示 Cache 直接映射冲突">Cache 冲突</button>
-                <button class="secondary-button demo-example" data-demo-prompt="演示虚拟存储 LRU 页面置换">虚存置换</button>
-                <button class="secondary-button demo-example" data-demo-prompt="演示存储器写入 0x2A 数据 0x5C 的过程">存储读写</button>
-                <button class="secondary-button demo-example" data-demo-prompt="演示存储器位扩展">存储扩展</button>
-                <button class="secondary-button demo-example" data-demo-prompt="演示 load-use 冒险">流水线冒险</button>
-                <button class="secondary-button demo-example" data-demo-prompt="演示 lw 指令的数据通路">数据通路</button>
-                <button class="secondary-button demo-example" data-demo-prompt="演示汇编程序逐步执行">汇编执行</button>
+                <button class="secondary-button demo-example" data-demo-target="architecture-flow-sim" data-demo-prompt="演示冯诺依曼体系信息流，请生成一个包含程序、数据、存储器、CPU 和 I/O 的合理例子和参数。">冯诺依曼体系</button>
+                <button class="secondary-button demo-example" data-demo-target="twos-sim" data-demo-prompt="演示 8 位补码加法溢出检测，请生成一个合理的加法例子和参数。">补码溢出</button>
+                <button class="secondary-button demo-example" data-demo-target="twos-sim" data-demo-prompt="演示浮点数加法和减法，请生成两个适合课堂演示的十进制浮点数、运算方式和参数。">浮点加法和减法</button>
+                <button class="secondary-button demo-example" data-demo-target="cache-sim" data-demo-prompt="演示 Cache 直接映射冲突，请生成一组会发生命中和冲突替换的访问地址。">Cache 直接映射</button>
+                <button class="secondary-button demo-example" data-demo-target="virtual-sim" data-demo-prompt="演示虚拟存储页面置换过程，请生成一串页面访问序列、页框数和替换算法参数。">虚存置换</button>
+                <button class="secondary-button demo-example" data-demo-target="addressing-mode-sim" data-demo-prompt="演示寻址方式有效地址 EA 计算，请生成立即、直接、间接或变址寻址中的一个合理例子和参数。">寻址方式 EA</button>
+                <button class="secondary-button demo-example" data-demo-target="cpu-cycle-sim" data-demo-prompt="演示一条 LOAD 指令的指令周期，请生成合理的寄存器、地址和中断检查参数。">指令周期</button>
+                <button class="secondary-button demo-example" data-demo-target="bus-arbitration-sim" data-demo-prompt="演示总线仲裁过程，请生成多个主设备同时请求总线的例子和仲裁参数。">总线仲裁</button>
+                <button class="secondary-button demo-example" data-demo-target="disk-access-sim" data-demo-prompt="演示磁盘访问时间计算，请生成当前柱面、目标柱面、转速和传输量参数。">磁盘访问</button>
+                <button class="secondary-button demo-example" data-demo-target="interrupt-io-sim" data-demo-prompt="演示程序中断响应过程，请生成一个外设发出中断请求、CPU 保存现场并转入 ISR 的合理例子和参数。">程序中断</button>
+                <button class="secondary-button demo-example" data-demo-target="dma-transfer-sim" data-demo-prompt="演示 DMA 传送过程，请生成传送字节数、总线周期和传送方式参数。">DMA 传送</button>
+                <button class="secondary-button demo-example" data-demo-target="pipeline-sim" data-demo-prompt="演示五级流水线 load-use 冒险，请生成一段合理的指令序列和转发参数。">五级流水线</button>
               </div>
               <div id="demoStatus" class="demo-status empty-state">当前支持：补码/定点、IEEE 754、Cache、虚拟存储、存储读写、存储扩展、流水线、CPU 数据通路、汇编解释。</div>
             </div>
@@ -601,7 +604,7 @@ lw x4, 0(x0)</textarea>
       </main>
     </div>
 
-    <script src="./src/core.js?v=20260705-sim-visual"></script>
-    <script src="./src/app.js?v=20260705-sim-visual"></script>
+    <script src="./src/core.js?v=20260706-raid-ssd-flow"></script>
+    <script src="./src/app.js?v=20260706-raid-ssd-flow"></script>
   </body>
 </html>
